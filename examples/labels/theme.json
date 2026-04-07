@@ -1,0 +1,27 @@
+{
+  "defaults": {
+    "text_fill": "lightgrey",
+    "background": "#2A363B",
+    "hide_size": true
+  },
+  "areas": {
+    "labels-view": {
+      "stroke": "grey",
+      "stroke_width": 1,
+      "weight": 1,
+      "text_fill": "lightgrey",
+      "stroke_dasharray": "1",
+      "sections": {
+        "ROM Table":    { "fill": "#99B898" },
+        "External PPB": { "fill": "#FECEA8", "text_fill": "grey" },
+        "ETM":          { "fill": "#FF847C" },
+        "TPIU":         { "fill": "#E84A5F" }
+      }
+    }
+  },
+  "labels": {
+    "stroke": "lightgrey",
+    "stroke_dasharray": "4,2",
+    "weight": 1
+  }
+}

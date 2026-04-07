@@ -1,0 +1,72 @@
+import json
+
+
+class Theme:
+    """
+    Loads and resolves visual styling from a theme.json file.
+
+    Style resolution order (later overrides earlier):
+      1. DEFAULT (built-in baseline)
+      2. theme["defaults"] (user global overrides)
+      3. theme["areas"][area_id] (area-level overrides, minus the 'sections' subkey)
+      4. theme["areas"][area_id]["sections"][section_id] (section-level overrides)
+
+    Call resolve(area_id, section_id) to get a merged flat style dict.
+    """
+
+    DEFAULT = {
+        "background": "white",
+        "fill": "lightgrey",
+        "stroke": "black",
+        "stroke_width": 1,
+        "stroke_dasharray": "3,2",
+        "font_size": 16,
+        "font_family": "Helvetica",
+        "text_fill": "black",
+        "text_stroke": "black",
+        "text_stroke_width": 0,
+        "opacity": 1,
+        "break_type": "≈",
+        "break_size": 20,
+        "growth_arrow_size": 1,
+        "growth_arrow_fill": "white",
+        "growth_arrow_stroke": "black",
+        "hide_size": "auto",
+        "hide_name": "auto",
+        "hide_address": "auto",
+        "weight": 2,
+    }
+
+    def __init__(self, path: str = None):
+        self._data = {}
+        if path:
+            with open(path, 'r', encoding='utf-8') as f:
+                self._data = json.load(f)
+
+    def _base(self) -> dict:
+        """Merge built-in defaults with theme-level defaults."""
+        return {**self.DEFAULT, **{k: v for k, v in self._data.get('defaults', {}).items()}}
+
+    def resolve(self, area_id: str, section_id: str = None) -> dict:
+        """
+        Resolve and return a merged style dict for the given area (and optionally section).
+        """
+        base = self._base()
+
+        area_data = self._data.get('areas', {}).get(area_id, {})
+        area_style = {k: v for k, v in area_data.items() if k != 'sections'}
+        merged = {**base, **area_style}
+
+        if section_id:
+            section_style = area_data.get('sections', {}).get(section_id, {})
+            merged = {**merged, **section_style}
+
+        return merged
+
+    def resolve_links(self) -> dict:
+        """Return merged style dict for links."""
+        return {**self._base(), **self._data.get('links', {})}
+
+    def resolve_labels(self) -> dict:
+        """Return merged style dict for labels."""
+        return {**self._base(), **self._data.get('labels', {})}

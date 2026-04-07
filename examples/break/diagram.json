@@ -1,0 +1,47 @@
+{
+  "size": [950, 570],
+  "sections": [
+    { "id": "SRAM Area",      "address": "0x20000000", "size": "0x20000000", "type": "area" },
+    { "id": "Peripheral",     "address": "0x40000000", "size": "0x20000000", "type": "area" },
+    { "id": "External RAM",   "address": "0x60000000", "size": "0x40000000", "type": "area" },
+    { "id": "External Device","address": "0xA0000000", "size": "0x40000000", "type": "area" }
+  ],
+  "areas": [
+    {
+      "id": "wave-view",
+      "title": "Wave",
+      "pos": [30, 50],
+      "size": [200, 500],
+      "sections": [
+        { "names": ["External RAM"], "flags": ["break"] }
+      ]
+    },
+    {
+      "id": "double-wave-view",
+      "title": "Double-wave",
+      "pos": [260, 50],
+      "size": [200, 500],
+      "sections": [
+        { "names": ["External RAM"], "flags": ["break"] }
+      ]
+    },
+    {
+      "id": "diagonal-view",
+      "title": "Diagonal",
+      "pos": [490, 50],
+      "size": [200, 500],
+      "sections": [
+        { "names": ["External RAM"], "flags": ["break"] }
+      ]
+    },
+    {
+      "id": "dots-view",
+      "title": "Dots",
+      "pos": [720, 50],
+      "size": [200, 500],
+      "sections": [
+        { "names": ["External RAM"], "flags": ["break"] }
+      ]
+    }
+  ]
+}

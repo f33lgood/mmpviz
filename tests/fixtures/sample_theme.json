@@ -1,0 +1,23 @@
+{
+  "defaults": {
+    "background": "#1a1a2e",
+    "fill": "#16213e",
+    "stroke": "#0f3460",
+    "stroke_width": 1,
+    "font_size": 14,
+    "text_fill": "#e94560"
+  },
+  "areas": {
+    "flash-view": {
+      "fill": "#08c6ab",
+      "background": "#212b38",
+      "text_fill": "white",
+      "sections": {
+        "text": { "fill": "#99B898" },
+        "rodata": { "fill": "#FECEA8" }
+      }
+    }
+  },
+  "links": { "stroke": "lightgray", "fill": "gray", "opacity": 0.4 },
+  "labels": { "stroke": "white", "stroke_dasharray": "4,2" }
+}

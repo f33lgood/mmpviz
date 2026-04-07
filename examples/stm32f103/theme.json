@@ -1,0 +1,69 @@
+{
+  "defaults": {
+    "text_fill": "white",
+    "break_size": 25,
+    "break_type": "≈",
+    "growth_arrow_size": 2,
+    "growth_arrow_fill": "white",
+    "growth_arrow_stroke": "black",
+    "background": "#212b38",
+    "fill": "#08c6ab",
+    "hide_size": true,
+    "stroke_width": 0,
+    "text_stroke": "black",
+    "text_stroke_width": 0.1,
+    "font_size": 12,
+    "font_family": "Helvetica"
+  },
+  "areas": {
+    "overview-view": {
+      "hide_size": true,
+      "sections": {
+        "none": { "hide_name": true, "fill": "#37465b" }
+      }
+    },
+    "flash-zoom-view": {
+      "hide_size": false,
+      "fill": "#4aefd7",
+      "sections": {
+        "Flash Memory": { "fill": "#726eff" }
+      }
+    },
+    "sysmem-zoom-view": {
+      "hide_size": false,
+      "sections": {
+        "System Memory": { "fill": "#4aefd7" }
+      }
+    },
+    "m3-periph-view": {
+      "hide_size": false
+    },
+    "apb-view": {
+      "sections": {
+        "Reserved1":  { "fill": "#37465b" },
+        "Reserved2":  { "fill": "#37465b" },
+        "Reserved3":  { "fill": "#37465b" },
+        "Reserved4":  { "fill": "#37465b" },
+        "Reserved5":  { "fill": "#37465b" },
+        "Reserved6":  { "fill": "#37465b" },
+        "Reserved7":  { "fill": "#37465b" },
+        "Reserved8":  { "fill": "#37465b" },
+        "Reserved9":  { "fill": "#37465b" },
+        "Reserved10": { "fill": "#37465b" },
+        "Reserved11": { "fill": "#37465b" },
+        "AFIO":   { "fill": "#726eff" },
+        "EXTI":   { "fill": "#726eff" },
+        "PORT A": { "fill": "#726eff" },
+        "PORT B": { "fill": "#726eff" },
+        "PORT C": { "fill": "#726eff" },
+        "PORT D": { "fill": "#726eff" },
+        "PORT E": { "fill": "#726eff" }
+      }
+    }
+  },
+  "links": {
+    "opacity": 0.2,
+    "fill": "#F6F6F6",
+    "stroke": "lightgrey"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "defaults": {
+    "hide_size": true,
+    "hide_address": true,
+    "growth_arrow_size": 2,
+    "stroke_width": 0,
+    "font_family": "Helvetica"
+  },
+  "areas": {
+    "full-view": {
+      "background": "#313b48",
+      "sections": {
+        "Text":               { "fill": "#47b39d" },
+        "Initialized data":   { "fill": "#ffc153" },
+        "Uninitialized data": { "fill": "#eb6b56" },
+        "Heap":               { "fill": "#b05f6d" },
+        "Stack":              { "fill": "#462446", "text_fill": "white" }
+      }
+    }
+  }
+}
