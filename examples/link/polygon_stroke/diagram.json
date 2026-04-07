@@ -1,0 +1,27 @@
+{
+  "size": [500, 500],
+  "sections": [
+    { "id": "Region A", "address": "0x0",     "size": "0x10000" },
+    { "id": "Region B", "address": "0x10000", "size": "0x10000" },
+    { "id": "Region C", "address": "0x20000", "size": "0x10000" }
+  ],
+  "areas": [
+    {
+      "id": "source",
+      "title": "Full View",
+      "pos": [50, 80],
+      "size": [130, 350],
+      "range": ["0x0", "0x30000"]
+    },
+    {
+      "id": "detail",
+      "title": "Region B (zoomed)",
+      "pos": [320, 155],
+      "size": [130, 200],
+      "range": ["0x10000", "0x20000"]
+    }
+  ],
+  "links": {
+    "sections": ["Region B"]
+  }
+}

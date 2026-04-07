@@ -34,8 +34,9 @@
     }
   },
   "links": {
-    "stroke": "lightgray",
-    "stroke_width": 1,
-    "fill": "gray"
+    "shape": "polygon",
+    "fill": "gray",
+    "stroke": "none",
+    "opacity": 0.5
   }
 }

@@ -78,12 +78,17 @@ def _local_tag(elem):
     return elem.tag.replace(f'{{{SVG_NS}}}', '')
 
 
+def _parse_path_nums(d_str):
+    """Extract all numbers from a SVG path data string."""
+    return [float(v) for v in re.findall(r'[+-]?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?', d_str)]
+
+
 def extract_geometry(root):
-    """Return (rects, texts, polylines) with absolute coordinates."""
+    """Return (rects, texts, polylines, paths) with absolute coordinates."""
     canvas_w = _fa(root.get('width'))
     canvas_h = _fa(root.get('height'))
 
-    rects, texts, polys = [], [], []
+    rects, texts, polys, paths = [], [], [], []
 
     for elem, ox, oy in _walk(root):
         t = _local_tag(elem)
@@ -113,7 +118,13 @@ def extract_geometry(root):
                    for px, py in _parse_points(elem.get('points', ''))]
             polys.append((pts, elem.get('fill', '').lower()))
 
-    return rects, texts, polys
+        elif t == 'path':
+            nums = _parse_path_nums(elem.get('d', ''))
+            paths.append((nums,
+                          elem.get('fill', '').lower(),
+                          elem.get('stroke', '').lower()))
+
+    return rects, texts, polys, paths
 
 
 def _close(a, b):
@@ -181,11 +192,11 @@ class GoldenTest(unittest.TestCase):
     def _compare(self, name, example_dir):
         golden_path = os.path.join(example_dir, 'golden.svg')
         golden_root = ET.parse(golden_path).getroot()
-        golden_rects, golden_texts, golden_polys = extract_geometry(golden_root)
+        golden_rects, golden_texts, golden_polys, golden_paths = extract_geometry(golden_root)
 
         fresh_svg = render_example(example_dir)
         fresh_root = ET.fromstring(fresh_svg)
-        fresh_rects, fresh_texts, fresh_polys = extract_geometry(fresh_root)
+        fresh_rects, fresh_texts, fresh_polys, fresh_paths = extract_geometry(fresh_root)
 
         def sort_rects(rs):
             return sorted(rs, key=lambda r: (round(r[1], 1), round(r[0], 1), r[4]))
@@ -244,6 +255,30 @@ class GoldenTest(unittest.TestCase):
                 f"[{name}] polyline #{i + 1} points mismatch\n"
                 f"  golden: {g[0]}\n  fresh:  {f[0]}")
 
+        # --- paths (section band links) ---
+        def sort_paths(ps):
+            return sorted(ps, key=lambda p: (round(p[0][0], 1) if p[0] else 0, p[1], p[2]))
+
+        gpa = sort_paths(golden_paths)
+        fpa = sort_paths(fresh_paths)
+        self.assertEqual(
+            len(gpa), len(fpa),
+            f"[{name}] path count: golden={len(gpa)} fresh={len(fpa)}")
+        for i, (g, f) in enumerate(zip(gpa, fpa)):
+            self.assertEqual(
+                g[1], f[1],
+                f"[{name}] path #{i + 1} fill: golden={g[1]} fresh={f[1]}")
+            self.assertEqual(
+                g[2], f[2],
+                f"[{name}] path #{i + 1} stroke: golden={g[2]} fresh={f[2]}")
+            self.assertEqual(
+                len(g[0]), len(f[0]),
+                f"[{name}] path #{i + 1} coordinate count: golden={len(g[0])} fresh={len(f[0])}")
+            for j, (gv, fv) in enumerate(zip(g[0], f[0])):
+                self.assertTrue(
+                    _close(gv, fv),
+                    f"[{name}] path #{i + 1} coord #{j}: golden={gv:.4f} fresh={fv:.4f}")
+
     def test_stack(self):
         self._run_named('stack')
 
@@ -253,8 +288,26 @@ class GoldenTest(unittest.TestCase):
     def test_labels(self):
         self._run_named('labels')
 
-    def test_link(self):
-        self._run_named('link')
+    def test_link_cortex_m3(self):
+        self._run_path('link', 'cortex_m3')
+
+    def test_link_polygon_fill(self):
+        self._run_path('link', 'polygon_fill')
+
+    def test_link_polygon_stroke(self):
+        self._run_path('link', 'polygon_stroke')
+
+    def test_link_polygon_stroke_dashed(self):
+        self._run_path('link', 'polygon_stroke_dashed')
+
+    def test_link_curve_fill(self):
+        self._run_path('link', 'curve_fill')
+
+    def test_link_curve_stroke(self):
+        self._run_path('link', 'curve_stroke')
+
+    def test_link_curve_stroke_dashed(self):
+        self._run_path('link', 'curve_stroke_dashed')
 
     def test_stm32f103(self):
         self._run_named('stm32f103')
@@ -265,6 +318,15 @@ class GoldenTest(unittest.TestCase):
                    for f in ('diagram.json', 'theme.json', 'golden.svg')):
             self.skipTest(f"example '{name}' is missing files")
         self._compare(name, d)
+
+    def _run_path(self, *rel_parts):
+        """Run a golden test for a nested example directory."""
+        d = os.path.join(EXAMPLES_DIR, *rel_parts)
+        label = '/'.join(rel_parts)
+        if not all(os.path.isfile(os.path.join(d, f))
+                   for f in ('diagram.json', 'theme.json', 'golden.svg')):
+            self.skipTest(f"example '{label}' is missing files")
+        self._compare(label, d)
 
 
 if __name__ == '__main__':

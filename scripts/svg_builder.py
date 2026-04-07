@@ -66,6 +66,14 @@ class SVGBuilder:
             elem.set(k, v)
         return elem
 
+    def path(self, d: str, **attrs) -> ET.Element:
+        """Create a <path> element. d is the SVG path data string."""
+        elem = ET.Element(_tag('path'))
+        elem.set('d', d)
+        for k, v in _to_svg_attrs(**attrs).items():
+            elem.set(k, v)
+        return elem
+
     def polyline(self, points: list, **attrs) -> ET.Element:
         """
         Create a <polyline> element.

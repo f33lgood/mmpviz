@@ -18,6 +18,7 @@ from logger import logger
 from renderer import MapRenderer
 from sections import Sections
 from theme import Theme
+from version import __version__
 
 
 def parse_arguments():
@@ -37,6 +38,9 @@ def parse_arguments():
                         help='Validate the diagram.json file and exit (no SVG generated)',
                         metavar='DIAGRAM_PATH',
                         default=None)
+    parser.add_argument('--version', '-v',
+                        action='version',
+                        version=f'mmpviz {__version__}')
     return parser.parse_args()
 
 

@@ -529,10 +529,38 @@ class MapRenderer:
         ly = left.pos_y + left.to_pixels_relative(address)
 
         rx = area_view.pos_x
-        rx2 = rx - 30
         ry = area_view.pos_y + area_view.to_pixels_relative(address)
 
-        return [(lx, ly), (lx2, ly), (rx2, ry), (rx, ry)]
+        # Outward jog only on the source (left) side; connect straight into the detail stack.
+        return [(lx, ly), (lx2, ly), (rx, ry)]
+
+    # Minimum visible band opening (pixels) at the source or detail side.
+    # Sections that are tiny relative to their stack would otherwise produce
+    # a sub-pixel sliver.  We expand both endpoints symmetrically around the
+    # midpoint so the band is always legible.
+    _MIN_BAND_OPENING_PX = 4
+
+    def _enforce_min_opening(self, pts_start, pts_end):
+        """Expand source-side and detail-side openings to _MIN_BAND_OPENING_PX."""
+        MIN = self._MIN_BAND_OPENING_PX
+        (lx, ly_s), (lx_j, _), (rx, ry_s) = pts_start
+        (_, ry_e), (lx_j2, _), (lx2, ly_e) = pts_end
+
+        # Source side: ly_s >= ly_e (start_address maps to lower SVG y than end_address)
+        if ly_s - ly_e < MIN:
+            mid = (ly_s + ly_e) / 2
+            ly_s, ly_e = mid + MIN / 2, mid - MIN / 2
+            pts_start = [(lx, ly_s), (lx_j, ly_s), (rx, ry_s)]
+            pts_end   = [(rx, ry_e), (lx_j2, ly_e), (lx2, ly_e)]
+
+        # Detail side: ry_s >= ry_e (same SVG convention)
+        if ry_s - ry_e < MIN:
+            mid = (ry_s + ry_e) / 2
+            ry_s, ry_e = mid + MIN / 2, mid - MIN / 2
+            pts_start = [(lx, ly_s), (lx_j, ly_s), (rx, ry_s)]
+            pts_end   = [(rx, ry_e), (lx_j2, ly_e), (lx2, ly_e)]
+
+        return pts_start, pts_end
 
     def _make_poly(self, area_view, start_address, end_address, style: dict) -> ET.Element:
         def find_subarea(address, area):
@@ -546,15 +574,66 @@ class MapRenderer:
 
         pts_start = self._get_points_for_address(start_address, start_sub)
         pts_end = list(reversed(self._get_points_for_address(end_address, end_sub)))
-        points = pts_start + pts_end
+        pts_start, pts_end = self._enforce_min_opening(pts_start, pts_end)
 
-        return self.svg.polyline(
-            points,
-            stroke=_s(style, 'stroke', 'black'),
-            stroke_width=_s(style, 'stroke_width', 1),
-            fill=_s(style, 'fill', 'gray'),
-            opacity=_s(style, 'opacity', 1),
-        )
+        shape = _s(style, 'shape', 'polygon')
+        fill = _s(style, 'fill', 'none')
+        stroke = _s(style, 'stroke', 'black')
+        stroke_width = _s(style, 'stroke_width', 1)
+        stroke_dasharray = _s(style, 'stroke_dasharray', None)
+        opacity = _s(style, 'opacity', 1)
+
+        has_fill = fill not in (None, 'none')
+        has_stroke = stroke not in (None, 'none')
+
+        g = self.svg.g()
+
+        if has_fill:
+            d = self._band_path_closed(pts_start, pts_end, shape)
+            g.append(self.svg.path(d, fill=fill, stroke='none', opacity=opacity))
+
+        if has_stroke:
+            top_d, bot_d = self._band_paths_open(pts_start, pts_end, shape)
+            g.append(self.svg.path(top_d, fill='none', stroke=stroke,
+                                   stroke_width=stroke_width,
+                                   stroke_dasharray=stroke_dasharray,
+                                   opacity=opacity))
+            g.append(self.svg.path(bot_d, fill='none', stroke=stroke,
+                                   stroke_width=stroke_width,
+                                   stroke_dasharray=stroke_dasharray,
+                                   opacity=opacity))
+
+        return g
+
+    def _band_path_closed(self, pts_start, pts_end, shape: str) -> str:
+        """SVG path data for a closed filled band (all edges, no stroke)."""
+        (lx, ly_t), (lx_j, _), (rx, ry_t) = pts_start
+        (_, ry_b), (lx_j2, _), (lx2, ly_b) = pts_end
+        mid_x = (lx_j + rx) / 2
+        if shape == 'curve':
+            return (f'M {lx},{ly_t} L {lx_j},{ly_t} '
+                    f'C {mid_x},{ly_t} {mid_x},{ry_t} {rx},{ry_t} '
+                    f'L {rx},{ry_b} '
+                    f'C {mid_x},{ry_b} {mid_x},{ly_b} {lx_j2},{ly_b} '
+                    f'L {lx2},{ly_b} Z')
+        else:  # polygon
+            return (f'M {lx},{ly_t} L {lx_j},{ly_t} L {rx},{ry_t} '
+                    f'L {rx},{ry_b} L {lx_j2},{ly_b} L {lx2},{ly_b} Z')
+
+    def _band_paths_open(self, pts_start, pts_end, shape: str):
+        """Two open SVG path data strings for top and bottom band edges (stroke-only)."""
+        (lx, ly_t), (lx_j, _), (rx, ry_t) = pts_start
+        (_, ry_b), (lx_j2, _), (lx2, ly_b) = pts_end
+        mid_x = (lx_j + rx) / 2
+        if shape == 'curve':
+            top = (f'M {lx},{ly_t} L {lx_j},{ly_t} '
+                   f'C {mid_x},{ly_t} {mid_x},{ry_t} {rx},{ry_t}')
+            bot = (f'M {lx2},{ly_b} L {lx_j2},{ly_b} '
+                   f'C {mid_x},{ly_b} {mid_x},{ry_b} {rx},{ry_b}')
+        else:  # polygon
+            top = f'M {lx},{ly_t} L {lx_j},{ly_t} L {rx},{ry_t}'
+            bot = f'M {lx2},{ly_b} L {lx_j2},{ly_b} L {rx},{ry_b}'
+        return top, bot
 
     def _make_link(self, address, style: dict) -> ET.Element:
         hlines = self.svg.g()

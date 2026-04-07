@@ -168,5 +168,138 @@ class TestRendererFromFixtures(unittest.TestCase):
         self.assertNotIn('ns0:', result)
 
 
+class TestRendererSectionBandStyles(unittest.TestCase):
+    """Tests for section band link shape and fill/stroke composability."""
+
+    def _render_two_area(self, link_style: dict) -> str:
+        """Render a two-area diagram with a section link using the given link style."""
+        s_source = make_section(0x0, 0x30000, 'all')
+        s_a = make_section(0x0, 0x10000, 'Region A', name='Region A')
+        s_b = make_section(0x10000, 0x10000, 'Region B', name='Region B')
+        s_c = make_section(0x20000, 0x10000, 'Region C', name='Region C')
+        style = default_style()
+
+        source = AreaView(
+            sections=Sections([s_a, s_b, s_c]),
+            style=style,
+            area_config={'id': 'source', 'title': 'Full', 'pos': [50, 80], 'size': [130, 350]},
+        )
+        detail = AreaView(
+            sections=Sections([s_b]),
+            style=style,
+            area_config={'id': 'detail', 'title': 'Zoomed', 'pos': [320, 155], 'size': [130, 200]},
+        )
+        links = Links(
+            links_config={'sections': ['Region B']},
+            style=link_style,
+        )
+        return MapRenderer(
+            area_views=[source, detail],
+            links=links,
+            style=style,
+            size=(500, 500),
+        ).draw()
+
+    def test_polygon_fill_only_produces_path_with_fill(self):
+        svg = self._render_two_area({'shape': 'polygon', 'fill': 'steelblue', 'stroke': 'none'})
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(svg)
+        ns = 'http://www.w3.org/2000/svg'
+        paths = root.findall(f'.//{{{ns}}}path')
+        filled = [p for p in paths if p.get('fill') not in (None, 'none')]
+        self.assertTrue(len(filled) >= 1, "Expected at least one filled path element")
+
+    def test_polygon_stroke_only_produces_two_open_paths(self):
+        svg = self._render_two_area({'shape': 'polygon', 'fill': 'none', 'stroke': 'navy'})
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(svg)
+        ns = 'http://www.w3.org/2000/svg'
+        paths = root.findall(f'.//{{{ns}}}path')
+        stroked = [p for p in paths if p.get('stroke') not in (None, 'none')]
+        # Two open paths: top edge + bottom edge
+        self.assertEqual(len(stroked), 2, f"Expected 2 stroked open paths, got {len(stroked)}")
+
+    def test_curve_fill_uses_bezier_in_path_d(self):
+        svg = self._render_two_area({'shape': 'curve', 'fill': 'teal', 'stroke': 'none'})
+        # Bézier curves use 'C' command in SVG path data
+        self.assertIn(' C ', svg)
+
+    def test_polygon_no_bezier(self):
+        svg = self._render_two_area({'shape': 'polygon', 'fill': 'teal', 'stroke': 'none'})
+        self.assertNotIn(' C ', svg)
+
+    def test_stroke_dasharray_propagated(self):
+        svg = self._render_two_area({
+            'shape': 'polygon', 'fill': 'none',
+            'stroke': 'gray', 'stroke_dasharray': '8,4',
+        })
+        self.assertIn('stroke-dasharray', svg)
+        self.assertIn('8,4', svg)
+
+    def test_both_fill_and_stroke_renders_three_paths(self):
+        # fill → 1 closed path; stroke → 2 open paths = 3 total
+        svg = self._render_two_area({'shape': 'polygon', 'fill': 'gray', 'stroke': 'black'})
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(svg)
+        ns = 'http://www.w3.org/2000/svg'
+        paths = root.findall(f'.//{{{ns}}}path')
+        band_paths = [p for p in paths if p.get('d', '').startswith('M ')]
+        self.assertEqual(len(band_paths), 3)
+
+    def test_minimum_opening_enforced_for_zero_range_section(self):
+        """A zero-size section must still produce a visible (>=4px) band opening."""
+        # Both start and end address are the same → degenerate case
+        s_a = make_section(0x0, 0x10000, 'Region A', name='Region A')
+        s_b = make_section(0x10000, 0x1, 'Region B', name='Region B')  # 1-byte section
+        s_c = make_section(0x10001, 0x10000, 'Region C', name='Region C')
+        style = default_style()
+        source = AreaView(
+            sections=Sections([s_a, s_b, s_c]),
+            style=style,
+            area_config={'id': 'source', 'title': 'Full', 'pos': [50, 80], 'size': [130, 350]},
+        )
+        detail = AreaView(
+            sections=Sections([s_b]),
+            style=style,
+            area_config={'id': 'detail', 'title': 'Zoomed', 'pos': [320, 155], 'size': [130, 200]},
+        )
+        links = Links(
+            links_config={'sections': ['Region B']},
+            style={'shape': 'polygon', 'fill': 'gray', 'stroke': 'none'},
+        )
+        result = MapRenderer(
+            area_views=[source, detail],
+            links=links,
+            style=style,
+            size=(500, 500),
+        ).draw()
+        # Should render without error and contain a path
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(result)
+        ns = 'http://www.w3.org/2000/svg'
+        paths = root.findall(f'.//{{{ns}}}path')
+        self.assertTrue(len(paths) >= 1)
+        # Verify band coordinates span at least MIN_BAND_OPENING_PX apart
+        from renderer import MapRenderer as MR
+        MIN = MR._MIN_BAND_OPENING_PX
+        d_str = paths[0].get('d', '')
+        import re
+        nums = [float(v) for v in re.findall(r'[+-]?\d+(?:\.\d+)?', d_str)]
+        # Path: M lx,ly_t L lx_j,ly_t L rx,ry_t L rx,ry_b L lx_j,ly_b L lx,ly_b Z
+        # ly_t is nums[1], ly_b is nums[11]
+        ly_t, ly_b = nums[1], nums[11]
+        self.assertGreaterEqual(abs(ly_t - ly_b), MIN - 0.01)
+
+    def test_no_link_style_defaults_to_stroke_only(self):
+        # Default: fill="none", stroke="black" → 2 open stroke paths
+        svg = self._render_two_area({})
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(svg)
+        ns = 'http://www.w3.org/2000/svg'
+        paths = root.findall(f'.//{{{ns}}}path')
+        stroked = [p for p in paths if p.get('stroke') not in (None, 'none')]
+        self.assertEqual(len(stroked), 2)
+
+
 if __name__ == '__main__':
     unittest.main()

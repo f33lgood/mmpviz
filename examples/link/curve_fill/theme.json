@@ -1,0 +1,15 @@
+{
+  "defaults": {
+    "fill": "#B8D4E8",
+    "stroke": "#4A7FA5",
+    "stroke_width": 1,
+    "text_fill": "#1a1a1a",
+    "background": "#FAFAFA"
+  },
+  "links": {
+    "shape": "curve",
+    "fill": "#4A7FA5",
+    "stroke": "none",
+    "opacity": 0.35
+  }
+}

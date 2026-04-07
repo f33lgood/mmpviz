@@ -82,6 +82,34 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 
 ---
 
+## `links` — Section Band Style
+
+The `links` block in `theme.json` controls the visual style of section band connectors drawn between the source stack and detail stacks. All properties are optional.
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `shape` | `"polygon"` \| `"curve"` | `"polygon"` | Band edge shape. `"polygon"` uses straight diagonal lines; `"curve"` uses cubic Bézier curves (Sankey style) |
+| `fill` | color string \| `"none"` | `"none"` | Fill color for the band interior. Set to a color for a filled band; `"none"` for stroke-only |
+| `stroke` | color string \| `"none"` | `"black"` | Stroke color for the top and bottom band edges. Set to `"none"` for fill-only |
+| `stroke_width` | number | `1` | Stroke thickness in pixels |
+| `stroke_dasharray` | string | *(none)* | SVG dash pattern for stroke edges, e.g. `"8,4"`. Omit for solid stroke |
+| `opacity` | number 0–1 | `1` | Overall opacity of the band |
+
+**Composing styles:** `fill` and `stroke` are independent. Setting both draws a filled closed band plus stroked top/bottom edges. The stroked edges are drawn as open paths (no right vertical) so they never overlap the detail stack's own border.
+
+**Six standard styles:**
+
+| Style | Config |
+|-------|--------|
+| Polygon, fill only | `"shape": "polygon", "fill": "<color>", "stroke": "none"` |
+| Polygon, solid stroke | `"shape": "polygon", "fill": "none", "stroke": "<color>"` |
+| Polygon, dashed stroke | `"shape": "polygon", "fill": "none", "stroke": "<color>", "stroke_dasharray": "8,4"` |
+| Curve, fill only | `"shape": "curve", "fill": "<color>", "stroke": "none"` |
+| Curve, solid stroke | `"shape": "curve", "fill": "none", "stroke": "<color>"` |
+| Curve, dashed stroke | `"shape": "curve", "fill": "none", "stroke": "<color>", "stroke_dasharray": "8,4"` |
+
+---
+
 ## Color Values
 
 Any valid SVG color string is accepted:

@@ -64,9 +64,16 @@ class Theme:
         return merged
 
     def resolve_links(self) -> dict:
-        """Return merged style dict for links."""
-        return {**self._base(), **self._data.get('links', {})}
+        """Return style dict for links.
+        Does not inherit section defaults — the renderer supplies its own fallbacks
+        for each link property via _s(), so merging _base() would cause section
+        properties like stroke_dasharray to bleed into link rendering unintentionally.
+        """
+        return dict(self._data.get('links', {}))
 
     def resolve_labels(self) -> dict:
-        """Return merged style dict for labels."""
+        """Return merged style dict for labels.
+        Labels inherit section defaults (text_fill, font_size, stroke, etc.)
+        since they share the same visual language as the diagram body.
+        """
         return {**self._base(), **self._data.get('labels', {})}

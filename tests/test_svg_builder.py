@@ -66,6 +66,18 @@ class TestSVGBuilderElements(unittest.TestCase):
         g = self.svg.g()
         self.assertEqual(g.tag, tag('g'))
 
+    def test_path_element(self):
+        d = 'M 0,0 L 100,0 L 100,100 Z'
+        p = self.svg.path(d, fill='blue', stroke='none')
+        self.assertEqual(p.tag, tag('path'))
+        self.assertEqual(p.get('d'), d)
+        self.assertEqual(p.get('fill'), 'blue')
+        self.assertEqual(p.get('stroke'), 'none')
+
+    def test_path_dasharray_kebab(self):
+        p = self.svg.path('M 0,0 L 10,10', stroke_dasharray='8,4')
+        self.assertEqual(p.get('stroke-dasharray'), '8,4')
+
     def test_none_attrs_omitted(self):
         r = self.svg.rect(0, 0, 10, 10, fill=None, stroke='black')
         self.assertIsNone(r.get('fill'))

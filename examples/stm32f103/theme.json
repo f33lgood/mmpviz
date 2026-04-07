@@ -62,8 +62,9 @@
     }
   },
   "links": {
-    "opacity": 0.2,
+    "shape": "polygon",
     "fill": "#F6F6F6",
-    "stroke": "lightgrey"
+    "stroke": "none",
+    "opacity": 0.2
   }
 }

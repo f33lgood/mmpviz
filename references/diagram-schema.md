@@ -89,7 +89,11 @@ Within an area, you can override the flags, address, size, or type for specific 
 | `addresses` | array | Hex strings or ints — draw horizontal connector lines at these addresses across areas |
 | `sections` | array | Pairs `["from_id", "to_id"]` or single strings — draw filled bands connecting matched sections |
 
-**Note:** Section links require both sections to be visible within the same pair of areas (left area + right area).
+**Design convention:** The first entry in `areas` is treated as the **source** (full/overview) stack and is always positioned on the left. All subsequent areas are **expanded/detail** stacks and are positioned to the right. Cross-area links (both address lines and section bands) always connect from the source stack outward to one of the detail stacks. Placing expanded views to the left of the source is not supported.
+
+**Note:** Section links require both sections to be visible within the same pair of areas (source area + detail area).
+
+Section band visual style is controlled in `theme.json` under `links`. See `theme-schema.md` for the full property list including `shape`, `fill`, `stroke`, and `stroke_dasharray`.
 
 ---
 
