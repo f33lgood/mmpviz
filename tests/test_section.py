@@ -51,32 +51,87 @@ class TestSectionVisibility(unittest.TestCase):
         s.style = style or {}
         return s
 
-    def test_auto_shows_when_large(self):
-        s = self._make(size_y=30, style={'hide_name': 'auto'})
-        self.assertFalse(s.is_name_hidden())
-
-    def test_auto_hides_when_small(self):
-        s = self._make(size_y=10, style={'hide_name': 'auto'})
-        self.assertTrue(s.is_name_hidden())
-
-    def test_boundary_exactly_20_hides(self):
-        # size_y < 20 hides; exactly 20 does not hide
-        s = self._make(size_y=19)
-        self.assertTrue(s.is_name_hidden())
-        s2 = self._make(size_y=20)
-        self.assertFalse(s2.is_name_hidden())
+    # --- explicit style overrides ---
 
     def test_explicit_true_hides(self):
         s = self._make(size_y=100, style={'hide_address': 'True'})
         self.assertTrue(s.is_address_hidden())
 
-    def test_explicit_false_shows(self):
-        s = self._make(size_y=5, style={'hide_size': 'False'})
+    def test_explicit_yes_hides(self):
+        s = self._make(size_y=100, style={'hide_name': 'yes'})
+        self.assertTrue(s.is_name_hidden())
+
+    def test_explicit_false_shows_when_large(self):
+        # Large section: geometry is fine, explicit false → shown
+        s = self._make(size_y=100, style={'hide_size': 'False'})
         self.assertFalse(s.is_size_hidden())
 
-    def test_missing_style_key_defaults_auto(self):
-        s = self._make(size_y=30, style={})
-        self.assertFalse(s.is_name_hidden())  # 30 >= 20 → shown
+    def test_explicit_no_shows_when_large(self):
+        s = self._make(size_y=100, style={'hide_size': 'no'})
+        self.assertFalse(s.is_size_hidden())
+
+    def test_end_address_shown_by_default(self):
+        s = self._make(size_y=40)
+        self.assertFalse(s.is_end_address_hidden())
+
+    def test_end_address_explicit_hide(self):
+        s = self._make(size_y=40, style={'hide_end_address': 'true'})
+        self.assertTrue(s.is_end_address_hidden())
+
+    def test_auto_treated_as_shown_for_large_section(self):
+        # 'auto' is not a special value; treated as False (shown) when geometry allows
+        s = self._make(size_y=100, style={'hide_name': 'auto'})
+        self.assertFalse(s.is_name_hidden())
+
+    # --- geometry auto-fix: name ---
+
+    def test_name_auto_hidden_when_overflows(self):
+        # size_y < font_size → name would visually overflow
+        s = self._make(size_y=10, style={'font_size': 16})
+        self.assertTrue(s.is_name_hidden())
+
+    def test_name_shown_when_fits(self):
+        s = self._make(size_y=20, style={'font_size': 16})
+        self.assertFalse(s.is_name_hidden())
+
+    def test_name_size_y_zero_not_auto_hidden(self):
+        # size_y == 0 means geometry not yet computed; should not auto-hide
+        s = self._make(size_y=0, style={'font_size': 16})
+        self.assertFalse(s.is_name_hidden())
+
+    # --- geometry auto-fix: size label ---
+
+    def test_size_auto_hidden_when_section_too_short(self):
+        # size_y < 12 (size label font) → size label cannot fit
+        s = self._make(size_y=8, style={'font_size': 16})
+        self.assertTrue(s.is_size_hidden())
+
+    def test_size_auto_hidden_when_overlaps_name(self):
+        # size_y < font_size + 28 triggers overlap; name is shown (size_y >= font_size)
+        # font_size=12 → threshold = 12 + 28 = 40
+        s = self._make(size_y=30, style={'font_size': 12})
+        self.assertFalse(s.is_name_hidden())   # 30 >= 12, name shown
+        self.assertTrue(s.is_size_hidden())    # name_top=9 < 14 → size hidden
+
+    def test_size_shown_when_sufficient_height(self):
+        # size_y >= font_size + 28 → no overlap
+        # font_size=12 → need size_y >= 40
+        s = self._make(size_y=42, style={'font_size': 12})
+        self.assertFalse(s.is_name_hidden())
+        self.assertFalse(s.is_size_hidden())
+
+    def test_size_not_auto_hidden_if_name_hidden(self):
+        # If name is explicitly hidden, size-name overlap check is skipped;
+        # size label can show as long as section is tall enough for it.
+        s = self._make(size_y=20, style={'hide_name': 'true', 'font_size': 12})
+        self.assertTrue(s.is_name_hidden())
+        self.assertFalse(s.is_size_hidden())  # no overlap concern; 20 >= 12
+
+    def test_address_not_auto_hidden_by_geometry(self):
+        # Address / end-address labels have no geometry auto-fix
+        s = self._make(size_y=1, style={})
+        self.assertFalse(s.is_address_hidden())
+        self.assertFalse(s.is_end_address_hidden())
 
 
 class TestSectionProperties(unittest.TestCase):

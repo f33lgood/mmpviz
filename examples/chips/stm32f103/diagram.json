@@ -1,5 +1,5 @@
 {
-  "size": [1100, 1200],
+  "size": [1100, 1750],
   "sections": [
     { "id": "Aliased",      "address": "0x00000000", "size": "0x08000000", "type": "area" },
     { "id": "Flash Memory", "address": "0x08000000", "size": "0x00020000", "type": "area" },
@@ -77,9 +77,9 @@
       "id": "overview-view",
       "title": "STM32F103 Memory Space",
       "pos": [60, 50],
-      "size": [200, 1100],
+      "size": [200, 1620],
       "range": ["0x0", "0x100000000"],
-      "section_size": [65535, null],
+      "section_size": [1048576, null],
       "sections": [
         { "names": ["OvBreakCode", "OvBreakExternal", "OvBreakVendor"], "flags": ["break"] },
         { "names": ["none", "ApbEndBus"], "flags": ["hidden"] }
@@ -110,7 +110,7 @@
       "id": "apb-view",
       "title": "APB Memory Space",
       "pos": [780, 50],
-      "size": [230, 1100],
+      "size": [230, 1620],
       "range": ["0x40000000", "0x60000000"],
       "sections": [
         {

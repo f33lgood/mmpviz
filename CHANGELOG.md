@@ -96,6 +96,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Size labels now show in human-readable binary units** (`32 KiB`, `256 MiB`, `4 GiB`)
+  instead of raw hex (`0x8000`). The `format_size()` helper in `helpers.py` performs the
+  conversion; fractional values are rounded to one decimal place (e.g. `1.5 KiB`).
+
+- **`hide_size` default changed from `"auto"` to `false`** — size labels are now shown by
+  default for all sections. Set `hide_size: "auto"` to hide them when a section is shorter
+  than 20 px, or `hide_size: true` to suppress them entirely. Chip examples updated from
+  `hide_size: true` to `hide_size: "auto"` so sizes appear for any section large enough to
+  hold a label.
+
+- **`area`-type break sections render as plain boxes.** A section with `"type": "area"` in
+  the global `sections` array that is also assigned the `"break"` flag now renders as a
+  filled box (same as a regular section), showing its name and size label. Only sections
+  with the default `"type": "section"` use the gap-indicator pattern (≈ wave, dots, etc.).
+  This allows large real memory regions (e.g. a peripheral cluster) to appear visually
+  meaningful in an overview panel while still being height-compressed by the break
+  mechanism.
+
 - Default link style changed from implicit gray fill to **stroke-only** (`fill: none`).
   Themes that relied on the previous implicit fill should add `"fill": "gray"` to
   their `links` block.

@@ -100,7 +100,7 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `hide_size` | `"auto"` / `true` / `false` | `"auto"` | Hide size label. `"auto"` hides when section height < 20px |
+| `hide_size` | `"auto"` / `true` / `false` | `false` | Hide size label. `false` always shows it; `"auto"` hides when section height < 20 px; `true` always hides it |
 | `hide_name` | `"auto"` / `true` / `false` | `"auto"` | Hide name label |
 | `hide_address` | `"auto"` / `true` / `false` | `"auto"` | Hide start address label |
 | `hide_end_address` | `"auto"` / `true` / `false` | `true` | Hide end address label. Default is `true` (hidden). Set to `"auto"` to show whenever section height ≥ 20px |
@@ -202,7 +202,6 @@ Any valid SVG color string is accepted:
     "growth_arrow_size": 1,
     "growth_arrow_fill": "#e94560",
     "growth_arrow_stroke": "#e94560",
-    "hide_size": "auto",
     "hide_name": "auto",
     "hide_address": "auto"
   },

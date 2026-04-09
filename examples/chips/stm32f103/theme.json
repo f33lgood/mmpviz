@@ -11,17 +11,16 @@
     "font_family": "Helvetica",
     "break_size": 25,
     "break_type": "≈",
-    "hide_size": "auto",
-    "hide_name": "auto",
-    "hide_address": "auto",
-    "hide_end_address": "auto",
+    "hide_size": "false",
+    "hide_name": "false",
+    "hide_address": "false",
+    "hide_end_address": "false",
     "min_section_height": 14,
     "max_section_height": 200
   },
   "areas": {
     "overview-view": {
-      "hide_size": "auto",
-      "min_section_height": null,
+      "min_section_height": 42,
       "max_section_height": null,
       "sections": {
         "none":           { "fill": "#d8dde4", "stroke": "#9aacb8" },
@@ -51,6 +50,7 @@
       }
     },
     "apb-view": {
+      "min_section_height": 40,
       "sections": {
         "Reserved1":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
         "Reserved2":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },

@@ -2,21 +2,22 @@
 """
 check.py — Post-generation rule checker for mmpviz diagrams.
 
-Validates diagram.json + theme.json against layout and display rules without
-producing SVG output.  Designed to catch issues that only become visible after
-rendering, such as section text overflow, forced labels on sections that are too
-small to show them, proportional-fallback violations, out-of-canvas panels, and
+Validates diagram.json + theme.json against layout rules without producing SVG
+output.  Catches issues that only become visible after rendering: proportional-
+fallback violations, out-of-canvas panels, panel or label collisions, and
 over-wide link bands.
+
+Note: name/size label geometry issues (text overflow, size-name overlap) are
+handled automatically by the renderer and are not reported here.
 
 Exit codes:
   0  — no issues found
-  1  — one or more ERRORs (diagram is broken)
-  2  — warnings only (diagram renders, but quality problems detected)
+  1  — one or more issues detected
 
 Usage:
   python3 scripts/check.py -d diagram.json -t theme.json
   python3 scripts/check.py -d diagram.json -t theme.json --format json
-  python3 scripts/check.py -d diagram.json -t theme.json --rules text-overflow,band-too-wide
+  python3 scripts/check.py -d diagram.json -t theme.json --rules band-too-wide,label-overlap
 """
 
 import argparse
@@ -45,9 +46,8 @@ from mmpviz import get_area_views, _auto_layout
 class Issue:
     """A single check finding."""
 
-    def __init__(self, level: str, rule: str, area_id: str,
+    def __init__(self, rule: str, area_id: str,
                  section_id: str | None, message: str):
-        self.level = level          # 'ERROR' or 'WARN'
         self.rule = rule
         self.area_id = area_id
         self.section_id = section_id
@@ -55,11 +55,10 @@ class Issue:
 
     def __str__(self) -> str:
         loc = f"{self.area_id}/{self.section_id}" if self.section_id else self.area_id
-        return f"[{self.level}] {self.rule} in {loc}: {self.message}"
+        return f"{self.rule} in {loc}: {self.message}"
 
     def to_dict(self) -> dict:
         return {
-            "level": self.level,
             "rule": self.rule,
             "area": self.area_id,
             "section": self.section_id,
@@ -97,69 +96,6 @@ def _populate_section_heights(area_views: list) -> list:
 # Individual rule checkers
 # ---------------------------------------------------------------------------
 
-def _check_text_overflow(area_id: str, section, _sub) -> list[Issue]:
-    """
-    Name is visible but section height is smaller than the font size, so the
-    label overflows the section box.
-
-    Triggered when:
-      - hide_name resolves to False (forced or auto-show), AND
-      - size_y < font_size
-    """
-    if section.is_break():
-        return []
-    if section.is_name_hidden():
-        return []
-    font_size = section.style.get('font_size', 16)
-    try:
-        font_size = float(font_size)
-    except (TypeError, ValueError):
-        return []
-    if section.size_y < font_size:
-        return [Issue(
-            'WARN', 'text-overflow', area_id, section.id,
-            f"height {section.size_y:.1f} px < font_size {font_size:.0f} px "
-            f"— name label will overflow the section box",
-        )]
-    return []
-
-
-def _check_addr_auto_hidden(area_id: str, section, _sub) -> list[Issue]:
-    """
-    The name is forced visible (hide_name: false) but the address or end-address
-    visibility is left on 'auto'.  Because size_y < 20 px, the auto-hide threshold
-    suppresses the address labels even though a forced name implies the designer
-    intended the section to be fully labelled.
-
-    Suggests adding  hide_address: false  and/or  hide_end_address: false.
-    """
-    if section.is_break():
-        return []
-    AUTO_THRESHOLD = 20
-    hide_name_val = str(section.style.get('hide_name', 'auto')).lower()
-    if hide_name_val not in ('false', 'no'):
-        return []
-    if section.size_y >= AUTO_THRESHOLD:
-        return []  # auto-hide won't trigger; no inconsistency
-
-    issues = []
-    hide_addr_val = str(section.style.get('hide_address', 'auto')).lower()
-    if hide_addr_val == 'auto':
-        issues.append(Issue(
-            'WARN', 'addr-auto-hidden', area_id, section.id,
-            f"hide_name=false but hide_address=auto and height {section.size_y:.1f} px < {AUTO_THRESHOLD} px "
-            f"— start address will be suppressed; set hide_address: false to match",
-        ))
-    hide_end_val = str(section.style.get('hide_end_address', 'auto')).lower()
-    if hide_end_val == 'auto':
-        issues.append(Issue(
-            'WARN', 'addr-auto-hidden', area_id, section.id,
-            f"hide_name=false but hide_end_address=auto and height {section.size_y:.1f} px < {AUTO_THRESHOLD} px "
-            f"— end address will be suppressed; set hide_end_address: false to match",
-        ))
-    return issues
-
-
 def _check_min_height_violated(area_id: str, section, sub) -> list[Issue]:
     """
     Section height is below min_section_height.
@@ -180,7 +116,7 @@ def _check_min_height_violated(area_id: str, section, sub) -> list[Issue]:
         return []
     if section.size_y < min_h - 1e-6:
         return [Issue(
-            'WARN', 'min-height-violated', area_id, section.id,
+            'min-height-violated', area_id, section.id,
             f"height {section.size_y:.1f} px < min_section_height {min_h:.0f} px "
             f"— proportional fallback likely triggered; increase panel height or "
             f"raise max_section_height in the area theme",
@@ -196,12 +132,12 @@ def _check_out_of_canvas(area_views: list, canvas_w: float, canvas_h: float) -> 
         bottom = area.pos_y + area.size_y
         if right > canvas_w:
             issues.append(Issue(
-                'ERROR', 'out-of-canvas', area.area_id, None,
+                'out-of-canvas', area.area_id, None,
                 f"right edge {right:.0f} px exceeds canvas width {canvas_w:.0f} px",
             ))
         if bottom > canvas_h:
             issues.append(Issue(
-                'ERROR', 'out-of-canvas', area.area_id, None,
+                'out-of-canvas', area.area_id, None,
                 f"bottom edge {bottom:.0f} px exceeds canvas height {canvas_h:.0f} px",
             ))
     return issues
@@ -240,7 +176,7 @@ def _check_band_too_wide(area_views: list, raw_sections: list,
                 span = area.pos_x - source_right
                 if span > 600:
                     issues.append(Issue(
-                        'WARN', 'band-too-wide', area.area_id, section_id,
+                        'band-too-wide', area.area_id, section_id,
                         f"link band span {span:.0f} px > 600 px guideline "
                         f"— consider increasing link opacity to 0.3–0.4",
                     ))
@@ -248,7 +184,7 @@ def _check_band_too_wide(area_views: list, raw_sections: list,
                     # Only warn for nearest-column violations (first non-source area)
                     if area is area_views[1]:
                         issues.append(Issue(
-                            'WARN', 'band-too-wide', area.area_id, section_id,
+                            'band-too-wide', area.area_id, section_id,
                             f"nearest-column link band span {span:.0f} px > 200 px "
                             f"— ideal is ≤ 200 px for the closest panel",
                         ))
@@ -267,14 +203,21 @@ _TITLE_CLEARANCE_PX = 25
 
 # Address labels ("0x00000000") are placed at panel_right + label_offset
 # (section.py label_offset = 10) with anchor 'start'.
-# Width estimate: 10 chars × font_size × Helvetica width ratio 0.6.
-_ADDR_LABEL_H_OFFSET = 10     # section.py label_offset
-_ADDR_LABEL_CHARS    = 10     # len("0x00000000")
-_HELVETICA_W_RATIO   = 0.6    # character width / font-size for Helvetica
+# Width estimate: N chars × font_size × Helvetica width ratio 0.6.
+_ADDR_LABEL_H_OFFSET       = 10    # section.py label_offset
+_ADDR_LABEL_CHARS          = 10    # len("0x00000000")  — 32-bit
+_ADDR_LABEL_CHARS_64       = 18    # len("0x0000000000000000")  — 64-bit
+_ADDR_64BIT_THRESHOLD      = 0xFFFF_FFFF   # addresses above this need >8 hex digits
+_ADDR_64BIT_EXTRA_CLEARANCE = 20   # extra px so the label is clearly associated with its panel
+_HELVETICA_W_RATIO         = 0.6   # character width / font-size for Helvetica
 
 
 def _addr_label_width(font_size: float) -> float:
     return _ADDR_LABEL_CHARS * font_size * _HELVETICA_W_RATIO
+
+
+def _addr_label_width_64(font_size: float) -> float:
+    return _ADDR_LABEL_CHARS_64 * font_size * _HELVETICA_W_RATIO
 
 
 # ---------------------------------------------------------------------------
@@ -295,7 +238,7 @@ def _check_panel_overlap(area_views: list) -> list[Issue]:
             v = a.pos_y < b.pos_y + b.size_y and a.pos_y + a.size_y > b.pos_y
             if h and v:
                 issues.append(Issue(
-                    'ERROR', 'panel-overlap', a.area_id, None,
+                    'panel-overlap', a.area_id, None,
                     f"panel [{a.pos_x},{a.pos_y} {a.size_x}×{a.size_y}] physically overlaps "
                     f"'{b.area_id}' [{b.pos_x},{b.pos_y} {b.size_x}×{b.size_y}]"
                     f" — adjust pos or size in diagram.json",
@@ -327,7 +270,7 @@ def _check_title_overlap(area_views: list) -> list[Issue]:
                 continue
             overlap = b_bottom - a_title_top
             issues.append(Issue(
-                'WARN', 'title-overlap', a.area_id, None,
+                'title-overlap', a.area_id, None,
                 f"title of '{a.area_id}' (needs y≥{a_title_top:.0f}) overlaps bottom of "
                 f"'{b.area_id}' (y={b_bottom:.0f}) by {overlap:.0f} px "
                 f"— increase vertical gap to at least {_TITLE_CLEARANCE_PX} px",
@@ -335,20 +278,46 @@ def _check_title_overlap(area_views: list) -> list[Issue]:
     return issues
 
 
+def _addr_label_chars_for_area(area) -> int:
+    """
+    Return the number of characters in the widest address label this panel renders.
+
+    Returns 0 if no visible section in the panel has any address label shown
+    (the area does not contribute to column-gap requirements).
+    Returns _ADDR_LABEL_CHARS_64 (18) if any visible, labelled section exceeds
+    _ADDR_64BIT_THRESHOLD; otherwise returns _ADDR_LABEL_CHARS (10).
+    """
+    found_any = False
+    for sub in area.get_split_area_views():
+        for section in sub.sections.get_sections():
+            if section.is_hidden() or section.is_break():
+                continue
+            if section.is_address_hidden() and section.is_end_address_hidden():
+                continue
+            found_any = True
+            if max(section.address, section.address + section.size) > _ADDR_64BIT_THRESHOLD:
+                return _ADDR_LABEL_CHARS_64
+    return _ADDR_LABEL_CHARS if found_any else 0
+
+
 def _check_label_overlap(area_views: list) -> list[Issue]:
     """
     Estimated address-label right extent of one panel overlaps the left edge
     of the panel to its right.
 
-    Address labels are drawn starting at panel_right + _ADDR_LABEL_H_OFFSET
-    with text-anchor 'start'.  Width is estimated from font_size and character
-    count.  Only checked when the two panels share a vertical range so that
-    a label at that height could actually reach the neighbouring panel.
+    Panels with no visible address labels are skipped entirely.
+    Width is estimated from font_size and the actual number of hex characters
+    needed for this panel's addresses (10 for 32-bit, 18 for 64-bit).
+    Only checked when the two panels share a vertical range so that a label
+    at that height could actually reach the neighbouring panel.
     """
     issues = []
     for a in area_views:
+        chars = _addr_label_chars_for_area(a)
+        if chars == 0:
+            continue  # no address labels rendered for this panel
         font_size   = float(a.style.get('font_size', 12))
-        label_w     = _addr_label_width(font_size)
+        label_w     = chars * font_size * _HELVETICA_W_RATIO
         a_right     = a.pos_x + a.size_x
         a_label_ext = a_right + _ADDR_LABEL_H_OFFSET + label_w
 
@@ -362,12 +331,79 @@ def _check_label_overlap(area_views: list) -> list[Issue]:
                 gap    = b.pos_x - a_right
                 needed = int(_ADDR_LABEL_H_OFFSET + label_w)
                 issues.append(Issue(
-                    'WARN', 'label-overlap', a.area_id, None,
+                    'label-overlap', a.area_id, None,
                     f"address labels of '{a.area_id}' extend to ~{a_label_ext:.0f} px but "
                     f"'{b.area_id}' starts at {b.pos_x} px "
-                    f"(gap {gap:.0f} px < {needed} px needed at font_size={font_size:.0f})"
+                    f"(gap {gap:.0f} px < {needed} px needed: "
+                    f"{chars}-char label at font_size={font_size:.0f})"
                     f" — widen horizontal gap or move panels apart",
                 ))
+    return issues
+
+
+def _check_addr_64bit_column_width(area_views: list) -> list[Issue]:
+    """
+    The horizontal gap between adjacent panels is too narrow to show 64-bit
+    address labels (18 characters: "0x" + 16 hex digits) with the required
+    extra clearance that visually ties each label to its own panel.
+
+    Only triggered when at least one visible, non-break section in the panel
+    has an address or end-address that exceeds the 32-bit range (> 0xFFFFFFFF),
+    causing the renderer to emit a label wider than the 10-char 32-bit format.
+
+    Required gap = label_offset + 18-char label width + extra clearance.
+    """
+    issues = []
+    sorted_areas = sorted(area_views, key=lambda a: a.pos_x)
+
+    for i, area in enumerate(sorted_areas):
+        # Find the nearest panel to the right that shares a vertical range.
+        right_area = None
+        for b in sorted_areas[i + 1:]:
+            if b.pos_x <= area.pos_x + area.size_x:
+                continue  # not actually to the right
+            if area.pos_y >= b.pos_y + b.size_y or area.pos_y + area.size_y <= b.pos_y:
+                continue  # no vertical overlap — labels at this height can't reach b
+            right_area = b
+            break
+
+        if right_area is None:
+            continue
+
+        gap = right_area.pos_x - (area.pos_x + area.size_x)
+        font_size = float(area.style.get('font_size', 12))
+
+        # Check if any visible section with a visible address label needs 64-bit display.
+        needs_64bit = False
+        for sub in area.get_split_area_views():
+            for section in sub.sections.get_sections():
+                if section.is_hidden() or section.is_break():
+                    continue
+                if section.is_address_hidden() and section.is_end_address_hidden():
+                    continue
+                if max(section.address, section.address + section.size - 1) > _ADDR_64BIT_THRESHOLD:
+                    needs_64bit = True
+                    break
+            if needs_64bit:
+                break
+
+        if not needs_64bit:
+            continue
+
+        needed = (_ADDR_LABEL_H_OFFSET
+                  + _addr_label_width_64(font_size)
+                  + _ADDR_64BIT_EXTRA_CLEARANCE)
+
+        if gap < needed:
+            issues.append(Issue(
+                'addr-64bit-column-width', area.area_id, None,
+                f"column gap to '{right_area.area_id}' is {gap:.0f} px but "
+                f"64-bit address labels need ~{needed:.0f} px "
+                f"({_ADDR_LABEL_H_OFFSET} px offset + {_ADDR_LABEL_CHARS_64}-char label "
+                f"+ {_ADDR_64BIT_EXTRA_CLEARANCE} px clearance at font_size={font_size:.0f}) "
+                f"— widen the gap or move '{right_area.area_id}' further right",
+            ))
+
     return issues
 
 
@@ -387,7 +423,7 @@ def _check_unresolved_link_sections(area_views: list, raw_sections: list,
         section_id = entry if isinstance(entry, str) else entry[0]
         if section_id not in area_section_ids:
             issues.append(Issue(
-                'ERROR', 'unresolved-section', 'links', section_id,
+                'unresolved-section', 'links', section_id,
                 f"'{section_id}' not found in any area after filtering",
             ))
     return issues
@@ -398,8 +434,6 @@ def _check_unresolved_link_sections(area_views: list, raw_sections: list,
 # ---------------------------------------------------------------------------
 
 ALL_RULES = {
-    'text-overflow',
-    'addr-auto-hidden',
     'min-height-violated',
     'out-of-canvas',
     'band-too-wide',
@@ -407,11 +441,10 @@ ALL_RULES = {
     'panel-overlap',
     'title-overlap',
     'label-overlap',
+    'addr-64bit-column-width',
 }
 
 PER_SECTION_RULES = [
-    _check_text_overflow,
-    _check_addr_auto_hidden,
     _check_min_height_violated,
 ]
 
@@ -435,6 +468,7 @@ def run_checks(diagram: dict, raw_sections: list, area_views: list,
     issues.extend(_check_panel_overlap(area_views))
     issues.extend(_check_title_overlap(area_views))
     issues.extend(_check_label_overlap(area_views))
+    issues.extend(_check_addr_64bit_column_width(area_views))
 
     # Link rules
     issues.extend(_check_band_too_wide(area_views, raw_sections, links_config))
@@ -505,15 +539,7 @@ def main():
             for issue in issues:
                 print(issue)
 
-    has_errors = any(i.level == 'ERROR' for i in issues)
-    has_warnings = any(i.level == 'WARN' for i in issues)
-
-    if has_errors:
-        sys.exit(1)
-    elif has_warnings:
-        sys.exit(2)
-    else:
-        sys.exit(0)
+    sys.exit(1 if issues else 0)
 
 
 if __name__ == '__main__':

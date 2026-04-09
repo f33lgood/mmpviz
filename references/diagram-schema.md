@@ -44,7 +44,7 @@ Each entry in `sections` describes one contiguous memory region.
 |------|--------|
 | `"grows-up"` | Draws an upward growth arrow on this section |
 | `"grows-down"` | Draws a downward growth arrow on this section |
-| `"break"` | Renders as a compressed break (≈ pattern by default) instead of a normal box |
+| `"break"` | Renders as a compressed break instead of a proportionally-sized box. Gap indicator sections (type `"section"`) use the `break_type` pattern (≈ by default). Sections with `type: "area"` render as a plain filled box even when flagged as break, showing their name and size label as normal — this lets large area-type sections be visually compressed without looking like empty gaps. |
 | `"hidden"` | Section is loaded but not rendered |
 
 ---
