@@ -9,7 +9,6 @@
     "text_fill": "#1a2c3d",
     "text_stroke": "none",
     "text_stroke_width": 0,
-    "break_type": "≈",
     "break_size": 20,
     "min_section_height": 20,
     "max_section_height": 300,

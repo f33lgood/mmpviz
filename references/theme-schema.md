@@ -109,7 +109,6 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `break_type` | string | `"≈"` | Break pattern style: `"≈"` (double wave), `"~"` (wave), `"/"` (diagonal), `"..."` (dots) |
 | `break_size` | number | `20` | Height in pixels of a break section |
 | `break_fill` | color string | *(same as `fill`)* | Background fill of a break-section box. Useful for giving break sections a distinct muted color without changing the normal section fill. Falls back to `fill` when unset. |
 
@@ -197,7 +196,6 @@ Any valid SVG color string is accepted:
     "text_fill": "#a8dadc",
     "text_stroke_width": 0,
     "opacity": 1,
-    "break_type": "≈",
     "break_size": 24,
     "growth_arrow_size": 1,
     "growth_arrow_fill": "#e94560",

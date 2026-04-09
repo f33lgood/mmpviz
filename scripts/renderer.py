@@ -1,4 +1,3 @@
-from math import cos
 import xml.etree.ElementTree as ET
 
 from helpers import DefaultAppValues, format_size
@@ -146,20 +145,15 @@ class MapRenderer:
                 area_view.end_address - section.size - section.address)
         section.pos_x = 0
 
-        if section.is_break() and section.type != 'area':
-            group.append(self._make_break(section))
-            if not section.is_name_hidden():
-                group.append(self._make_name(section))
-        else:
-            group.append(self._make_box(section))
-            if not section.is_name_hidden():
-                group.append(self._make_name(section))
-            if not section.is_address_hidden():
-                group.append(self._make_address(section))
-            if not section.is_end_address_hidden():
-                group.append(self._make_end_address(section))
-            if not section.is_size_hidden():
-                group.append(self._make_size_label(section))
+        group.append(self._make_box(section))
+        if not section.is_name_hidden():
+            group.append(self._make_name(section))
+        if not section.is_address_hidden():
+            group.append(self._make_address(section))
+        if not section.is_end_address_hidden():
+            group.append(self._make_end_address(section))
+        if not section.is_size_hidden():
+            group.append(self._make_size_label(section))
 
         return group
 
@@ -172,132 +166,14 @@ class MapRenderer:
 
     def _make_box(self, section: Section) -> ET.Element:
         style = section.style
+        if section.is_break():
+            fill = _s(style, 'break_fill', _s(style, 'fill', 'lightgrey'))
+        else:
+            fill = _s(style, 'fill', 'lightgrey')
         return self.svg.rect(section.pos_x, section.pos_y, section.size_x, section.size_y,
-                             fill=_s(style, 'fill', 'lightgrey'),
+                             fill=fill,
                              stroke=_s(style, 'stroke', 'black'),
                              stroke_width=_s(style, 'stroke_width', 1))
-
-    # ------------------------------------------------------------------
-    # Break rendering
-    # ------------------------------------------------------------------
-
-    def _make_break(self, section: Section) -> ET.Element:
-        style = section.style
-        group = self.svg.g()
-        mid_x = (section.pos_x + section.size_x) / 2
-        mid_y = (section.pos_y + section.size_y) / 2
-        break_type = _s(style, 'break_type', '≈')
-
-        if break_type == '/':
-            return self._make_break_diagonal(section, group, style)
-        elif break_type == '≈':
-            return self._make_break_double_wave(section, group, style, mid_x, mid_y)
-        elif break_type == '~':
-            return self._make_break_wave(section, group, style, mid_y)
-        else:  # '...'
-            return self._make_break_dots(section, group, style, mid_x, mid_y)
-
-    def _make_break_dots(self, section, group, style, mid_x, mid_y) -> ET.Element:
-        bf = _s(style, 'break_fill', _s(style, 'fill', 'lightgrey'))
-        group.append(self.svg.rect(
-            section.pos_x, section.pos_y, section.size_x, section.size_y,
-            fill=bf,
-            stroke=_s(style, 'stroke', 'black'),
-            stroke_width=_s(style, 'stroke_width', 1)))
-
-        for cy in (mid_y, mid_y + 12, mid_y - 12):
-            group.append(self.svg.circle(mid_x, cy, 3,
-                                         fill=_s(style, 'text_fill', 'black')))
-        return group
-
-    def _make_break_wave(self, section, group, style, mid_y) -> ET.Element:
-        bf = _s(style, 'break_fill', _s(style, 'fill', 'lightgrey'))
-        wave_len = int(section.size_x) + 1
-        shifts = [(-5, 2/5, 0), (5, 3/5, section.size_y)]
-
-        for shift in shifts:
-            points = [(i, mid_y + shift[0] + 2 * cos(i / 24)) for i in range(wave_len)]
-            points.extend([
-                (section.pos_x + section.size_x,
-                 (section.pos_y + section.size_y) * shift[1]),
-                (section.pos_x + section.size_x, section.pos_y + shift[2]),
-                (section.pos_x, section.pos_y + shift[2]),
-                (section.pos_x, mid_y + shift[0] + 2 * cos(section.pos_x / 24)),
-            ])
-            group.append(self.svg.polyline(
-                points,
-                stroke=_s(style, 'stroke', 'black'),
-                stroke_width=_s(style, 'stroke_width', 1),
-                fill=bf))
-        return group
-
-    def _make_break_double_wave(self, section, group, style, mid_x, mid_y) -> ET.Element:
-        points_list = [
-            [
-                (section.pos_x, (section.pos_y + section.size_y) * 2/5),
-                (section.pos_x, section.pos_y),
-                (section.pos_x + section.size_x, section.pos_y),
-                (section.pos_x + section.size_x, (section.pos_y + section.size_y) * 2/5),
-            ],
-            [
-                (section.pos_x, (section.pos_y + section.size_y) * 3/5),
-                (section.pos_x, section.pos_y + section.size_y),
-                (section.pos_x + section.size_x, section.pos_y + section.size_y),
-                (section.pos_x + section.size_x, (section.pos_y + section.size_y) * 3/5),
-            ],
-        ]
-
-        bf = _s(style, 'break_fill', _s(style, 'fill', 'lightgrey'))
-        group.append(self.svg.rect(
-            section.pos_x, section.pos_y, section.size_x, section.size_y,
-            fill=bf))
-
-        for pts in points_list:
-            group.append(self.svg.polyline(
-                pts,
-                stroke=_s(style, 'stroke', 'black'),
-                stroke_width=_s(style, 'stroke_width', 1),
-                fill='none'))
-
-        wave_length = 20
-        shifts = [(0, -5), (0, +5), (section.size_x, -5), (section.size_x, +5)]
-        for shift in shifts:
-            pts = [(i - wave_length/2 + shift[0], mid_y + shift[1] + cos(i / 2))
-                   for i in range(wave_length)]
-            group.append(self.svg.polyline(
-                pts,
-                stroke=_s(style, 'stroke', 'black'),
-                stroke_width=_s(style, 'stroke_width', 1),
-                fill='none'))
-        return group
-
-    def _make_break_diagonal(self, section, group, style) -> ET.Element:
-        points_list = [
-            [
-                (section.pos_x, section.pos_y),
-                (section.pos_x + section.size_x, section.pos_y),
-                (section.pos_x + section.size_x,
-                 (section.pos_y + section.size_y) * 3/10),
-                (section.pos_x, (section.pos_y + section.size_y) * 5/10),
-                (section.pos_x, section.pos_y),
-            ],
-            [
-                (section.pos_x, section.pos_y + section.size_y),
-                (section.pos_x + section.size_x, section.pos_y + section.size_y),
-                (section.pos_x + section.size_x,
-                 (section.pos_y + section.size_y) * 5/10),
-                (section.pos_x, (section.pos_y + section.size_y) * 7/10),
-                (section.pos_x, section.pos_y + section.size_y),
-            ],
-        ]
-        bf = _s(style, 'break_fill', _s(style, 'fill', 'lightgrey'))
-        for pts in points_list:
-            group.append(self.svg.polyline(
-                pts,
-                stroke=_s(style, 'stroke', 'black'),
-                stroke_width=_s(style, 'stroke_width', 1),
-                fill=bf))
-        return group
 
     # ------------------------------------------------------------------
     # Text elements

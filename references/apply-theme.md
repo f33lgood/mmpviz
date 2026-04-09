@@ -118,7 +118,6 @@ The `section_id` keys under `sections` must match `id` fields in `diagram.json`'
 
 | Property | Type | Default | Effect |
 |----------|------|---------|--------|
-| `break_type` | string | `"≈"` | Pattern: `"≈"`, `"~"`, `"/"`, `"..."` |
 | `break_size` | number | `20` | Height in pixels of each break |
 
 ### Growth arrows

@@ -124,6 +124,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **`break_type` property removed.** Break sections now always render as a plain
+  filled box (using `break_fill` as background). The four visual patterns
+  (`"≈"`, `"~"`, `"/"`, `"..."`) have been removed. The structural break
+  behaviour (fixed `break_size` height, independent panel proportioning) is
+  unchanged. Themes that set `break_type` can safely delete the property — it
+  is silently ignored.
+
 - `examples/dark_theme.json` and `examples/light_theme.json` — replaced by the
   theme-agnostic files in `themes/`.
 

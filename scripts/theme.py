@@ -26,7 +26,6 @@ class Theme:
         "text_stroke": "black",
         "text_stroke_width": 0,
         "opacity": 1,
-        "break_type": "≈",
         "break_size": 20,
         "growth_arrow_size": 1,
         "growth_arrow_fill": "white",

@@ -1,40 +1,13 @@
 {
   "defaults": {
     "text_fill": "black",
-    "break_size": 60,
+    "break_size": 20,
     "fill": "#99B898",
+    "break_fill": "#e8e8e8",
     "hide_address": true,
     "hide_size": true,
     "stroke": "#2A363B",
-    "stroke_width": 0,
+    "stroke_width": 1,
     "font_family": "Helvetica"
-  },
-  "areas": {
-    "wave-view": {
-      "break_type": "~",
-      "sections": {
-        "External Device": { "stroke_width": 1 },
-        "Peripheral":      { "stroke_width": 1 },
-        "SRAM Area":       { "stroke_width": 1 },
-        "External RAM":    { "stroke_width": 1 }
-      }
-    },
-    "double-wave-view": {
-      "break_type": "≈",
-      "stroke_width": 1
-    },
-    "diagonal-view": {
-      "break_type": "/",
-      "sections": {
-        "External Device": { "stroke_width": 1 },
-        "Peripheral":      { "stroke_width": 1 },
-        "SRAM Area":       { "stroke_width": 1 },
-        "External RAM":    { "stroke_width": 1 }
-      }
-    },
-    "dots-view": {
-      "break_type": "...",
-      "stroke_width": 1
-    }
   }
 }

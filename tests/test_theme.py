@@ -14,13 +14,13 @@ class TestThemeDefaults(unittest.TestCase):
         style = t.resolve('nonexistent-area')
         self.assertEqual(style['fill'], 'lightgrey')
         self.assertEqual(style['stroke'], 'black')
-        self.assertEqual(style['break_type'], '≈')
+        self.assertEqual(style['break_size'], 20)
 
     def test_all_required_keys_present(self):
         t = Theme()
         style = t.resolve('x')
         for key in ('background', 'fill', 'stroke', 'stroke_width', 'font_size',
-                    'font_family', 'text_fill', 'break_type', 'break_size',
+                    'font_family', 'text_fill', 'break_size',
                     'growth_arrow_size', 'hide_size', 'hide_name', 'hide_address'):
             self.assertIn(key, style, f"Missing key: {key}")
 
