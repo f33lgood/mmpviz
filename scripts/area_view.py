@@ -85,11 +85,24 @@ class AreaView:
 
         Style comes from the theme (area-level + section-level resolution).
         Flags and structural overrides (address, size, type) come from diagram.json area config.
+
+        Palette indices are assigned in address order, counting only non-break sections
+        (break sections are visual separators and do not consume a palette slot).
         """
+        # Pre-pass: assign a palette index to each non-break section.
+        palette_index = 0
+        palette_indices = {}
+        for section in self.sections.get_sections():
+            if not section.is_break():
+                palette_indices[section.id] = palette_index
+                palette_index += 1
+
         for section in self.sections.get_sections():
             # Resolve style from theme; fall back to area-level style dict
             if self.theme:
-                section.style = self.theme.resolve(self.area_id, section.id)
+                section.style = self.theme.resolve(
+                    self.area_id, section.id,
+                    palette_index=palette_indices.get(section.id))
             else:
                 section.style = copy.deepcopy(self.style)
 
@@ -106,6 +119,98 @@ class AreaView:
                         for flag in element.get('flags', []):
                             if flag not in section.flags:
                                 section.flags.append(flag)
+
+    def _compute_clamped_heights(self, section_groups, available_px, min_section_h, max_section_h):
+        """
+        Distribute `available_px` among non-break subarea groups using an iterative
+        floor/ceiling algorithm:
+          - Each group's minimum height is derived from min_section_h so that the
+            *smallest* visible section within that group will be at least min_section_h
+            pixels tall when rendered linearly inside the subarea.
+          - max_section_h caps any single subarea's height (optional).
+        Returns a dict {id(group): height_px}.
+        """
+        non_break = [g for g in section_groups if not g.is_break_section_group()]
+        if not non_break:
+            return {}
+
+        def group_range(g):
+            return max(g.highest_memory - g.lowest_memory, 1)
+
+        def min_required(g):
+            if min_section_h is None:
+                return 0
+            rng = group_range(g)
+            visible = [s for s in g.get_sections()
+                       if 'hidden' not in s.flags and 'break' not in s.flags and s.size > 0]
+            if not visible:
+                return float(min_section_h)
+            min_prop = min(s.size / rng for s in visible)
+            return min_section_h / min_prop if min_prop > 0 else float(min_section_h)
+
+        total_bytes = sum(group_range(g) for g in non_break)
+        heights = {id(g): available_px * group_range(g) / total_bytes for g in non_break}
+
+        # locked: groups whose height has been fixed at a floor or ceiling.
+        # Once locked, a group is excluded from re-proportionalization so that
+        # floors set in earlier iterations are not silently undone.
+        locked = {}        # id(g) -> locked height
+        lock_is_floor = set()  # ids of groups locked at their floor (not their cap)
+
+        for _ in range(50):
+            new_locks = {}
+            new_floors = set()
+            for g in non_break:
+                if id(g) in locked:
+                    continue
+                lo = min_required(g)
+                hi = max(max_section_h, lo) if max_section_h is not None else float('inf')
+                h = heights[id(g)]
+                if h < lo:
+                    new_locks[id(g)] = lo
+                    new_floors.add(id(g))
+                elif h > hi:
+                    new_locks[id(g)] = hi
+
+            if not new_locks:
+                break
+
+            locked.update(new_locks)
+            lock_is_floor.update(new_floors)
+
+            locked_px = sum(locked.values())
+            if locked_px >= available_px:
+                # Cannot satisfy all constraints — fall back to proportional
+                heights = {id(g): available_px * group_range(g) / total_bytes for g in non_break}
+                locked.clear()
+                lock_is_floor.clear()
+                break
+
+            locked_bytes = sum(group_range(g) for g in non_break if id(g) in locked)
+            free_px = available_px - locked_px
+            free_bytes = total_bytes - locked_bytes
+
+            for g in non_break:
+                if id(g) in locked:
+                    heights[id(g)] = locked[id(g)]
+                elif free_bytes > 0:
+                    heights[id(g)] = free_px * group_range(g) / free_bytes
+
+        # If all groups were locked and the total is less than available_px, the
+        # remaining space has nowhere to go (every group hit a constraint).
+        # Redistribute the surplus proportionally among floored groups so the
+        # panel has no blank stripe.
+        if locked:
+            total_h = sum(heights[id(g)] for g in non_break)
+            surplus = available_px - total_h
+            if surplus > 1e-6:
+                floored = [g for g in non_break if id(g) in lock_is_floor]
+                if floored:
+                    floor_bytes = sum(group_range(g) for g in floored)
+                    for g in floored:
+                        heights[id(g)] = locked[id(g)] + surplus * group_range(g) / floor_bytes
+
+        return heights
 
     def _process(self):
         def recalculate_subarea_size_y(start_mem_addr, end_mem_addr):
@@ -142,6 +247,16 @@ class AreaView:
         total_breaks_size_y_px = self._get_break_total_size_before_transform_px()
         total_non_breaks_size_y_px = self._get_non_breaks_total_size_px(total_breaks_size_y_px)
         expandable_size_px = total_breaks_size_y_px - (breaks_section_size_y_px * breaks_count)
+        available_for_non_breaks = total_non_breaks_size_y_px + expandable_size_px
+
+        min_section_h = self.style.get('min_section_height', None)
+        max_section_h = self.style.get('max_section_height', None)
+        clamped_heights = (
+            self._compute_clamped_heights(
+                split_section_groups, available_for_non_breaks, min_section_h, max_section_h)
+            if (min_section_h is not None or max_section_h is not None)
+            else None
+        )
 
         last_area_pos = self.pos_y + self.size_y
 
@@ -160,10 +275,13 @@ class AreaView:
                 start_addr = split_section_groups[i - 1].highest_memory
                 end_addr = split_section_groups[i + 1].lowest_memory
 
-            corrected_size_y_px = (
-                breaks_section_size_y_px if section_group.is_break_section_group()
-                else recalculate_subarea_size_y(start_addr, end_addr)
-            )
+            if section_group.is_break_section_group():
+                corrected_size_y_px = breaks_section_size_y_px
+            elif clamped_heights is not None:
+                corrected_size_y_px = clamped_heights.get(id(section_group),
+                                                           recalculate_subarea_size_y(start_addr, end_addr))
+            else:
+                corrected_size_y_px = recalculate_subarea_size_y(start_addr, end_addr)
 
             subconfig = area_config_clone(
                 self.area, last_area_pos, corrected_size_y_px, start_addr, end_addr)

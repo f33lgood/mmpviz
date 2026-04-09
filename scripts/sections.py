@@ -74,7 +74,7 @@ class Sections:
         split_sections = []
         previous_break_end_address = self.lowest_memory
 
-        breaks = self.filter_breaks().get_sections()
+        breaks = sorted(self.filter_breaks().get_sections(), key=lambda s: s.address)
 
         for _break in breaks:
             s = (Sections(sections=self.sections)

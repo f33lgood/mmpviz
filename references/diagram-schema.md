@@ -11,10 +11,16 @@ It contains the raw memory data (`sections`) and the display layout (`areas`, `l
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `title` | string | No | `""` | Document title (informational only) |
-| `size` | `[width, height]` | No | `[400, 700]` | SVG canvas dimensions in pixels |
+| `size` | `[width, height]` | No | `[400, 700]` | SVG canvas dimensions in pixels. Since the output is SVG (vector), the exact values set the aspect ratio and internal coordinate space — the file scales without quality loss to any display size. |
 | `sections` | array | Yes | — | Memory section definitions |
 | `areas` | array | No | Auto | Display viewport definitions |
 | `links` | object | No | — | Cross-area connections |
+
+### Choosing a Canvas Size
+
+Because the output is SVG, the numbers in `size` define the **coordinate space and aspect ratio**, not a fixed pixel size. The diagram scales to any physical size without loss.
+
+Choose values that match your intended output format's aspect ratio and give comfortable spacing for the number of areas you have. See `references/layout-guide.md` for recommended `size`, `pos`, and `size` values for common targets (A4 paper, 16:9 slides, etc.).
 
 ---
 
@@ -87,11 +93,12 @@ Within an area, you can override the flags, address, size, or type for specific 
 | Field | Type | Description |
 |-------|------|-------------|
 | `addresses` | array | Hex strings or ints — draw horizontal connector lines at these addresses across areas |
-| `sections` | array | Pairs `["from_id", "to_id"]` or single strings — draw filled bands connecting matched sections |
+| `sections` | array of strings | Section ids — draw a band from `areas[0]` (the source/overview stack) to the first detail area whose address range covers the named section |
+| `sub_sections` | array of `[area_id, section_id]` pairs | Draw bands from a non-source area to the next area covering that section's address range. Enables multi-level zoom chains (e.g., bus view → peripheral detail). |
 
-**Design convention:** The first entry in `areas` is treated as the **source** (full/overview) stack and is always positioned on the left. All subsequent areas are **expanded/detail** stacks and are positioned to the right. Cross-area links (both address lines and section bands) always connect from the source stack outward to one of the detail stacks. Placing expanded views to the left of the source is not supported.
+**Design convention:** The first entry in `areas` is treated as the **source** (full/overview) stack and is always positioned on the left. All subsequent areas are **expanded/detail** stacks and are positioned to the right. `links.sections` always originates from the source stack. `links.sub_sections` originates from any named area.
 
-**Note:** Section links require both sections to be visible within the same pair of areas (source area + detail area).
+**Band routing:** For both `sections` and `sub_sections`, the band connects to the **first** subsequent area (in `areas[]` order) whose `lowest_memory` ≤ section start and `highest_memory` ≥ section end. Hidden sections still count toward `lowest_memory`/`highest_memory`, so a hidden terminator section can extend a detail area's effective range to accept a link.
 
 Section band visual style is controlled in `theme.json` under `links`. See `theme-schema.md` for the full property list including `shape`, `fill`, `stroke`, and `stroke_dasharray`.
 

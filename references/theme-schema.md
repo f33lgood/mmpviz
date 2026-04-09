@@ -5,6 +5,26 @@ separate from `diagram.json` — themes are reusable across different diagrams.
 
 ---
 
+## Built-in Themes
+
+Three ready-to-use themes live in the `themes/` directory at the repository root.
+Pass any of them with the `--theme` flag:
+
+```
+python scripts/mmpviz.py -d diagram.json -t themes/light.json -o map.svg
+```
+
+| File | Description |
+|------|-------------|
+| `themes/light.json` | Professional light theme — white backgrounds, steel-blue fills, dark text. Suitable for printed documents and light-background slides. |
+| `themes/monochrome.json` | Grayscale theme — neutral fills, no color, high contrast. Suitable for black-and-white printing. |
+| `themes/plantuml.json` | PlantUML-style color palette — pastel fills matching the PlantUML component diagram aesthetic. |
+
+These themes set only `defaults` and `links`/`labels` blocks — no area- or section-specific
+overrides — so they work with any `diagram.json` without modification.
+
+---
+
 ## Structure Overview
 
 ```
@@ -23,6 +43,31 @@ theme.json
 2. `theme.defaults`
 3. `theme.areas[area_id]`
 4. `theme.areas[area_id].sections[section_id]`
+
+---
+
+## `palette` — Automatic Section Colors
+
+An optional top-level array of color strings. When present, sections that have **no
+explicit `fill`** at the area or section level are assigned colors from the palette in
+address order (first section → `palette[0]`, second → `palette[1]`, wrapping around).
+Break sections do not consume a palette slot.
+
+```json
+{
+  "palette": ["#b8d4e8", "#a8d5ba", "#c9b8d4", "#d4c4a8"],
+  "defaults": { ... }
+}
+```
+
+**Override precedence:**
+1. `theme.areas[area_id].sections[section_id].fill` — wins over palette
+2. `theme.areas[area_id].fill` — wins over palette
+3. `palette[index % len(palette)]` — applied when neither above is set
+4. `theme.defaults.fill` — used when no palette is defined
+
+This makes colorful themes fully **portable**: a theme with a palette assigns
+distinct colors to whatever sections it encounters, without knowing their IDs.
 
 ---
 
@@ -57,7 +102,8 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 |----------|------|---------|-------------|
 | `hide_size` | `"auto"` / `true` / `false` | `"auto"` | Hide size label. `"auto"` hides when section height < 20px |
 | `hide_name` | `"auto"` / `true` / `false` | `"auto"` | Hide name label |
-| `hide_address` | `"auto"` / `true` / `false` | `"auto"` | Hide address label |
+| `hide_address` | `"auto"` / `true` / `false` | `"auto"` | Hide start address label |
+| `hide_end_address` | `"auto"` / `true` / `false` | `true` | Hide end address label. Default is `true` (hidden). Set to `"auto"` to show whenever section height ≥ 20px |
 
 ### Break Sections
 
@@ -65,6 +111,24 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 |----------|------|---------|-------------|
 | `break_type` | string | `"≈"` | Break pattern style: `"≈"` (double wave), `"~"` (wave), `"/"` (diagonal), `"..."` (dots) |
 | `break_size` | number | `20` | Height in pixels of a break section |
+| `break_fill` | color string | *(same as `fill`)* | Background fill of a break-section box. Useful for giving break sections a distinct muted color without changing the normal section fill. Falls back to `fill` when unset. |
+
+### Section Height Clamping
+
+Controls how pixel height is distributed across subareas (regions between break sections).
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `min_section_height` | number | `null` (no floor) | Guarantees every visible section in a subarea renders at least this many pixels tall. The renderer back-calculates the required subarea height so that its smallest visible section meets this threshold. |
+| `max_section_height` | number | `null` (no cap) | Caps the pixel height of any single subarea so it cannot crowd out other subareas. If `min_section_height` would require more than `max_section_height` for a given group, the minimum floor takes priority. |
+
+**How they interact:**
+- When neither is set, subareas are sized strictly proportional to their byte range.
+- `min_section_height` alone: expands subareas containing small sections; excess space is taken from larger subareas proportionally.
+- `max_section_height` alone: shrinks oversized subareas; freed space is redistributed proportionally.
+- Both set: the minimum floor always wins — a subarea that needs more than `max_section_height` to satisfy `min_section_height` will be given the floor, not the cap.
+
+**Recommended defaults** for SoC memory maps: `"min_section_height": 20, "max_section_height": 300`.
 
 ### Growth Arrows
 

@@ -31,7 +31,7 @@ class Theme:
         "growth_arrow_size": 1,
         "growth_arrow_fill": "white",
         "growth_arrow_stroke": "black",
-        "hide_size": "auto",
+        "hide_size": False,
         "hide_name": "auto",
         "hide_address": "auto",
         "weight": 2,
@@ -47,19 +47,31 @@ class Theme:
         """Merge built-in defaults with theme-level defaults."""
         return {**self.DEFAULT, **{k: v for k, v in self._data.get('defaults', {}).items()}}
 
-    def resolve(self, area_id: str, section_id: str = None) -> dict:
+    def resolve(self, area_id: str, section_id: str = None,
+                palette_index: int = None) -> dict:
         """
         Resolve and return a merged style dict for the given area (and optionally section).
+
+        When ``palette_index`` is provided and the theme defines a ``palette`` array,
+        the palette color is used as ``fill`` unless an explicit fill is already set at
+        the area or section level.
         """
         base = self._base()
 
         area_data = self._data.get('areas', {}).get(area_id, {})
         area_style = {k: v for k, v in area_data.items() if k != 'sections'}
-        merged = {**base, **area_style}
 
+        section_style = {}
         if section_id:
             section_style = area_data.get('sections', {}).get(section_id, {})
-            merged = {**merged, **section_style}
+
+        merged = {**base, **area_style, **section_style}
+
+        if palette_index is not None:
+            palette = self._data.get('palette', [])
+            has_explicit_fill = 'fill' in area_style or 'fill' in section_style
+            if palette and not has_explicit_fill:
+                merged['fill'] = palette[palette_index % len(palette)]
 
         return merged
 

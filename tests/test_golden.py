@@ -310,7 +310,25 @@ class GoldenTest(unittest.TestCase):
         self._run_path('link', 'curve_stroke_dashed')
 
     def test_stm32f103(self):
-        self._run_named('stm32f103')
+        self._run_path('chips', 'stm32f103')
+
+    def test_chip_caliptra(self):
+        self._run_path('chips', 'caliptra')
+
+    def test_chip_opentitan_earlgrey(self):
+        self._run_path('chips', 'opentitan_earlgrey')
+
+    def test_chip_pulpissimo(self):
+        self._run_path('chips', 'pulpissimo')
+
+    def test_theme_light(self):
+        self._run_path('themes', 'light')
+
+    def test_theme_plantuml(self):
+        self._run_path('themes', 'plantuml')
+
+    def test_theme_monochrome(self):
+        self._run_path('themes', 'monochrome')
 
     def _run_named(self, name):
         d = os.path.join(EXAMPLES_DIR, name)

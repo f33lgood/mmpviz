@@ -1,0 +1,18 @@
+{
+  "defaults": {
+    "background": "white",
+    "fill": "lightgrey",
+    "stroke": "black"
+  },
+  "palette": ["#aabbcc", "#bbccaa", "#ccaabb"],
+  "areas": {
+    "with-area-fill": {
+      "fill": "#explicit-area"
+    },
+    "with-section-fill": {
+      "sections": {
+        "sec-a": { "fill": "#explicit-section" }
+      }
+    }
+  }
+}

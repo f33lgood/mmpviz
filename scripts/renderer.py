@@ -1,7 +1,7 @@
 from math import cos
 import xml.etree.ElementTree as ET
 
-from helpers import DefaultAppValues
+from helpers import DefaultAppValues, format_size
 from labels import Side
 from logger import logger
 from section import Section
@@ -82,9 +82,13 @@ class MapRenderer:
 
         growths_group = svg.g()
 
-        # Section links (zoom bands)
+        # Section links (zoom bands from areas[0])
         if self.links_sections:
             svg.root.append(self._draw_section_links())
+
+        # Sub-section links (zoom bands from named detail areas)
+        if self.links and self.links.sub_sections:
+            svg.root.append(self._draw_sub_section_links())
 
         # Address links (horizontal lines)
         if self.links:
@@ -138,14 +142,18 @@ class MapRenderer:
             area_view.end_address - section.size - section.address)
         section.pos_x = 0
 
-        if section.is_break():
+        if section.is_break() and section.type != 'area':
             group.append(self._make_break(section))
+            if not section.is_name_hidden():
+                group.append(self._make_name(section))
         else:
             group.append(self._make_box(section))
             if not section.is_name_hidden():
                 group.append(self._make_name(section))
             if not section.is_address_hidden():
                 group.append(self._make_address(section))
+            if not section.is_end_address_hidden():
+                group.append(self._make_end_address(section))
             if not section.is_size_hidden():
                 group.append(self._make_size_label(section))
 
@@ -186,9 +194,10 @@ class MapRenderer:
             return self._make_break_dots(section, group, style, mid_x, mid_y)
 
     def _make_break_dots(self, section, group, style, mid_x, mid_y) -> ET.Element:
+        bf = _s(style, 'break_fill', _s(style, 'fill', 'lightgrey'))
         group.append(self.svg.rect(
             section.pos_x, section.pos_y, section.size_x, section.size_y,
-            fill=_s(style, 'fill', 'lightgrey'),
+            fill=bf,
             stroke=_s(style, 'stroke', 'black'),
             stroke_width=_s(style, 'stroke_width', 1)))
 
@@ -198,6 +207,7 @@ class MapRenderer:
         return group
 
     def _make_break_wave(self, section, group, style, mid_y) -> ET.Element:
+        bf = _s(style, 'break_fill', _s(style, 'fill', 'lightgrey'))
         wave_len = int(section.size_x) + 1
         shifts = [(-5, 2/5, 0), (5, 3/5, section.size_y)]
 
@@ -214,7 +224,7 @@ class MapRenderer:
                 points,
                 stroke=_s(style, 'stroke', 'black'),
                 stroke_width=_s(style, 'stroke_width', 1),
-                fill=_s(style, 'fill', 'lightgrey')))
+                fill=bf))
         return group
 
     def _make_break_double_wave(self, section, group, style, mid_x, mid_y) -> ET.Element:
@@ -233,9 +243,10 @@ class MapRenderer:
             ],
         ]
 
+        bf = _s(style, 'break_fill', _s(style, 'fill', 'lightgrey'))
         group.append(self.svg.rect(
             section.pos_x, section.pos_y, section.size_x, section.size_y,
-            fill=_s(style, 'fill', 'lightgrey')))
+            fill=bf))
 
         for pts in points_list:
             group.append(self.svg.polyline(
@@ -275,12 +286,13 @@ class MapRenderer:
                 (section.pos_x, section.pos_y + section.size_y),
             ],
         ]
+        bf = _s(style, 'break_fill', _s(style, 'fill', 'lightgrey'))
         for pts in points_list:
             group.append(self.svg.polyline(
                 pts,
                 stroke=_s(style, 'stroke', 'black'),
                 stroke_width=_s(style, 'stroke_width', 1),
-                fill=_s(style, 'fill', 'lightgrey')))
+                fill=bf))
         return group
 
     # ------------------------------------------------------------------
@@ -328,7 +340,7 @@ class MapRenderer:
 
     def _make_size_label(self, section: Section) -> ET.Element:
         return self._make_text(
-            hex(section.size),
+            format_size(section.size),
             section.size_label_pos[0], section.size_label_pos[1],
             style=section.style,
             anchor='start',
@@ -338,10 +350,19 @@ class MapRenderer:
 
     def _make_address(self, section: Section) -> ET.Element:
         return self._make_text(
-            hex(section.address),
+            f"0x{section.address:08x}",
             section.addr_label_pos_x, section.addr_label_pos_y,
             style=section.style,
             anchor='start',
+        )
+
+    def _make_end_address(self, section: Section) -> ET.Element:
+        return self._make_text(
+            f"0x{section.address + section.size:08x}",
+            section.addr_label_pos_x, section.end_addr_label_pos_y,
+            style=section.style,
+            anchor='start',
+            baseline='middle',
         )
 
     # ------------------------------------------------------------------
@@ -502,6 +523,58 @@ class MapRenderer:
             lines_group.append(self._make_link(address, link_style))
         return lines_group
 
+    def _draw_sub_section_links(self) -> ET.Element:
+        """
+        Draw link bands that originate from a named detail area rather than areas[0].
+        Configured via links.sub_sections: [[source_area_id, section_id], ...].
+        The band connects from the source area's section to the first subsequent area
+        whose sections span the section's address range.
+        """
+        group = self.svg.g()
+        link_style = self.links.style if self.links else {}
+
+        for source_area_id, section_id in self.links.sub_sections:
+            source_area = next(
+                (a for a in self.area_views if a.area_id == source_area_id), None)
+            if source_area is None:
+                logger.warning(
+                    f"Sub-section link: source area '{source_area_id}' not found")
+                continue
+
+            # Find the section's address range (first occurrence across all areas)
+            link_range = None
+            for area in self.area_views:
+                for section in area.sections.get_sections():
+                    if section.id == section_id:
+                        link_range = [section.address, section.address + section.size]
+                        break
+                if link_range:
+                    break
+
+            if link_range is None:
+                logger.warning(
+                    f"Sub-section link: section '{section_id}' not found")
+                continue
+
+            # Find target: first area after source_area that covers the range
+            source_idx = self.area_views.index(source_area)
+            drawn = False
+            for area_view in self.area_views[source_idx + 1:]:
+                if (link_range[0] >= area_view.sections.lowest_memory and
+                        link_range[1] <= area_view.sections.highest_memory):
+                    group.append(self._make_poly(
+                        area_view, link_range[0], link_range[1],
+                        link_style, source_area=source_area))
+                    drawn = True
+                    break
+
+            if not drawn:
+                logger.warning(
+                    f"Sub-section link '{section_id}' from '{source_area_id}': "
+                    f"no target area found")
+
+        return group
+
     def _draw_section_links(self) -> ET.Element:
         linked_sections_group = self.svg.g()
         for section_link in self.links_sections:
@@ -522,16 +595,24 @@ class MapRenderer:
                     f"outside the shown areas")
         return linked_sections_group
 
-    def _get_points_for_address(self, address, area_view) -> list:
-        left = self.area_views[0]
+    def _get_points_for_address(self, address, area_view, source_area=None) -> list:
+        left = source_area if source_area is not None else self.area_views[0]
+        # Find the compressed subarea of the source area that contains this address
+        # so the band anchors to the correct pixel row after break compression.
+        left_sub = left
+        for sub in left.get_split_area_views():
+            if sub.start_address <= address <= sub.end_address:
+                left_sub = sub
+                break
+
         lx = left.size_x + left.pos_x
         lx2 = lx + 30
-        ly = left.pos_y + left.to_pixels_relative(address)
+        ly = left_sub.pos_y + left_sub.to_pixels_relative(address)
 
         rx = area_view.pos_x
         ry = area_view.pos_y + area_view.to_pixels_relative(address)
 
-        # Outward jog only on the source (left) side; connect straight into the detail stack.
+        # Outward jog only on the source side; connect straight into the detail stack.
         return [(lx, ly), (lx2, ly), (rx, ry)]
 
     # Minimum visible band opening (pixels) at the source or detail side.
@@ -562,7 +643,8 @@ class MapRenderer:
 
         return pts_start, pts_end
 
-    def _make_poly(self, area_view, start_address, end_address, style: dict) -> ET.Element:
+    def _make_poly(self, area_view, start_address, end_address, style: dict,
+                   source_area=None) -> ET.Element:
         def find_subarea(address, area):
             for sub in area.get_split_area_views():
                 if sub.start_address <= address <= sub.end_address:
@@ -572,8 +654,8 @@ class MapRenderer:
         end_sub = find_subarea(end_address, area_view)
         start_sub = find_subarea(start_address, area_view)
 
-        pts_start = self._get_points_for_address(start_address, start_sub)
-        pts_end = list(reversed(self._get_points_for_address(end_address, end_sub)))
+        pts_start = self._get_points_for_address(start_address, start_sub, source_area)
+        pts_end = list(reversed(self._get_points_for_address(end_address, end_sub, source_area)))
         pts_start, pts_end = self._enforce_min_opening(pts_start, pts_end)
 
         shape = _s(style, 'shape', 'polygon')

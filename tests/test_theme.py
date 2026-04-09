@@ -76,5 +76,45 @@ class TestThemeFromFile(unittest.TestCase):
         self.assertNotIn('sections', style)
 
 
+class TestThemePalette(unittest.TestCase):
+
+    def setUp(self):
+        self.theme = Theme(os.path.join(FIXTURES, 'palette_theme.json'))
+
+    def test_palette_applied_when_no_explicit_fill(self):
+        # No area or section fill → palette kicks in
+        style = self.theme.resolve('any-area', 'any-section', palette_index=0)
+        self.assertEqual(style['fill'], '#aabbcc')
+
+    def test_palette_cycles(self):
+        style = self.theme.resolve('any-area', 'any-section', palette_index=3)
+        self.assertEqual(style['fill'], '#aabbcc')  # 3 % 3 == 0
+
+    def test_palette_index_1(self):
+        style = self.theme.resolve('any-area', 'any-section', palette_index=1)
+        self.assertEqual(style['fill'], '#bbccaa')
+
+    def test_area_fill_overrides_palette(self):
+        # Area has explicit fill → palette should NOT apply
+        style = self.theme.resolve('with-area-fill', 'any-section', palette_index=0)
+        self.assertEqual(style['fill'], '#explicit-area')
+
+    def test_section_fill_overrides_palette(self):
+        # Section has explicit fill → palette should NOT apply
+        style = self.theme.resolve('with-section-fill', 'sec-a', palette_index=0)
+        self.assertEqual(style['fill'], '#explicit-section')
+
+    def test_no_palette_index_ignores_palette(self):
+        # palette_index not supplied → falls through to defaults fill
+        style = self.theme.resolve('any-area', 'any-section')
+        self.assertEqual(style['fill'], 'lightgrey')
+
+    def test_no_palette_in_theme_ignores_index(self):
+        # Theme without palette → palette_index has no effect
+        theme = Theme(os.path.join(FIXTURES, 'sample_theme.json'))
+        style = theme.resolve('nonexistent', 'nonexistent', palette_index=0)
+        self.assertEqual(style['fill'], '#16213e')  # from sample defaults
+
+
 if __name__ == '__main__':
     unittest.main()

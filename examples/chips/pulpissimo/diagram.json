@@ -1,0 +1,108 @@
+{
+  "title": "PULPissimo SoC Memory Map",
+  "size": [1100, 1000],
+  "sections": [
+    { "id": "AXI Plug",  "address": "0x10000000", "size": "0x00400000", "type": "area", "name": "AXI Plug" },
+    { "id": "Boot ROM",  "address": "0x1A000000", "size": "0x00040000", "type": "area", "name": "Boot ROM" },
+    { "id": "APB Bus",   "address": "0x1A100000", "size": "0x00040000", "type": "area", "name": "APB Peripheral Bus" },
+
+    { "id": "Gap0",      "address": "0x10400000", "size": "0x09C00000", "name": "···" },
+    { "id": "Gap1",      "address": "0x1A040000", "size": "0x000C0000", "name": "···" },
+    { "id": "Gap2",      "address": "0x1A140000", "size": "0x01EC0000", "name": "···" },
+
+    { "id": "FLL",       "address": "0x1A100000", "size": "0x00001000", "name": "FLL" },
+    { "id": "GPIO",      "address": "0x1A101000", "size": "0x00001000", "name": "GPIO (48 pins)" },
+    { "id": "uDMA",      "address": "0x1A102000", "size": "0x00002000", "name": "uDMA" },
+    { "id": "SoC Ctrl",  "address": "0x1A104000", "size": "0x00001000", "name": "SoC Control" },
+    { "id": "Adv Timer", "address": "0x1A105000", "size": "0x00001000", "name": "Adv Timer" },
+    { "id": "Evt Gen",   "address": "0x1A106000", "size": "0x00001000", "name": "SoC Event Gen" },
+    { "id": "APB Rsvd0", "address": "0x1A107000", "size": "0x00002000", "name": "Reserved" },
+    { "id": "EU",        "address": "0x1A109000", "size": "0x00002000", "name": "Event Unit" },
+    { "id": "APB Timer", "address": "0x1A10B000", "size": "0x00001000", "name": "APB Timer" },
+    { "id": "HWPE",      "address": "0x1A10C000", "size": "0x00001000", "name": "HWPE" },
+    { "id": "APB Rsvd1", "address": "0x1A10D000", "size": "0x00002000", "name": "Reserved" },
+    { "id": "Stdout",    "address": "0x1A10F000", "size": "0x00001000", "name": "Virtual Stdout" },
+    { "id": "Debug",     "address": "0x1A110000", "size": "0x00010000", "name": "Debug Unit" },
+    { "id": "Chip Ctrl", "address": "0x1A120000", "size": "0x00020000", "type": "area", "name": "Chip Control" },
+
+    { "id": "FLL Cfg",   "address": "0x1A120000", "size": "0x00001000", "name": "FLL Config" },
+    { "id": "Pad Cfg",   "address": "0x1A121000", "size": "0x00001000", "name": "Pad Config" },
+    { "id": "CC Rsvd",   "address": "0x1A122000", "size": "0x0001E000", "name": "···" },
+
+    { "id": "uDMA Cfg",  "address": "0x1A102000", "size": "0x00000080", "name": "Global CG/Event" },
+    { "id": "UART",      "address": "0x1A102080", "size": "0x00000080", "name": "UART" },
+    { "id": "SPIM",      "address": "0x1A102100", "size": "0x00000080", "name": "QSPI Master" },
+    { "id": "I2C0",      "address": "0x1A102180", "size": "0x00000080", "name": "I2C0" },
+    { "id": "I2C1",      "address": "0x1A102200", "size": "0x00000080", "name": "I2C1" },
+    { "id": "uDMA Rsvd", "address": "0x1A102280", "size": "0x00000080", "name": "SDIO (n/a)" },
+    { "id": "I2S",       "address": "0x1A102300", "size": "0x00000080", "name": "I2S" },
+    { "id": "CPI",       "address": "0x1A102380", "size": "0x00000080", "name": "Camera (CPI)" },
+    { "id": "uDMA End",  "address": "0x1A102400", "size": "0x00001C00", "name": "···" },
+
+    { "id": "L2 Priv 0", "address": "0x1C000000", "size": "0x00008000", "name": "Private Bank 0" },
+    { "id": "L2 Priv 1", "address": "0x1C008000", "size": "0x00008000", "name": "Private Bank 1" },
+    { "id": "L2 TCDM",   "address": "0x1C010000", "size": "0x00080000", "name": "Shared TCDM" }
+  ],
+  "areas": [
+    {
+      "id": "overview",
+      "title": "PULPissimo SoC",
+      "pos": [60, 80],
+      "size": [190, 880],
+      "range": ["0x10000000", "0x1C090000"],
+      "sections": [
+        { "names": ["Gap0", "Gap1", "Gap2"], "flags": ["break"] },
+        { "names": ["FLL", "GPIO", "uDMA", "SoC Ctrl", "Adv Timer", "Evt Gen",
+                    "APB Rsvd0", "EU", "APB Timer", "HWPE", "APB Rsvd1",
+                    "Stdout", "Debug", "Chip Ctrl", "FLL Cfg", "Pad Cfg", "CC Rsvd",
+                    "uDMA Cfg", "UART", "SPIM", "I2C0", "I2C1",
+                    "uDMA Rsvd", "I2S", "CPI", "uDMA End"], "flags": ["hidden"] }
+      ]
+    },
+    {
+      "id": "apb-view",
+      "title": "APB Peripheral Bus",
+      "pos": [400, 80],
+      "size": [200, 880],
+      "range": ["0x1A100000", "0x1A140000"],
+      "sections": [
+        { "names": ["APB Rsvd0", "APB Rsvd1", "Chip Ctrl"], "flags": ["break"] },
+        { "names": ["uDMA Cfg", "UART", "SPIM", "I2C0", "I2C1",
+                    "uDMA Rsvd", "I2S", "CPI", "uDMA End",
+                    "FLL Cfg", "Pad Cfg", "CC Rsvd"], "flags": ["hidden"] },
+        { "names": ["L2 Priv 0", "L2 Priv 1", "L2 TCDM"], "flags": ["hidden"] }
+      ]
+    },
+    {
+      "id": "chip-ctrl-view",
+      "title": "Chip Control",
+      "pos": [760, 80],
+      "size": [200, 200],
+      "range": ["0x1A120000", "0x1A140000"],
+      "sections": [
+        { "names": ["Chip Ctrl"], "flags": ["hidden"] },
+        { "names": ["CC Rsvd"], "flags": ["break"] }
+      ]
+    },
+    {
+      "id": "udma-view",
+      "title": "uDMA Channels",
+      "pos": [760, 330],
+      "size": [200, 330],
+      "range": ["0x1A102000", "0x1A104000"],
+      "sections": [
+        { "names": ["uDMA"], "flags": ["hidden"] },
+        { "names": ["uDMA End"], "flags": ["break"] }
+      ]
+    }
+  ],
+  "links": {
+    "sections": [
+      "APB Bus"
+    ],
+    "sub_sections": [
+      ["apb-view", "Chip Ctrl"],
+      ["apb-view", "uDMA"]
+    ]
+  }
+}

@@ -88,7 +88,7 @@ class TestRendererBasic(unittest.TestCase):
             style=default_style(),
             size=(400, 600),
         ).draw()
-        self.assertIn('0x1000', result)
+        self.assertIn('0x00001000', result)
 
 
 class TestRendererBreakSection(unittest.TestCase):

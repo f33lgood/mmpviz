@@ -56,6 +56,9 @@ class Section:
     def is_size_hidden(self):
         return self._should_element_be_hidden(self.style.get('hide_size', 'auto'))
 
+    def is_end_address_hidden(self):
+        return self._should_element_be_hidden(self.style.get('hide_end_address', True))
+
     @property
     def addr_label_pos_x(self):
         return self.size_x + self.label_offset
@@ -63,6 +66,10 @@ class Section:
     @property
     def addr_label_pos_y(self):
         return self.pos_y + self.size_y
+
+    @property
+    def end_addr_label_pos_y(self):
+        return self.pos_y
 
     @property
     def name_label_pos_x(self):

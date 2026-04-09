@@ -1,0 +1,109 @@
+{
+  "defaults": {
+    "background": "#ffffff",
+    "fill": "#c4d4e4",
+    "stroke": "#8a9ab0",
+    "stroke_width": 1,
+    "text_fill": "#1a2c3d",
+    "text_stroke": "none",
+    "text_stroke_width": 0,
+    "font_size": 12,
+    "font_family": "Helvetica",
+    "break_size": 25,
+    "break_type": "≈",
+    "hide_size": "auto",
+    "hide_name": "auto",
+    "hide_address": "auto",
+    "hide_end_address": "auto",
+    "min_section_height": 14,
+    "max_section_height": 200
+  },
+  "areas": {
+    "overview-view": {
+      "hide_size": "auto",
+      "min_section_height": null,
+      "max_section_height": null,
+      "sections": {
+        "none":           { "fill": "#d8dde4", "stroke": "#9aacb8" },
+        "Aliased":        { "fill": "#c8d8e8" },
+        "Flash Memory":   { "fill": "#a8bcd4" },
+        "SRAM":           { "fill": "#b8d4b8" },
+        "Peripherals":    { "fill": "#b8c8d8" },
+        "M3 Cortex Internal Peripherals": { "fill": "#c4b8d8" },
+        "OvBreakCode":    { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "OvBreakExternal":{ "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "OvBreakVendor":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" }
+      }
+    },
+    "m3-periph-view": {
+      "sections": {
+        "M3 Cortex Internal Peripherals": { "fill": "#c4b8d8" }
+      }
+    },
+    "flash-zoom-view": {
+      "sections": {
+        "Flash Memory": { "fill": "#a8bcd4" }
+      }
+    },
+    "sysmem-zoom-view": {
+      "sections": {
+        "System Memory": { "fill": "#b8c8d8" }
+      }
+    },
+    "apb-view": {
+      "sections": {
+        "Reserved1":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "Reserved2":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "Reserved3":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "Reserved4":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "Reserved5":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "Reserved6":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "Reserved7":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "Reserved7B": { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "Reserved8":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "Reserved9":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "Reserved10": { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "Reserved11": { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" },
+        "TIM2":    { "fill": "#d4c4a8" },
+        "TIM3":    { "fill": "#d4c4a8" },
+        "TIM4":    { "fill": "#d4c4a8" },
+        "RTC":     { "fill": "#b8d4b8" },
+        "WWDG":    { "fill": "#b8d4b8" },
+        "IWDG":    { "fill": "#b8d4b8" },
+        "SPI2":    { "fill": "#a8c4d8" },
+        "USART2":  { "fill": "#a8bcd4" },
+        "USART3":  { "fill": "#a8bcd4" },
+        "I2C1":    { "fill": "#a8d0c4" },
+        "I2C2":    { "fill": "#a8d0c4" },
+        "USB Registers": { "fill": "#d4b8c8" },
+        "USB/CAN SRAM":  { "fill": "#d4b8c8" },
+        "BXCAN":         { "fill": "#d4b8c8" },
+        "BKP":     { "fill": "#b8d4b8" },
+        "PWR":     { "fill": "#b8d4b8" },
+        "AFIO":    { "fill": "#c4b8d4" },
+        "EXTI":    { "fill": "#c4b8d4" },
+        "PORT A":  { "fill": "#c4b8d4" },
+        "PORT B":  { "fill": "#c4b8d4" },
+        "PORT C":  { "fill": "#c4b8d4" },
+        "PORT D":  { "fill": "#c4b8d4" },
+        "PORT E":  { "fill": "#c4b8d4" },
+        "ADC1":    { "fill": "#d4c0a8" },
+        "ADC2":    { "fill": "#d4c0a8" },
+        "TIM1":    { "fill": "#d4c4a8" },
+        "SPI1":    { "fill": "#a8c4d8" },
+        "USART1":  { "fill": "#a8bcd4" },
+        "DMA":     { "fill": "#b8c8d8" },
+        "RCC":     { "fill": "#b0c4d8" },
+        "Flash Interface": { "fill": "#d4c4a8" },
+        "CRC":        { "fill": "#b8c8d8" },
+        "ApbEndBus":  { "fill": "#eaecee", "stroke": "#c8cdd4", "text_fill": "#9aacb8" }
+      }
+    }
+  },
+  "links": {
+    "shape": "polygon",
+    "fill": "#a8c4d4",
+    "stroke": "none",
+    "opacity": 0.35
+  }
+}

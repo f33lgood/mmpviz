@@ -14,8 +14,10 @@ class Links:
         self.style = style or {}
         self.addresses = safe_element_dict_get(self.links, 'addresses', []) or []
         self.sections = safe_element_dict_get(self.links, 'sections', []) or []
+        self.sub_sections = safe_element_dict_get(self.links, 'sub_sections', []) or []
         self._normalize_addresses()
         self._validate_sections()
+        self._validate_sub_sections()
 
     def _normalize_addresses(self):
         """Convert any hex-string addresses to int."""
@@ -47,3 +49,15 @@ class Links:
                 logger.warning(
                     f"Section link '{entry}' must be a string or list of two strings, skipping")
         self.sections = valid
+
+    def _validate_sub_sections(self):
+        """Remove malformed sub-section link entries with warnings."""
+        valid = []
+        for entry in self.sub_sections:
+            if (isinstance(entry, list) and len(entry) == 2
+                    and all(isinstance(e, str) for e in entry)):
+                valid.append(entry)
+            else:
+                logger.warning(
+                    f"Sub-section link must be [source_area_id, section_id], skipping: {entry}")
+        self.sub_sections = valid
