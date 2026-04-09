@@ -40,7 +40,7 @@ python scripts/mmpviz.py -d diagram.json [-t theme.json] [-o output.svg]
 
 **Quick start:**
 ```bash
-python scripts/mmpviz.py -d examples/stm32f103/diagram.json -t examples/stm32f103/theme.json -o map.svg
+python scripts/mmpviz.py -d examples/chips/stm32f103/diagram.json -t examples/chips/stm32f103/theme.json -o map.svg
 ```
 
 ---
@@ -80,20 +80,25 @@ The `area.id` in `diagram.json` is the key that connects to `theme.json` overrid
 
 Each subdirectory under `examples/` contains a `diagram.json`, `theme.json`, and a `golden.svg` (reference output used by the regression test suite).
 
+**Feature demos** (`examples/`):
+
 | Directory | Description |
 |-----------|-------------|
 | `examples/stack/` | Single panel, growth arrows, large address gap |
 | `examples/break/` | Four panels demonstrating all four break styles (~, ≈, /, …) |
 | `examples/labels/` | Address annotation labels — directions, sides, arrow heads |
-| `examples/link/` | Cross-area zoom bands and address link lines |
-| `examples/stm32f103/` | Five-area STM32F103 full chip map with APB peripheral detail |
+| `examples/link/` | Cross-area zoom bands and address link lines (6 style variants + cortex_m3 reference) |
 
-Shared themes:
+**Real-world chip examples** (`examples/chips/`):
 
-| File | Description |
-|------|-------------|
-| `examples/dark_theme.json` | Dark color scheme |
-| `examples/light_theme.json` | Light color scheme |
+| Directory | Description |
+|-----------|-------------|
+| `examples/chips/stm32f103/` | ARM Cortex-M3 MCU — 5-area map with APB peripheral detail |
+| `examples/chips/caliptra/` | Caliptra RoT RISC-V security subsystem |
+| `examples/chips/opentitan_earlgrey/` | OpenTitan Earl Grey TL-UL crossbar SoC (65+ peripherals) |
+| `examples/chips/pulpissimo/` | PULP RISC-V SoC — multi-level zoom with µDMA channel detail |
+
+**Built-in themes** (`themes/`): `light.json`, `monochrome.json`, `plantuml.json`
 
 ---
 
@@ -105,11 +110,16 @@ Shared themes:
 | `references/theme-schema.md` | All `theme.json` style properties |
 | `references/create-diagram.md` | Step-by-step guide: writing a diagram from scratch |
 | `references/apply-theme.md` | Choosing and customizing a theme |
+| `references/layout-guide.md` | Canvas sizing, output format targets, manual placement templates |
+| `references/check-rules.md` | All `check.py` validation rules — thresholds and remediation |
+| `references/auto-layout-algorithm.md` | Auto-layout implementation reference with planned-vs-implemented table |
+| `references/llm-guide.md` | Rules of thumb for AI/LLM-assisted diagram authoring |
 
 ---
 
 ## Features
 
+- **Auto-layout**: column placement and section heights computed automatically from address ranges — no `pos`/`size` needed in `diagram.json`. The tool builds a DAG from address containment, assigns areas to columns by topological depth, and expands the canvas to fit.
 - **Areas**: one panel per memory bus (Flash, SRAM, peripherals, …)
 - **Break sections**: compress large empty regions with `"flags": ["break"]`
 - **Growth arrows**: show stack/heap growth direction with `"grows-up"` / `"grows-down"`
@@ -133,7 +143,7 @@ ln -s "$(pwd)" ~/.claude/skills/mmpviz
 ## Testing
 
 ```bash
-python -m unittest discover tests/ -v
+python -m pytest tests/
 ```
 
-Tests cover: section flags, loader, theme resolution, area pixel math, SVG builder, renderer integration, and golden-file regression (all five examples re-rendered and compared to stored reference SVGs).
+Tests cover: section flags, loader, theme resolution, area pixel math, SVG builder, renderer integration, auto-layout column assignment, and golden-file regression (all examples re-rendered and compared to stored reference SVGs).

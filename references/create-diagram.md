@@ -49,8 +49,9 @@ Each `area` in the `areas` array is one panel in the diagram. The only required
 field is `id`. Everything else is optional — `pos` and `size` are auto-computed
 when absent.
 
-**Auto-layout (recommended):** omit `pos` and `size` and the tool distributes
-areas evenly left-to-right on the canvas:
+**Auto-layout (default):** omit `pos` and `size`. The tool builds a link graph
+from address containment, assigns areas to columns by topological depth, and
+sizes each area so every section is at least `min_section_height` pixels tall:
 
 ```json
 "areas": [
@@ -59,7 +60,10 @@ areas evenly left-to-right on the canvas:
 ]
 ```
 
-**Manual layout:** supply `pos` and `size` when you need precise control:
+The SVG canvas grows automatically to fit all areas — no manual sizing required.
+
+**Manual override:** supply `pos` and `size` on any area where you need precise
+control. You can mix: some areas explicit, others auto:
 
 ```json
 "areas": [
@@ -73,14 +77,10 @@ areas evenly left-to-right on the canvas:
   {
     "id": "sram-view",
     "title": "SRAM",
-    "range": ["0x20000000", "0x20005000"],
-    "pos": [270, 80],
-    "size": [180, 700]
+    "range": ["0x20000000", "0x20005000"]
   }
 ]
 ```
-
-You can mix: supply `pos`/`size` on some areas and omit them on others.
 
 ---
 
@@ -130,7 +130,7 @@ python scripts/mmpviz.py -d diagram.json -o output.svg
 
 With a theme:
 ```bash
-python scripts/mmpviz.py -d diagram.json -t examples/dark_theme.json -o output.svg
+python scripts/mmpviz.py -d diagram.json -t themes/light.json -o output.svg
 ```
 
 Validate before rendering:
@@ -142,6 +142,15 @@ python scripts/mmpviz.py --validate diagram.json
 
 ## Step 6: Iterate
 
-Adjust `pos` and `size` in your `areas` to control layout.
-Move styling (colors, fonts) to a `theme.json` file so the diagram stays clean.
-See `references/theme-schema.md` for all available style properties.
+Auto-layout handles placement by default — you rarely need to touch `pos` or
+`size`.  Typical iteration focuses on:
+
+- **Section visibility**: if a section's labels are hidden, it is shorter than
+  `min_section_height`.  Increase `min_section_height` in `theme.json`, add a
+  `section_size` filter on the area to exclude very small sections, or flag the
+  section as `"break"` to compress it.
+- **Column arrangement**: the auto-layout assigns columns from the link graph.
+  If an area lands in the wrong column, check that its `range` correctly
+  contains the linking sections, or use `pos`/`size` to override placement.
+- **Styling**: move colors, fonts, and link styles to `theme.json`.
+  See `references/theme-schema.md` for all available style properties.

@@ -58,11 +58,32 @@ Each entry in `areas` defines one memory view panel in the SVG diagram.
 | `id` | string | Yes | — | Unique identifier. **Used as key in `theme.json`** to apply per-area styling. |
 | `title` | string | No | `""` | Label shown above the area panel |
 | `range` | `[min_addr, max_addr]` | No | All sections | Filter sections to this address range. Addresses as hex strings or ints. |
-| `pos` | `[x, y]` | No | **auto** | Top-left pixel position. Omit to use auto-layout (areas distributed evenly left-to-right). |
-| `size` | `[width, height]` | No | **auto** | Pixel dimensions. Omit to use auto-layout (equal width, full canvas height minus padding). |
+| `pos` | `[x, y]` | No | **auto** | Top-left pixel position. Omit to use auto-layout (see below). Supply to override auto-layout for this area only. |
+| `size` | `[width, height]` | No | **auto** | Pixel dimensions. Omit to use auto-layout (see below). Supply to override auto-layout for this area only. |
 | `section_size` | `[min_bytes]` or `[min_bytes, max_bytes]` | No | No filter | Filter sections by byte size |
 | `sections` | array | No | `[]` | Per-section overrides within this area (see below) |
 | `labels` | array | No | `[]` | Address annotation labels (see below) |
+
+### Auto-layout
+
+When any area omits `pos` or `size`, the auto-layout engine activates for the
+whole diagram:
+
+1. **Link graph** — a DAG is derived from address containment: an edge A → B is
+   added when area B's full address range is contained within a section that
+   belongs to area A.
+2. **Column assignment** — BFS from roots (areas with no incoming edges) assigns
+   each area to a layout column (`column = max depth from any root`).
+3. **Bin-packing** — within each DAG column, areas are greedily stacked until
+   the column would overflow; excess areas spill into a new sub-column.
+4. **Height estimation** — each area's height is set to
+   `n_visible × min_section_height + n_breaks × (break_size + 4) + 20`,
+   guaranteeing all sections can reach `min_section_height`.
+5. **Canvas expansion** — the SVG canvas grows to fit all placed areas; the
+   `size` value in `diagram.json` acts as a floor, not a hard limit.
+
+You can mix explicit and auto layout: supply `pos`/`size` on the areas where
+you need precise control and omit them on the rest.
 
 ### `areas[].sections[]` — Per-Section Overrides
 
@@ -126,8 +147,6 @@ Section band visual style is controlled in `theme.json` under `links`. See `them
       "id": "flash-view",
       "title": "Flash Memory",
       "range": ["0x08000000", "0x08020000"],
-      "pos": [50, 80],
-      "size": [180, 750],
       "sections": [
         { "names": ["gap"], "flags": ["break"] }
       ],
@@ -138,9 +157,7 @@ Section band visual style is controlled in `theme.json` under `links`. See `them
     {
       "id": "sram-view",
       "title": "SRAM",
-      "range": ["0x20000000", "0x20005000"],
-      "pos": [270, 80],
-      "size": [180, 750]
+      "range": ["0x20000000", "0x20005000"]
     }
   ],
 

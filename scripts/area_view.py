@@ -79,6 +79,32 @@ class AreaView:
         """
         return self.size_y - ((value - self.start_address) / self.address_to_pxl)
 
+    def address_to_py_actual(self, address) -> float:
+        """
+        Map `address` to a y-pixel offset within this (sub)area, respecting
+        per-section size_y_override positions when set.
+
+        When the per-section height algorithm assigns non-proportional heights,
+        to_pixels_relative() returns a proportional estimate that does not match
+        the actual rendered position.  This method looks up the section that owns
+        `address` and interpolates within its actual override bounds, so that link
+        band endpoints align exactly with the rendered section box edges.
+
+        Falls back to to_pixels_relative() when no overrides are present.
+        """
+        for s in self.sections.get_sections():
+            if s.is_hidden() or s.is_break() or s.size == 0:
+                continue
+            if s.size_y_override is None or s.pos_y_in_subarea is None:
+                continue
+            s_lo = s.address
+            s_hi = s.address + s.size
+            if s_lo <= address <= s_hi:
+                # frac = 0 at top (high address), 1 at bottom (low address).
+                frac = (s_hi - address) / s.size
+                return s.pos_y_in_subarea + frac * s.size_y_override
+        return self.to_pixels_relative(address)
+
     def _overwrite_sections_info(self):
         """
         Apply style and flag overrides to each section.
@@ -119,6 +145,108 @@ class AreaView:
                         for flag in element.get('flags', []):
                             if flag not in section.flags:
                                 section.flags.append(flag)
+
+    def _compute_per_section_heights(self, sections, available_px, min_h, max_h):
+        """
+        Distribute `available_px` among sections using a per-section iterative
+        lock-at-min_h algorithm (proposal §2.3).
+
+        Phase 1: iteratively lock sections below min_h at min_h, re-proportionalise
+        the remaining budget for unlocked sections until convergence.
+
+        Phase 2 (post-process): cap any section that still exceeds max_h and
+        redistribute the freed surplus to floored (min_h-locked) sections first,
+        then to any remaining uncapped section.
+
+        Separating the two phases is critical: mixing ceiling locks into the
+        floor-locking overflow check causes a false overflow when a large section
+        simultaneously needs a max_h cap and several small sections need min_h
+        floors (the cap consumes budget before the floors can be satisfied).
+
+        Hidden/break sections are excluded; size-0 sections are skipped.
+        Returns {id(section): height_px}.
+        """
+        sections = [s for s in sections if s.size > 0]
+        if not sections or available_px <= 0:
+            return {}
+
+        def sbytes(s):
+            return max(s.size, 1)
+
+        total_bytes = sum(sbytes(s) for s in sections)
+        heights = {id(s): available_px * sbytes(s) / total_bytes for s in sections}
+        locked = {}
+        lock_is_floor = set()
+
+        # Phase 1: lock sections at min_h only (no max_h ceiling here).
+        for _ in range(len(sections) + 1):
+            new_locks = {}
+            new_floors = set()
+            for s in sections:
+                if id(s) in locked or s.is_hidden() or s.is_break():
+                    continue
+                h = heights[id(s)]
+                lo = float(min_h) if min_h is not None else 0.0
+                if h < lo:
+                    new_locks[id(s)] = lo
+                    new_floors.add(id(s))
+
+            if not new_locks:
+                break
+
+            proposed_locked_px = sum(locked.values()) + sum(new_locks.values())
+            if proposed_locked_px >= available_px:
+                # Cannot honour all min_h floors — fall back to pure proportional.
+                return {id(s): available_px * sbytes(s) / total_bytes for s in sections}
+
+            locked.update(new_locks)
+            lock_is_floor.update(new_floors)
+
+            locked_bytes = sum(sbytes(s) for s in sections if id(s) in locked)
+            free_px = available_px - sum(locked.values())
+            free_bytes = total_bytes - locked_bytes
+
+            for s in sections:
+                if id(s) in locked:
+                    heights[id(s)] = locked[id(s)]
+                elif free_bytes > 0:
+                    heights[id(s)] = free_px * sbytes(s) / free_bytes
+
+        # Phase 2: apply max_h ceiling and redistribute freed surplus.
+        if max_h is not None:
+            hi = float(max_h)
+            surplus = 0.0
+            for s in sections:
+                if not s.is_hidden() and not s.is_break() and heights[id(s)] > hi:
+                    surplus += heights[id(s)] - hi
+                    heights[id(s)] = hi
+            if surplus > 1e-6:
+                floored = [s for s in sections if id(s) in lock_is_floor]
+                if floored:
+                    floor_bytes = sum(sbytes(s) for s in floored)
+                    for s in floored:
+                        heights[id(s)] += surplus * sbytes(s) / floor_bytes
+                else:
+                    uncapped = [s for s in sections
+                                if not s.is_hidden() and not s.is_break()
+                                and heights[id(s)] < hi]
+                    if uncapped:
+                        unc_bytes = sum(sbytes(s) for s in uncapped)
+                        for s in uncapped:
+                            heights[id(s)] += surplus * sbytes(s) / unc_bytes
+
+        # Redistribute any residual surplus from the floor-locking phase.
+        if locked:
+            total_h = sum(heights[id(s)] for s in sections)
+            surplus = available_px - total_h
+            if surplus > 1e-6:
+                floored = [s for s in sections if id(s) in lock_is_floor]
+                if floored:
+                    floor_bytes = sum(sbytes(s) for s in floored)
+                    for s in floored:
+                        heights[id(s)] += surplus * sbytes(s) / floor_bytes
+
+        return heights
 
     def _compute_clamped_heights(self, section_groups, available_px, min_section_h, max_section_h):
         """
@@ -219,7 +347,11 @@ class AreaView:
 
         def area_config_clone(configuration, pos_y_px, size_y_px, start_mem_addr, end_mem_addr):
             new_config = copy.deepcopy(configuration)
-            new_config['size'] = [DefaultAppValues.SIZE_X, DefaultAppValues.SIZE_Y]
+            # Preserve the parent area's size_x; only override size_y.
+            # Using DefaultAppValues.SIZE_X would break link-band geometry when
+            # auto-layout assigns a column width != 200.
+            if 'size' not in new_config:
+                new_config['size'] = [DefaultAppValues.SIZE_X, DefaultAppValues.SIZE_Y]
             if new_config.get('pos') is None:
                 new_config['pos'] = [DefaultAppValues.POSITION_X, DefaultAppValues.POSITION_Y]
             new_config['size'][1] = size_y_px
@@ -251,12 +383,46 @@ class AreaView:
 
         min_section_h = self.style.get('min_section_height', None)
         max_section_h = self.style.get('max_section_height', None)
-        clamped_heights = (
-            self._compute_clamped_heights(
-                split_section_groups, available_for_non_breaks, min_section_h, max_section_h)
-            if (min_section_h is not None or max_section_h is not None)
-            else None
-        )
+
+        clamped_heights = None
+        if min_section_h is not None or max_section_h is not None:
+            # Collect only VISIBLE (non-hidden, non-break) sections.
+            # Hidden sections act as sub-section overlays in other views and must
+            # NOT be included here — their sizes overlap with visible sections and
+            # would inflate total_bytes, diluting visible section heights.
+            all_visible = []
+            for g in split_section_groups:
+                if not g.is_break_section_group():
+                    all_visible.extend([
+                        s for s in g.get_sections()
+                        if not s.is_hidden() and not s.is_break() and s.size > 0
+                    ])
+
+            section_px = self._compute_per_section_heights(
+                all_visible, available_for_non_breaks, min_section_h, max_section_h)
+
+            if section_px:
+                # Assign size_y_override and pos_y_in_subarea per visible section,
+                # then derive each group's height as the sum of its visible section heights.
+                group_heights = {}
+                for g in split_section_groups:
+                    if g.is_break_section_group():
+                        continue
+                    visible_in_group = [
+                        s for s in g.get_sections()
+                        if not s.is_hidden() and not s.is_break() and s.size > 0
+                    ]
+                    # Sort high-address-first: top of SVG = highest address.
+                    sorted_vis = sorted(visible_in_group,
+                                        key=lambda s: s.address + s.size, reverse=True)
+                    y = 0.0
+                    for s in sorted_vis:
+                        s.size_y_override = section_px.get(id(s), 0.0)
+                        s.pos_y_in_subarea = y
+                        y += s.size_y_override
+                    if y > 0:
+                        group_heights[id(g)] = y
+                clamped_heights = group_heights if group_heights else None
 
         last_area_pos = self.pos_y + self.size_y
 

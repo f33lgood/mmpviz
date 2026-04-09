@@ -33,6 +33,8 @@ class Section:
         self.size_x = 0
         self.style = {}
         self.flags = flags if flags is not None else []
+        self.size_y_override = None   # set by per-section height algorithm
+        self.pos_y_in_subarea = None  # set by per-section height algorithm
 
     def is_grow_up(self):
         return 'grows-up' in self.flags

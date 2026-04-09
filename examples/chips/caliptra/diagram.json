@@ -1,100 +1,382 @@
 {
   "title": "Caliptra RoT Memory Map",
-  "size": [1200, 1400],
+  "size": [
+    1200,
+    1400
+  ],
   "sections": [
-    { "id": "ROM",           "address": "0x00000000", "size": "0x00018000", "type": "area", "name": "ROM" },
-    { "id": "Crypto",        "address": "0x10000000", "size": "0x00080000", "type": "area", "name": "Crypto Subsystem" },
-    { "id": "Peripherals",   "address": "0x20000000", "size": "0x00008000", "type": "area", "name": "Peripherals" },
-    { "id": "SoC Interface", "address": "0x30000000", "size": "0x00080000", "type": "area", "name": "SoC Interface" },
-    { "id": "ICCM",          "address": "0x40000000", "size": "0x00040000", "type": "area", "name": "ICCM" },
-    { "id": "DCCM",          "address": "0x50000000", "size": "0x00040000", "type": "area", "name": "DCCM" },
-    { "id": "PIC",           "address": "0x60000000", "size": "0x10000000", "type": "area", "name": "PIC" },
-
-    { "id": "OvGap0", "address": "0x00018000", "size": "0x0FFE8000", "name": "···" },
-    { "id": "OvGap1", "address": "0x10080000", "size": "0x0FF80000", "name": "···" },
-    { "id": "OvGap2", "address": "0x20008000", "size": "0x0FFF8000", "name": "···" },
-    { "id": "OvGap3", "address": "0x30080000", "size": "0x0FF80000", "name": "···" },
-    { "id": "OvGap4", "address": "0x40040000", "size": "0x0FFC0000", "name": "···" },
-    { "id": "OvGap5", "address": "0x50040000", "size": "0x0FFC0000", "name": "···" },
-
-    { "id": "DOE",       "address": "0x10000000", "size": "0x00008000", "name": "DOE" },
-    { "id": "ECC",       "address": "0x10008000", "size": "0x00008000", "name": "ECC (Secp384)" },
-    { "id": "HMAC512",   "address": "0x10010000", "size": "0x00001000", "name": "HMAC512" },
-    { "id": "AES",       "address": "0x10011000", "size": "0x00001000", "name": "AES" },
-    { "id": "CrGap0",    "address": "0x10012000", "size": "0x00006000", "name": "···" },
-    { "id": "KeyVault",  "address": "0x10018000", "size": "0x00002000", "name": "Key Vault" },
-    { "id": "PCRVault",  "address": "0x1001A000", "size": "0x00002000", "name": "PCR Vault" },
-    { "id": "DataVault", "address": "0x1001C000", "size": "0x00002000", "name": "Data Vault" },
-    { "id": "CrGap1",    "address": "0x1001E000", "size": "0x00002000", "name": "···" },
-    { "id": "SHA512",    "address": "0x10020000", "size": "0x00008000", "name": "SHA512" },
-    { "id": "SHA256",    "address": "0x10028000", "size": "0x00008000", "name": "SHA256" },
-    { "id": "MLDSA",     "address": "0x10030000", "size": "0x00010000", "name": "MLDSA/MLKEM" },
-    { "id": "SHA3",      "address": "0x10040000", "size": "0x00001000", "name": "SHA3" },
-    { "id": "CrEnd",     "address": "0x10041000", "size": "0x0003F000", "name": "···" },
-
-    { "id": "PeriGap0",  "address": "0x20000000", "size": "0x00002000", "name": "···" },
-    { "id": "CSRNG",     "address": "0x20002000", "size": "0x00001000", "name": "CSRNG" },
-    { "id": "EntropySrc","address": "0x20003000", "size": "0x00001000", "name": "Entropy Source" },
-    { "id": "PeriEnd",   "address": "0x20004000", "size": "0x00004000", "name": "···" },
-
-    { "id": "SocGap0",    "address": "0x30000000", "size": "0x00020000", "name": "···" },
-    { "id": "MailboxCSR", "address": "0x30020000", "size": "0x00001000", "name": "Mailbox CSR" },
-    { "id": "SHA512Accel","address": "0x30021000", "size": "0x00001000", "name": "SHA512 Accel" },
-    { "id": "AXIDMA",     "address": "0x30022000", "size": "0x00001000", "name": "AXI DMA" },
-    { "id": "SocMid",     "address": "0x30023000", "size": "0x0000D000", "name": "···" },
-    { "id": "SoCIFCCSR",  "address": "0x30030000", "size": "0x00010000", "name": "SoC IFC CSR" },
-    { "id": "MailboxSRAM","address": "0x30040000", "size": "0x00040000", "name": "Mailbox SRAM" }
+    {
+      "id": "ROM",
+      "address": "0x00000000",
+      "size": "0x00018000",
+      "type": "area",
+      "name": "ROM"
+    },
+    {
+      "id": "Crypto",
+      "address": "0x10000000",
+      "size": "0x00080000",
+      "type": "area",
+      "name": "Crypto Subsystem"
+    },
+    {
+      "id": "Peripherals",
+      "address": "0x20000000",
+      "size": "0x00008000",
+      "type": "area",
+      "name": "Peripherals"
+    },
+    {
+      "id": "SoC Interface",
+      "address": "0x30000000",
+      "size": "0x00080000",
+      "type": "area",
+      "name": "SoC Interface"
+    },
+    {
+      "id": "ICCM",
+      "address": "0x40000000",
+      "size": "0x00040000",
+      "type": "area",
+      "name": "ICCM"
+    },
+    {
+      "id": "DCCM",
+      "address": "0x50000000",
+      "size": "0x00040000",
+      "type": "area",
+      "name": "DCCM"
+    },
+    {
+      "id": "PIC",
+      "address": "0x60000000",
+      "size": "0x10000000",
+      "type": "area",
+      "name": "PIC"
+    },
+    {
+      "id": "OvGap0",
+      "address": "0x00018000",
+      "size": "0x0FFE8000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "OvGap1",
+      "address": "0x10080000",
+      "size": "0x0FF80000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "OvGap2",
+      "address": "0x20008000",
+      "size": "0x0FFF8000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "OvGap3",
+      "address": "0x30080000",
+      "size": "0x0FF80000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "OvGap4",
+      "address": "0x40040000",
+      "size": "0x0FFC0000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "OvGap5",
+      "address": "0x50040000",
+      "size": "0x0FFC0000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "DOE",
+      "address": "0x10000000",
+      "size": "0x00008000",
+      "name": "DOE"
+    },
+    {
+      "id": "ECC",
+      "address": "0x10008000",
+      "size": "0x00008000",
+      "name": "ECC (Secp384)"
+    },
+    {
+      "id": "HMAC512",
+      "address": "0x10010000",
+      "size": "0x00001000",
+      "name": "HMAC512"
+    },
+    {
+      "id": "AES",
+      "address": "0x10011000",
+      "size": "0x00001000",
+      "name": "AES"
+    },
+    {
+      "id": "CrGap0",
+      "address": "0x10012000",
+      "size": "0x00006000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "KeyVault",
+      "address": "0x10018000",
+      "size": "0x00002000",
+      "name": "Key Vault"
+    },
+    {
+      "id": "PCRVault",
+      "address": "0x1001A000",
+      "size": "0x00002000",
+      "name": "PCR Vault"
+    },
+    {
+      "id": "DataVault",
+      "address": "0x1001C000",
+      "size": "0x00002000",
+      "name": "Data Vault"
+    },
+    {
+      "id": "CrGap1",
+      "address": "0x1001E000",
+      "size": "0x00002000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "SHA512",
+      "address": "0x10020000",
+      "size": "0x00008000",
+      "name": "SHA512"
+    },
+    {
+      "id": "SHA256",
+      "address": "0x10028000",
+      "size": "0x00008000",
+      "name": "SHA256"
+    },
+    {
+      "id": "MLDSA",
+      "address": "0x10030000",
+      "size": "0x00010000",
+      "name": "MLDSA/MLKEM"
+    },
+    {
+      "id": "SHA3",
+      "address": "0x10040000",
+      "size": "0x00001000",
+      "name": "SHA3"
+    },
+    {
+      "id": "CrEnd",
+      "address": "0x10041000",
+      "size": "0x0003F000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "PeriGap0",
+      "address": "0x20000000",
+      "size": "0x00002000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "CSRNG",
+      "address": "0x20002000",
+      "size": "0x00001000",
+      "name": "CSRNG"
+    },
+    {
+      "id": "EntropySrc",
+      "address": "0x20003000",
+      "size": "0x00001000",
+      "name": "Entropy Source"
+    },
+    {
+      "id": "PeriEnd",
+      "address": "0x20004000",
+      "size": "0x00004000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "SocGap0",
+      "address": "0x30000000",
+      "size": "0x00020000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "MailboxCSR",
+      "address": "0x30020000",
+      "size": "0x00001000",
+      "name": "Mailbox CSR"
+    },
+    {
+      "id": "SHA512Accel",
+      "address": "0x30021000",
+      "size": "0x00001000",
+      "name": "SHA512 Accel"
+    },
+    {
+      "id": "AXIDMA",
+      "address": "0x30022000",
+      "size": "0x00001000",
+      "name": "AXI DMA"
+    },
+    {
+      "id": "SocMid",
+      "address": "0x30023000",
+      "size": "0x0000D000",
+      "name": "\u00b7\u00b7\u00b7"
+    },
+    {
+      "id": "SoCIFCCSR",
+      "address": "0x30030000",
+      "size": "0x00010000",
+      "name": "SoC IFC CSR"
+    },
+    {
+      "id": "MailboxSRAM",
+      "address": "0x30040000",
+      "size": "0x00040000",
+      "name": "Mailbox SRAM"
+    }
   ],
   "areas": [
     {
       "id": "overview",
       "title": "Caliptra RoT",
-      "pos": [60, 80],
-      "size": [200, 1280],
-      "range": ["0x00000000", "0x70000000"],
+      "range": [
+        "0x00000000",
+        "0x70000000"
+      ],
       "sections": [
-        { "names": ["OvGap0", "OvGap1", "OvGap2", "OvGap3", "OvGap4", "OvGap5"], "flags": ["break"] },
-        { "names": [
-            "DOE", "ECC", "HMAC512", "AES", "CrGap0",
-            "KeyVault", "PCRVault", "DataVault", "CrGap1",
-            "SHA512", "SHA256", "MLDSA", "SHA3", "CrEnd",
-            "PeriGap0", "CSRNG", "EntropySrc", "PeriEnd",
-            "SocGap0", "MailboxCSR", "SHA512Accel", "AXIDMA",
-            "SocMid", "SoCIFCCSR", "MailboxSRAM"
-          ], "flags": ["hidden"] }
+        {
+          "names": [
+            "OvGap0",
+            "OvGap1",
+            "OvGap2",
+            "OvGap3",
+            "OvGap4",
+            "OvGap5"
+          ],
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "names": [
+            "DOE",
+            "ECC",
+            "HMAC512",
+            "AES",
+            "CrGap0",
+            "KeyVault",
+            "PCRVault",
+            "DataVault",
+            "CrGap1",
+            "SHA512",
+            "SHA256",
+            "MLDSA",
+            "SHA3",
+            "CrEnd",
+            "PeriGap0",
+            "CSRNG",
+            "EntropySrc",
+            "PeriEnd",
+            "SocGap0",
+            "MailboxCSR",
+            "SHA512Accel",
+            "AXIDMA",
+            "SocMid",
+            "SoCIFCCSR",
+            "MailboxSRAM"
+          ],
+          "flags": [
+            "hidden"
+          ]
+        }
       ]
     },
     {
       "id": "soc-ifc-view",
       "title": "SoC Interface",
-      "pos": [460, 80],
-      "size": [260, 550],
-      "range": ["0x30000000", "0x30080000"],
+      "range": [
+        "0x30000000",
+        "0x30080000"
+      ],
       "sections": [
-        { "names": ["SoC Interface"], "flags": ["hidden"] },
-        { "names": ["SocGap0", "SocMid"], "flags": ["break"] }
+        {
+          "names": [
+            "SoC Interface"
+          ],
+          "flags": [
+            "hidden"
+          ]
+        },
+        {
+          "names": [
+            "SocGap0",
+            "SocMid"
+          ],
+          "flags": [
+            "break"
+          ]
+        }
       ]
     },
     {
       "id": "periph-view",
       "title": "Peripherals",
-      "pos": [920, 80],
-      "size": [220, 190],
-      "range": ["0x20000000", "0x20008000"],
+      "range": [
+        "0x20000000",
+        "0x20008000"
+      ],
       "sections": [
-        { "names": ["Peripherals"], "flags": ["hidden"] },
-        { "names": ["PeriGap0", "PeriEnd"], "flags": ["break"] }
+        {
+          "names": [
+            "Peripherals"
+          ],
+          "flags": [
+            "hidden"
+          ]
+        },
+        {
+          "names": [
+            "PeriGap0",
+            "PeriEnd"
+          ],
+          "flags": [
+            "break"
+          ]
+        }
       ]
     },
     {
       "id": "crypto-view",
       "title": "Crypto Subsystem",
-      "pos": [920, 320],
-      "size": [220, 1000],
-      "range": ["0x10000000", "0x10080000"],
+      "range": [
+        "0x10000000",
+        "0x10080000"
+      ],
       "sections": [
-        { "names": ["Crypto"], "flags": ["hidden"] },
-        { "names": ["CrGap0", "CrGap1", "CrEnd"], "flags": ["break"] }
+        {
+          "names": [
+            "Crypto"
+          ],
+          "flags": [
+            "hidden"
+          ]
+        },
+        {
+          "names": [
+            "CrGap0",
+            "CrGap1",
+            "CrEnd"
+          ],
+          "flags": [
+            "break"
+          ]
+        }
       ]
     }
   ],

@@ -47,8 +47,6 @@
     {
       "id": "overview",
       "title": "PULPissimo SoC",
-      "pos": [60, 80],
-      "size": [190, 880],
       "range": ["0x10000000", "0x1C090000"],
       "sections": [
         { "names": ["Gap0", "Gap1", "Gap2"], "flags": ["break"] },
@@ -62,8 +60,6 @@
     {
       "id": "apb-view",
       "title": "APB Peripheral Bus",
-      "pos": [400, 80],
-      "size": [200, 880],
       "range": ["0x1A100000", "0x1A140000"],
       "sections": [
         { "names": ["APB Rsvd0", "APB Rsvd1", "Chip Ctrl"], "flags": ["break"] },
@@ -76,8 +72,6 @@
     {
       "id": "chip-ctrl-view",
       "title": "Chip Control",
-      "pos": [760, 80],
-      "size": [200, 200],
       "range": ["0x1A120000", "0x1A140000"],
       "sections": [
         { "names": ["Chip Ctrl"], "flags": ["hidden"] },
@@ -87,8 +81,6 @@
     {
       "id": "udma-view",
       "title": "uDMA Channels",
-      "pos": [760, 330],
-      "size": [200, 330],
       "range": ["0x1A102000", "0x1A104000"],
       "sections": [
         { "names": ["uDMA"], "flags": ["hidden"] },

@@ -137,9 +137,13 @@ class MapRenderer:
 
     def _make_section(self, group: ET.Element, section: Section, area_view) -> ET.Element:
         section.size_x = area_view.size_x
-        section.size_y = area_view.to_pixels(section.size)
-        section.pos_y = area_view.to_pixels(
-            area_view.end_address - section.size - section.address)
+        if section.size_y_override is not None:
+            section.size_y = section.size_y_override
+            section.pos_y = section.pos_y_in_subarea
+        else:
+            section.size_y = area_view.to_pixels(section.size)
+            section.pos_y = area_view.to_pixels(
+                area_view.end_address - section.size - section.address)
         section.pos_x = 0
 
         if section.is_break() and section.type != 'area':
@@ -607,10 +611,12 @@ class MapRenderer:
 
         lx = left.size_x + left.pos_x
         lx2 = lx + 30
-        ly = left_sub.pos_y + left_sub.to_pixels_relative(address)
+        # Use address_to_py_actual so the band aligns with section boxes that have
+        # per-section size_y_override (non-proportional) heights.
+        ly = left_sub.pos_y + left_sub.address_to_py_actual(address)
 
         rx = area_view.pos_x
-        ry = area_view.pos_y + area_view.to_pixels_relative(address)
+        ry = area_view.pos_y + area_view.address_to_py_actual(address)
 
         # Outward jog only on the source side; connect straight into the detail stack.
         return [(lx, ly), (lx2, ly), (rx, ry)]

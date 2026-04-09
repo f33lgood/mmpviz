@@ -4,11 +4,16 @@ mmpviz produces SVG, which is a **vector format**: the numbers in `diagram.json`
 define a coordinate space and aspect ratio, not a fixed physical size. The rendered
 SVG scales to any display or print size without quality loss.
 
-This means:
-- Exact pixel values in `size` do not need to match a screen resolution.
-- What matters is **aspect ratio** (determines whether the diagram fits a portrait
-  page, a landscape page, or a slide) and **coordinate scale** (determines how much
-  room exists for text and boxes before crowding).
+**Auto-layout is the default.** When areas omit `pos` and `size`, the tool
+builds a column layout from the address-containment link graph, sizes each area
+so all sections reach `min_section_height`, and expands the canvas to fit.  You
+only need to set `size` (canvas) and supply `pos`/`size` (area) manually when
+you want to override the auto-layout for a specific output target.
+
+When setting a manual canvas size:
+- Exact pixel values do not need to match a screen resolution.
+- What matters is **aspect ratio** (portrait page, landscape, or slide) and
+  **coordinate scale** (room for text and boxes).
 - Area `pos` and `size` values must be chosen **relative to the canvas `size`** —
   they live in the same coordinate space.
 
@@ -41,10 +46,11 @@ When placing areas explicitly, reserve space for:
 
 ---
 
-## Area Layout Templates
+## Area Layout Templates (Manual Override)
 
-Use these as starting-point `diagram.json` `size` and `areas[].pos`/`areas[].size`
-values. Adjust font sizes in `theme.json` to match (see the note at the end).
+These templates are for situations where you want to fix the canvas size and
+area positions for a specific output target rather than relying on auto-layout.
+Adjust font sizes in `theme.json` to match (see the note at the end).
 
 ### A4 Portrait — 1 area
 
@@ -249,9 +255,10 @@ repositioned.
 
 ### Per-chip layout notes
 
-Each chip example directory may contain a `layout.md` file that documents the
-specific placement decisions made for that diagram and provides guidance for future
-adjustments. Consult it before changing `pos` or `size` values.
+Each chip example directory contains a `notes.md` that documents the chip's
+memory map structure.  With auto-layout active (no `pos`/`size` in the chip's
+`diagram.json`), the placement is entirely derived from address ranges and the
+link graph.
 
 ---
 
@@ -259,8 +266,7 @@ adjustments. Consult it before changing `pos` or `size` values.
 
 | Target | Suggested theme |
 |--------|----------------|
-| Printed paper (light) | `themes/light.json` |
-| Printed paper (dark/technical) | `themes/dark.json` |
+| Printed paper | `themes/light.json` |
 | Slides (light background) | `themes/light.json` — increase `font_size` to 16–18 |
-| Slides (dark background) | `themes/dark.json` — increase `font_size` to 16–18 |
-| Informal / linkerscope-style | `themes/linkerscope.json` |
+| Slides (color) | `themes/plantuml.json` — increase `font_size` to 16–18 |
+| Grayscale / print-friendly | `themes/monochrome.json` |

@@ -19,7 +19,7 @@
     "hide_size": false,
     "hide_name": "auto",
     "hide_address": "auto",
-    "min_section_height": 20,
+    "min_section_height": 40,
     "max_section_height": 300,
     "weight": 2
   },
