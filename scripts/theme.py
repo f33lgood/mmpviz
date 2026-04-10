@@ -1,4 +1,8 @@
 import json
+import os
+
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_DEFAULT_THEME_PATH = os.path.normpath(os.path.join(_HERE, '..', 'themes', 'plantuml.json'))
 
 
 class Theme:
@@ -17,28 +21,38 @@ class Theme:
     DEFAULT = {
         "background": "white",
         "fill": "lightgrey",
+        "break_fill": "white",
         "stroke": "black",
         "stroke_width": 1,
         "stroke_dasharray": "3,2",
         "font_size": 16,
         "font_family": "Helvetica",
         "text_fill": "black",
-        "text_stroke": "black",
+        "text_stroke": "none",
         "text_stroke_width": 0,
         "opacity": 1,
         "break_size": 20,
         "growth_arrow_size": 1,
         "growth_arrow_fill": "white",
         "growth_arrow_stroke": "black",
-        "hide_size": False,
-        "hide_name": "auto",
-        "hide_address": "auto",
         "weight": 2,
+    }
+
+    DEFAULT_LINKS = {
+        "shape": "polygon",
+        "fill": "#D8D8D8",
+        "stroke": "#888888",
+        "stroke_width": 1,
+        "opacity": 0.6,
     }
 
     def __init__(self, path: str = None):
         self._data = {}
-        if path:
+        if path is None:
+            if os.path.isfile(_DEFAULT_THEME_PATH):
+                with open(_DEFAULT_THEME_PATH, 'r', encoding='utf-8') as f:
+                    self._data = json.load(f)
+        else:
             with open(path, 'r', encoding='utf-8') as f:
                 self._data = json.load(f)
 
@@ -75,12 +89,12 @@ class Theme:
         return merged
 
     def resolve_links(self) -> dict:
-        """Return style dict for links.
+        """Return style dict for links, merging DEFAULT_LINKS with any theme override.
         Does not inherit section defaults — the renderer supplies its own fallbacks
         for each link property via _s(), so merging _base() would cause section
         properties like stroke_dasharray to bleed into link rendering unintentionally.
         """
-        return dict(self._data.get('links', {}))
+        return {**self.DEFAULT_LINKS, **self._data.get('links', {})}
 
     def resolve_labels(self) -> dict:
         """Return merged style dict for labels.

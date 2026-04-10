@@ -1,10 +1,3 @@
-# Geometry constants that mirror the renderer's size-label placement.
-# Size label is rendered at (pos_x+2, pos_y+2) with text_type='small' (12 px)
-# and baseline='hanging', so it occupies y = [pos_y+2, pos_y+14] inside the section.
-_SIZE_LABEL_TOP_OFFSET = 2
-_SIZE_LABEL_FONT_SIZE  = 12   # renderer's fixed 'small' font size
-
-
 class Section:
     """
     Holds logical and graphical information for a given section, as well as other properties such as
@@ -47,40 +40,6 @@ class Section:
 
     def is_hidden(self):
         return 'hidden' in self.flags
-
-    def _should_element_be_hidden(self, attribute):
-        return str(attribute).lower() in ('true', 'yes')
-
-    def is_address_hidden(self):
-        return self._should_element_be_hidden(self.style.get('hide_address', False))
-
-    def is_end_address_hidden(self):
-        return self._should_element_be_hidden(self.style.get('hide_end_address', False))
-
-    def is_name_hidden(self):
-        if self._should_element_be_hidden(self.style.get('hide_name', False)):
-            return True
-        # Auto-fix: name overflows the section box — suppress it.
-        if self.size_y > 0:
-            font_size = float(self.style.get('font_size', 16))
-            if self.size_y < font_size:
-                return True
-        return False
-
-    def is_size_hidden(self):
-        if self._should_element_be_hidden(self.style.get('hide_size', False)):
-            return True
-        if self.size_y > 0:
-            # Section is too short for the size label itself (12 px hanging).
-            if self.size_y < _SIZE_LABEL_FONT_SIZE:
-                return True
-            # Auto-fix: size label would overlap the name label.
-            if not self.is_name_hidden():
-                font_size = float(self.style.get('font_size', 16))
-                name_label_top = self.size_y / 2 - font_size / 2
-                if name_label_top < _SIZE_LABEL_TOP_OFFSET + _SIZE_LABEL_FONT_SIZE:
-                    return True
-        return False
 
     @property
     def addr_label_pos_x(self):

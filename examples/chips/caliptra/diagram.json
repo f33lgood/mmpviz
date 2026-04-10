@@ -1,9 +1,5 @@
 {
   "title": "Caliptra RoT Memory Map",
-  "size": [
-    1200,
-    1400
-  ],
   "sections": [
     {
       "id": "ROM",
@@ -58,37 +54,37 @@
       "id": "OvGap0",
       "address": "0x00018000",
       "size": "0x0FFE8000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OvGap1",
       "address": "0x10080000",
       "size": "0x0FF80000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OvGap2",
       "address": "0x20008000",
       "size": "0x0FFF8000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OvGap3",
       "address": "0x30080000",
       "size": "0x0FF80000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OvGap4",
       "address": "0x40040000",
       "size": "0x0FFC0000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OvGap5",
       "address": "0x50040000",
       "size": "0x0FFC0000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "DOE",
@@ -118,7 +114,7 @@
       "id": "CrGap0",
       "address": "0x10012000",
       "size": "0x00006000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "KeyVault",
@@ -142,7 +138,7 @@
       "id": "CrGap1",
       "address": "0x1001E000",
       "size": "0x00002000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "SHA512",
@@ -172,13 +168,13 @@
       "id": "CrEnd",
       "address": "0x10041000",
       "size": "0x0003F000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "PeriGap0",
       "address": "0x20000000",
       "size": "0x00002000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "CSRNG",
@@ -196,13 +192,13 @@
       "id": "PeriEnd",
       "address": "0x20004000",
       "size": "0x00004000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "SocGap0",
       "address": "0x30000000",
       "size": "0x00020000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "MailboxCSR",
@@ -226,7 +222,7 @@
       "id": "SocMid",
       "address": "0x30023000",
       "size": "0x0000D000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "SoCIFCCSR",

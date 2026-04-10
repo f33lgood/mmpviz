@@ -21,6 +21,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **Default theme is now `themes/plantuml.json`** — omitting `-t` automatically loads
+  `themes/plantuml.json` instead of hardcoded built-in values. Edit that file to change
+  the baseline style without touching code; it serves as the user-editable default.
+
+- **Section height inflation is conflict-driven** — the label-height floor
+  (`30 + font_size` px) is now applied only to sections where the size label (top-left,
+  12 px font) and name label (centred, `font_size` px) would overlap on the x-axis.
+  Sections with no x-axis conflict keep their proportional height, producing more
+  compact diagrams on dense chips.
+
+---
+
 ## [1.2.0] - 2026-04-09
 
 ### Added
@@ -55,6 +71,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - All bundled chip examples now use auto-layout; explicit `pos`/`size` removed
   from `caliptra`, `stm32f103`, and `opentitan_earlgrey` diagram files.
+
+### Removed
+
+- **Visibility control** — `hide_name`, `hide_address`, `hide_end_address`, and
+  `hide_size` theme properties are gone. All section labels are always rendered.
 
 ---
 

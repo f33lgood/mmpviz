@@ -198,11 +198,13 @@ independently of section text if you want finer control.
 
 ---
 
-## Multi-Panel Placement Rationale
+## Multi-Panel Placement Rationale (manual layout only)
+
+> **Auto-layout handles this automatically.** The notes below only apply when you
+> override placement with explicit `pos`/`size` on areas.
 
 When a diagram has more than two panels (overview + multiple zoom panels), placement
-decisions affect both readability and the visual quality of link bands. The notes
-below are written as guidance for AI/LLM-assisted layout generation.
+decisions affect both readability and the visual quality of link bands.
 
 ### Column ordering
 
@@ -227,10 +229,10 @@ Assign heights proportional to content complexity:
 - A panel with few sections (≤ 3) needs only 150–250 px. Anything taller wastes
   whitespace.
 - A panel with sections of highly unequal sizes needs extra height. The renderer
-  compresses small sections to a minimum of `min_section_height` px (default 15)
-  but auto-hides labels below 20 px. Rule of thumb: if the smallest section is
-  `s_min` bytes and the panel address range is `R` bytes, the panel needs at least
-  `20 × R / s_min` px for every label to be visible. Cap this against
+  compresses small sections to a minimum of `min_section_height` px (default 15).
+  Rule of thumb: if the smallest section is `s_min` bytes and the panel address range
+  is `R` bytes, the panel needs at least `font_size × R / s_min` px for name labels
+  to fit without overflowing. Cap this against
   `max_section_height` (default 300) and the canvas height.
 
 ### Link band width

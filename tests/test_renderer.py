@@ -23,7 +23,6 @@ def default_style():
         'stroke_width': 1, 'font_size': 16, 'font_family': 'Helvetica',
         'text_fill': 'black', 'text_stroke': 'black', 'text_stroke_width': 0,
         'break_size': 20, 'break_type': '≈', 'opacity': 1,
-        'hide_name': 'auto', 'hide_address': 'auto', 'hide_size': 'auto',
         'growth_arrow_size': 1, 'growth_arrow_fill': 'white', 'growth_arrow_stroke': 'black',
         'weight': 2, 'stroke_dasharray': '3,2',
     }

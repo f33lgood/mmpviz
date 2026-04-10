@@ -1,6 +1,6 @@
 import copy
 
-from helpers import safe_element_list_get, safe_element_dict_get, DefaultAppValues
+from helpers import safe_element_list_get, safe_element_dict_get, DefaultAppValues, format_size
 from labels import Labels
 from loader import parse_int
 from logger import logger
@@ -186,7 +186,8 @@ class AreaView:
                 if id(s) in locked or s.is_hidden() or s.is_break():
                     continue
                 h = heights[id(s)]
-                lo = float(min_h) if min_h is not None else 0.0
+                lo = (min_h.get(id(s), 0.0) if isinstance(min_h, dict)
+                      else (float(min_h) if min_h is not None else 0.0))
                 if h < lo:
                     new_locks[id(s)] = lo
                     new_floors.add(id(s))
@@ -247,6 +248,28 @@ class AreaView:
                         heights[id(s)] += surplus * sbytes(s) / floor_bytes
 
         return heights
+
+    def _section_label_min_h(self, section, font_size: float) -> float:
+        """Return the label-driven minimum height for *section*.
+
+        The size label (top-left, 12 px font) and the name label (horizontally
+        centred, *font_size* px) must not overlap on the x-axis.  When they
+        would, return the minimum height needed to separate them vertically;
+        otherwise return 0.0 so the section keeps its proportional height.
+
+        Geometry (character-width approximation, 0.6× factor):
+          size_label_right  = 2 + len(size_text)  × 0.6 × 12
+          name_label_left   = size_x/2 − len(name_text) × 0.6 × font_size / 2
+        Conflict → size_label_right > name_label_left.
+        """
+        SIZE_LABEL_FONT = 12
+        name_text = section.name if section.name is not None else section.id
+        size_text = format_size(section.size)
+        size_label_right = 2.0 + len(size_text) * 0.6 * SIZE_LABEL_FONT
+        name_left = self.size_x / 2.0 - len(name_text) * 0.6 * font_size / 2.0
+        if size_label_right > name_left:
+            return 30.0 + font_size
+        return 0.0
 
     def _compute_clamped_heights(self, section_groups, available_px, min_section_h, max_section_h):
         """
@@ -381,48 +404,59 @@ class AreaView:
         expandable_size_px = total_breaks_size_y_px - (breaks_section_size_y_px * breaks_count)
         available_for_non_breaks = total_non_breaks_size_y_px + expandable_size_px
 
-        min_section_h = self.style.get('min_section_height', None)
         max_section_h = self.style.get('max_section_height', None)
 
+        font_size = float(self.style.get('font_size', 16))
+        user_min_h = self.style.get('min_section_height', None)
+        user_min_h_val = float(user_min_h) if user_min_h is not None else 0.0
+
         clamped_heights = None
-        if min_section_h is not None or max_section_h is not None:
-            # Collect only VISIBLE (non-hidden, non-break) sections.
-            # Hidden sections act as sub-section overlays in other views and must
-            # NOT be included here — their sizes overlap with visible sections and
-            # would inflate total_bytes, diluting visible section heights.
-            all_visible = []
+        # Collect only VISIBLE (non-hidden, non-break) sections.
+        # Hidden sections act as sub-section overlays in other views and must
+        # NOT be included here — their sizes overlap with visible sections and
+        # would inflate total_bytes, diluting visible section heights.
+        all_visible = []
+        for g in split_section_groups:
+            if not g.is_break_section_group():
+                all_visible.extend([
+                    s for s in g.get_sections()
+                    if not s.is_hidden() and not s.is_break() and s.size > 0
+                ])
+
+        # Per-section min_h: apply the label-conflict floor only for sections
+        # where the size label (top-left) and name label (centred) would overlap
+        # on the x-axis at the current section width.  Non-conflicting sections
+        # keep their proportional height (floor = 0.0 or user_min_h).
+        per_section_min_h = {
+            id(s): max(user_min_h_val, self._section_label_min_h(s, font_size))
+            for s in all_visible
+        }
+
+        section_px = self._compute_per_section_heights(
+            all_visible, available_for_non_breaks, per_section_min_h, max_section_h)
+
+        if section_px:
+            # Assign size_y_override and pos_y_in_subarea per visible section,
+            # then derive each group's height as the sum of its visible section heights.
+            group_heights = {}
             for g in split_section_groups:
-                if not g.is_break_section_group():
-                    all_visible.extend([
-                        s for s in g.get_sections()
-                        if not s.is_hidden() and not s.is_break() and s.size > 0
-                    ])
-
-            section_px = self._compute_per_section_heights(
-                all_visible, available_for_non_breaks, min_section_h, max_section_h)
-
-            if section_px:
-                # Assign size_y_override and pos_y_in_subarea per visible section,
-                # then derive each group's height as the sum of its visible section heights.
-                group_heights = {}
-                for g in split_section_groups:
-                    if g.is_break_section_group():
-                        continue
-                    visible_in_group = [
-                        s for s in g.get_sections()
-                        if not s.is_hidden() and not s.is_break() and s.size > 0
-                    ]
-                    # Sort high-address-first: top of SVG = highest address.
-                    sorted_vis = sorted(visible_in_group,
-                                        key=lambda s: s.address + s.size, reverse=True)
-                    y = 0.0
-                    for s in sorted_vis:
-                        s.size_y_override = section_px.get(id(s), 0.0)
-                        s.pos_y_in_subarea = y
-                        y += s.size_y_override
-                    if y > 0:
-                        group_heights[id(g)] = y
-                clamped_heights = group_heights if group_heights else None
+                if g.is_break_section_group():
+                    continue
+                visible_in_group = [
+                    s for s in g.get_sections()
+                    if not s.is_hidden() and not s.is_break() and s.size > 0
+                ]
+                # Sort high-address-first: top of SVG = highest address.
+                sorted_vis = sorted(visible_in_group,
+                                    key=lambda s: s.address + s.size, reverse=True)
+                y = 0.0
+                for s in sorted_vis:
+                    s.size_y_override = section_px.get(id(s), 0.0)
+                    s.pos_y_in_subarea = y
+                    y += s.size_y_override
+                if y > 0:
+                    group_heights[id(g)] = y
+            clamped_heights = group_heights if group_heights else None
 
         last_area_pos = self.pos_y + self.size_y
 

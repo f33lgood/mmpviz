@@ -74,8 +74,7 @@ def _populate_section_heights(area_views: list) -> list:
     """
     Compute size_y / pos_y / size_x for every visible section in every subarea.
 
-    Returns a flat list of (area_id, section, subarea) triples with those
-    attributes set on the section object so that is_name_hidden() etc. work.
+    Returns a flat list of (area_id, section, subarea) triples.
     """
     result = []
     for area in area_views:
@@ -292,8 +291,6 @@ def _addr_label_chars_for_area(area) -> int:
         for section in sub.sections.get_sections():
             if section.is_hidden() or section.is_break():
                 continue
-            if section.is_address_hidden() and section.is_end_address_hidden():
-                continue
             found_any = True
             if max(section.address, section.address + section.size) > _ADDR_64BIT_THRESHOLD:
                 return _ADDR_LABEL_CHARS_64
@@ -378,8 +375,6 @@ def _check_addr_64bit_column_width(area_views: list) -> list[Issue]:
         for sub in area.get_split_area_views():
             for section in sub.sections.get_sections():
                 if section.is_hidden() or section.is_break():
-                    continue
-                if section.is_address_hidden() and section.is_end_address_hidden():
                     continue
                 if max(section.address, section.address + section.size - 1) > _ADDR_64BIT_THRESHOLD:
                     needs_64bit = True

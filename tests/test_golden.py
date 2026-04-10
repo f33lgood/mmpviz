@@ -142,13 +142,12 @@ def _pts_equal(p1, p2):
 # ---------------------------------------------------------------------------
 
 def render_example(example_dir):
-    """Render diagram.json + theme.json and return the SVG string."""
-    import json
+    """Render diagram.json + optional theme.json and return the SVG string."""
     diagram_path = os.path.join(example_dir, 'diagram.json')
     theme_path = os.path.join(example_dir, 'theme.json')
 
     raw_sections, diagram = load(diagram_path)
-    theme = Theme(theme_path)
+    theme = Theme(theme_path if os.path.isfile(theme_path) else None)
     base_style = theme.resolve('')
 
     doc_size = diagram.get('size', [400, 700])
@@ -181,7 +180,7 @@ def _find_examples():
         if not os.path.isdir(d):
             continue
         if all(os.path.isfile(os.path.join(d, f))
-               for f in ('diagram.json', 'theme.json', 'golden.svg')):
+               for f in ('diagram.json', 'golden.svg')):
             examples.append((name, d))
     return examples
 
@@ -333,7 +332,7 @@ class GoldenTest(unittest.TestCase):
     def _run_named(self, name):
         d = os.path.join(EXAMPLES_DIR, name)
         if not all(os.path.isfile(os.path.join(d, f))
-                   for f in ('diagram.json', 'theme.json', 'golden.svg')):
+                   for f in ('diagram.json', 'golden.svg')):
             self.skipTest(f"example '{name}' is missing files")
         self._compare(name, d)
 
@@ -342,7 +341,7 @@ class GoldenTest(unittest.TestCase):
         d = os.path.join(EXAMPLES_DIR, *rel_parts)
         label = '/'.join(rel_parts)
         if not all(os.path.isfile(os.path.join(d, f))
-                   for f in ('diagram.json', 'theme.json', 'golden.svg')):
+                   for f in ('diagram.json', 'golden.svg')):
             self.skipTest(f"example '{label}' is missing files")
         self._compare(label, d)
 

@@ -1,24 +1,78 @@
 {
-  "size": [800, 300],
   "sections": [
-    { "id": "TPIU",         "address": "0xE8040000", "size": "0x00001000" },
-    { "id": "ETM",          "address": "0xE8041000", "size": "0x00001000" },
-    { "id": "External PPB", "address": "0xE8042000", "size": "0x00001000" },
-    { "id": "ROM Table",    "address": "0xE8043000", "size": "0x00001000" }
+    {
+      "id": "TPIU",
+      "address": "0xE8040000",
+      "size": "0x00001000"
+    },
+    {
+      "id": "ETM",
+      "address": "0xE8041000",
+      "size": "0x00001000"
+    },
+    {
+      "id": "External PPB",
+      "address": "0xE8042000",
+      "size": "0x00001000"
+    },
+    {
+      "id": "ROM Table",
+      "address": "0xE8043000",
+      "size": "0x00001000"
+    }
   ],
   "areas": [
     {
       "id": "labels-view",
       "title": "Address Link Example",
-      "pos": [200, 50],
-      "size": [200, 200],
-      "range": ["0xE8040000", "0xE8044000"],
+      "range": [
+        "0xE8040000",
+        "0xE8044000"
+      ],
       "labels": [
-        { "address": "0xE8043800", "text": "In direction",          "length": 150, "directions": ["in"],       "side": "right" },
-        { "address": "0xE8042800", "text": "No direction",          "length": 150,                             "side": "right" },
-        { "address": "0xE8041800", "text": "Out direction",         "length": 150, "directions": ["out"],      "side": "right" },
-        { "address": "0xE8041800", "text": "Label at left side",    "length": 40,  "directions": ["out"],      "side": "left" },
-        { "address": "0xE8040800", "text": "In and Out directions", "length": 150, "directions": ["in", "out"],"side": "right" }
+        {
+          "address": "0xE8043800",
+          "text": "In direction",
+          "length": 150,
+          "directions": [
+            "in"
+          ],
+          "side": "right"
+        },
+        {
+          "address": "0xE8042800",
+          "text": "No direction",
+          "length": 150,
+          "side": "right"
+        },
+        {
+          "address": "0xE8041800",
+          "text": "Out direction",
+          "length": 150,
+          "directions": [
+            "out"
+          ],
+          "side": "right"
+        },
+        {
+          "address": "0xE8041800",
+          "text": "Label at left side",
+          "length": 40,
+          "directions": [
+            "out"
+          ],
+          "side": "left"
+        },
+        {
+          "address": "0xE8040800",
+          "text": "In and Out directions",
+          "length": 150,
+          "directions": [
+            "in",
+            "out"
+          ],
+          "side": "right"
+        }
       ]
     }
   ]

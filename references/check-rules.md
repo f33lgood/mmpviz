@@ -19,8 +19,6 @@ Exit codes: **0** = no issues, **1** = one or more ERRORs, **2** = warnings only
 
 | Rule | Level | What it detects |
 |------|-------|----------------|
-| `text-overflow` | WARN | Section name label overflows the section box |
-| `addr-auto-hidden` | WARN | `hide_name: false` but address labels auto-suppressed |
 | `min-height-violated` | WARN | Section height fell below `min_section_height` |
 | `out-of-canvas` | ERROR | Panel extends beyond the canvas boundary |
 | `panel-overlap` | ERROR | Two panels' bounding rectangles physically intersect |
@@ -32,42 +30,6 @@ Exit codes: **0** = no issues, **1** = one or more ERRORs, **2** = warnings only
 ---
 
 ## Per-Section Rules
-
-### `text-overflow` — WARN
-
-**What it detects:** A section's name is visible (either forced via `hide_name: false`
-or auto-shown because height ≥ 20 px) but the section's rendered height is smaller than
-the configured `font_size`. The name label overflows the section box.
-
-**Threshold:** `section.size_y < font_size`
-
-**How to fix:**
-- Increase the panel `size` (height) in `diagram.json`.
-- Add a break section to compress a nearby large gap and redistribute space to the
-  small section.
-- Raise `min_section_height` in `theme.json` to ensure the section is never rendered
-  below a usable height.
-- Set `hide_name: true` in the section's theme entry if the section intentionally has
-  no visible label.
-
----
-
-### `addr-auto-hidden` — WARN
-
-**What it detects:** `hide_name` is forced to `false` (designer intends the section to
-be fully labelled) but `hide_address` and/or `hide_end_address` are still `"auto"`.
-Because the rendered height is below 20 px, the auto-hide threshold suppresses the
-address labels — inconsistent with the intent implied by `hide_name: false`.
-
-**Threshold:** `height < 20 px` with `hide_name: false` and `hide_address: "auto"` or
-`hide_end_address: "auto"`
-
-**How to fix:**
-- Add `"hide_address": false` and/or `"hide_end_address": false` to the section's theme
-  entry so address labels are forced on regardless of height.
-- Alternatively, allow the auto-hide to take effect by removing `hide_name: false`.
-
----
 
 ### `min-height-violated` — WARN
 
@@ -225,5 +187,4 @@ the resulting missing band before visual inspection.
 | `_ADDR_LABEL_H_OFFSET` | 10 px | `section.py` `label_offset` |
 | `_ADDR_LABEL_CHARS` | 10 | length of `"0x00000000"` |
 | `_HELVETICA_W_RATIO` | 0.6 | Helvetica character width / font-size |
-| Auto-hide threshold | 20 px | `section.py` — hides name/address when height < 20 px |
 | Title render offset | −20 px | `renderer.py` `_make_title` — y position relative to `pos_y` |

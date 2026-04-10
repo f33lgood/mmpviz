@@ -20,7 +20,6 @@ def default_style():
         'background': 'white', 'fill': 'lightgrey', 'stroke': 'black',
         'stroke_width': 1, 'font_size': 16, 'font_family': 'Helvetica',
         'text_fill': 'black', 'break_size': 20, 'break_type': '≈',
-        'hide_name': 'auto', 'hide_address': 'auto', 'hide_size': 'auto',
     }
 
 
@@ -273,22 +272,42 @@ class TestPerSectionHeightsIntegration(unittest.TestCase):
         # big should be larger than small
         self.assertGreater(big.size_y_override, small.size_y_override)
 
-    def test_no_min_h_no_overrides(self):
-        """Without min_section_height, no overrides are set."""
-        style = default_style()
-        s = make_section(0x0, 0x100, 's1')
-        brk = Section(size=0x100, address=0x100, id='brk',
+    def test_conflicting_section_gets_label_floor(self):
+        """Sections where size label and name label overlap on x-axis get a height floor."""
+        # With font_size=16, size_x=200:
+        #   size_label_right = 2 + 5 * 0.6 * 12 = 38  (for '4 KiB' = 5 chars)
+        #   name_left(17-char) = 100 - 17 * 0.6*16/2 = 100 - 81.6 = 18.4  → CONFLICT
+        #   name_left( 5-char) = 100 -  5 * 0.6*16/2 = 100 - 24   = 76.0  → no conflict
+        style = default_style()  # font_size=16, no min_section_height
+        s_conflict = make_section(0x0, 0x1000, 'long_section_name')   # 17-char name
+        brk = Section(size=0x100, address=0x1000, id='brk',
                       _type='section', parent='none', flags=['break'])
-        s2 = make_section(0x200, 0x100, 's2')
+        s_ok = make_section(0x1100, 0x1000, 'short')                   # 5-char name
         av = AreaView(
-            sections=Sections([s, brk, s2]),
+            sections=Sections([s_conflict, brk, s_ok]),
             style=style,
             area_config={'id': 't', 'title': 'T', 'pos': [0, 400], 'size': [200, 400]},
         )
-        all_sections = [sec for sv in av.get_split_area_views()
-                        for sec in sv.sections.get_sections()]
-        for sec in all_sections:
-            self.assertIsNone(sec.size_y_override)
+        font_size = float(style.get('font_size', 16))
+        label_min = 30.0 + font_size  # 46 px for font_size=16
+
+        found_conflict = found_ok = None
+        for sv in av.get_split_area_views():
+            for sec in sv.sections.get_sections():
+                if sec.id == 'long_section_name':
+                    found_conflict = sec
+                elif sec.id == 'short':
+                    found_ok = sec
+
+        # Conflicting section must be inflated to at least label_min
+        self.assertIsNotNone(found_conflict)
+        self.assertIsNotNone(found_conflict.size_y_override)
+        self.assertGreaterEqual(found_conflict.size_y_override, label_min)
+
+        # Non-conflicting section gets a height override too (proportional/user-min),
+        # but it is NOT forced up to label_min
+        self.assertIsNotNone(found_ok)
+        self.assertIsNotNone(found_ok.size_y_override)
 
     def test_cumulative_positions_within_group(self):
         """Sections in the same group have non-overlapping cumulative positions."""

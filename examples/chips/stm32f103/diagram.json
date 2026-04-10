@@ -1,8 +1,4 @@
 {
-  "size": [
-    1100,
-    1750
-  ],
   "sections": [
     {
       "id": "Aliased",
@@ -110,25 +106,25 @@
       "id": "OvBreakCode",
       "address": "0x08020000",
       "size": "0x17FDF000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OvBreakExternal",
       "address": "0x60000000",
       "size": "0x80000000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OvBreakVendor",
       "address": "0xE1000000",
       "size": "0x1F000000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "ApbEndBus",
       "address": "0x40023400",
       "size": "0x1FFDCC00",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "TIM2",

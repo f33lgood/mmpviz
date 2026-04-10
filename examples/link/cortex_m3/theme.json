@@ -1,37 +1,4 @@
 {
-  "defaults": {
-    "text_fill": "lightgrey",
-    "background": "#2A363B",
-    "fill": "#99B898",
-    "hide_size": true,
-    "stroke": "#2A363B",
-    "stroke_width": 1,
-    "text_stroke": "black",
-    "text_stroke_width": 0,
-    "font_family": "Helvetica",
-    "break_size": 100
-  },
-  "areas": {
-    "full-view": {
-      "hide_address": true,
-      "fill": "#99B898"
-    },
-    "link-detail-view": {
-      "sections": {
-        "ROM Table":    { "fill": "#99B898" },
-        "External PPB": { "fill": "#FECEA8" },
-        "ETM":          { "fill": "#FF847C" },
-        "Peripheral":   { "fill": "#FF847C" },
-        "TPIU":         { "fill": "#E84A5F" }
-      }
-    },
-    "bit-band-view": {
-      "sections": {
-        "Bit":             { "fill": "#FECEA8" },
-        "Bit band region": { "fill": "#FF847C" }
-      }
-    }
-  },
   "links": {
     "shape": "polygon",
     "fill": "gray",

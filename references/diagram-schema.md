@@ -11,12 +11,14 @@ It contains the raw memory data (`sections`) and the display layout (`areas`, `l
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `title` | string | No | `""` | Document title (informational only) |
-| `size` | `[width, height]` | No | `[400, 700]` | SVG canvas dimensions in pixels. Since the output is SVG (vector), the exact values set the aspect ratio and internal coordinate space — the file scales without quality loss to any display size. |
+| `size` | `[width, height]` | No | **auto** | SVG canvas floor in pixels. When auto-layout is active (any area omits `pos`/`size`), the canvas expands to fit all areas and this value is only a minimum. Omit it entirely to let auto-layout size the canvas. Set it only when you need a fixed coordinate space for manual area placement. |
 | `sections` | array | Yes | — | Memory section definitions |
 | `areas` | array | No | Auto | Display viewport definitions |
 | `links` | object | No | — | Cross-area connections |
 
-### Choosing a Canvas Size
+### Choosing a Canvas Size (manual layout only)
+
+This section applies only when you supply explicit `pos`/`size` on areas. With auto-layout, skip it — the canvas is computed automatically.
 
 Because the output is SVG, the numbers in `size` define the **coordinate space and aspect ratio**, not a fixed pixel size. The diagram scales to any physical size without loss.
 
@@ -130,7 +132,6 @@ Section band visual style is controlled in `theme.json` under `links`. See `them
 ```json
 {
   "title": "STM32F103 Memory Map",
-  "size": [500, 900],
 
   "sections": [
     { "id": "Flash",      "address": "0x08000000", "size": "0x00020000", "type": "area" },

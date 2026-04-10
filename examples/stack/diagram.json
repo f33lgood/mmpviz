@@ -1,18 +1,46 @@
 {
-  "size": [300, 600],
   "sections": [
-    { "id": "Text",               "address": "0x20000000", "size": "0x10000000", "type": "area" },
-    { "id": "Initialized data",   "address": "0x30000000", "size": "0x10000000", "type": "area" },
-    { "id": "Uninitialized data", "address": "0x40000000", "size": "0x10000000", "type": "area" },
-    { "id": "Heap",               "address": "0x50000000", "size": "0x10000000", "type": "area", "flags": ["grows-up"] },
-    { "id": "Stack",              "address": "0xA0000000", "size": "0x10000000", "type": "area", "flags": ["grows-down"] }
+    {
+      "id": "Text",
+      "address": "0x20000000",
+      "size": "0x10000000",
+      "type": "area"
+    },
+    {
+      "id": "Initialized data",
+      "address": "0x30000000",
+      "size": "0x10000000",
+      "type": "area"
+    },
+    {
+      "id": "Uninitialized data",
+      "address": "0x40000000",
+      "size": "0x10000000",
+      "type": "area"
+    },
+    {
+      "id": "Heap",
+      "address": "0x50000000",
+      "size": "0x10000000",
+      "type": "area",
+      "flags": [
+        "grows-up"
+      ]
+    },
+    {
+      "id": "Stack",
+      "address": "0xA0000000",
+      "size": "0x10000000",
+      "type": "area",
+      "flags": [
+        "grows-down"
+      ]
+    }
   ],
   "areas": [
     {
       "id": "full-view",
-      "title": "Full Memory Map",
-      "pos": [50, 50],
-      "size": [200, 500]
+      "title": "Full Memory Map"
     }
   ]
 }

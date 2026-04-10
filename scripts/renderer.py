@@ -146,14 +146,10 @@ class MapRenderer:
         section.pos_x = 0
 
         group.append(self._make_box(section))
-        if not section.is_name_hidden():
-            group.append(self._make_name(section))
-        if not section.is_address_hidden():
-            group.append(self._make_address(section))
-        if not section.is_end_address_hidden():
-            group.append(self._make_end_address(section))
-        if not section.is_size_hidden():
-            group.append(self._make_size_label(section))
+        group.append(self._make_name(section))
+        group.append(self._make_address(section))
+        group.append(self._make_end_address(section))
+        group.append(self._make_size_label(section))
 
         return group
 

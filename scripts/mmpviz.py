@@ -254,7 +254,7 @@ def _estimate_area_height(sections: list, style: dict, area_config: dict = None)
     if area_config is not None:
         sections = _apply_area_section_flags(sections, area_config)
 
-    min_h = float(style.get('min_section_height', 40))
+    user_min_h = float(style.get('min_section_height', 0))
     break_size = float(style.get('break_size', 20))
     top_bottom_pad = 20.0  # area-internal padding
 
@@ -264,7 +264,10 @@ def _estimate_area_height(sections: list, style: dict, area_config: dict = None)
     )
     n_breaks = sum(1 for s in sections if s.is_break())
 
-    estimated = (n_visible * min_h
+    # Use user-configured min_section_height as the per-section floor.
+    # Per-section label-conflict inflation is applied during actual rendering
+    # in AreaView._process(); the estimate only needs to be in the right ballpark.
+    estimated = (n_visible * user_min_h
                  + n_breaks * (break_size + 4)
                  + top_bottom_pad)
     return max(200.0, estimated)

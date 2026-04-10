@@ -6,21 +6,23 @@ This guide explains how to use an existing theme and how to write your own.
 
 ## Step 1: Choose a starting theme
 
-Two ready-to-use themes are included in `examples/`:
+Three ready-to-use themes live in `themes/`:
 
 | File | Description |
 |------|-------------|
-| `examples/light_theme.json` | Light background, pastel section colors |
-| `examples/dark_theme.json`  | Dark background, saturated accent colors |
+| `themes/plantuml.json`    | PlantUML-style palette — pastel fills, red outlines. **Loaded automatically when `-t` is omitted.** |
+| `themes/light.json`       | Professional light theme — white backgrounds, steel-blue fills, dark text. Suitable for printed documents. |
+| `themes/monochrome.json`  | Grayscale theme — neutral fills, high contrast. Suitable for black-and-white printing. |
 
 Apply a theme with `-t`:
 
 ```bash
-python scripts/mmpviz.py -d diagram.json -t examples/light_theme.json -o output.svg
-python scripts/mmpviz.py -d diagram.json -t examples/dark_theme.json  -o output.svg
+python scripts/mmpviz.py -d diagram.json -t themes/light.json       -o output.svg
+python scripts/mmpviz.py -d diagram.json -t themes/monochrome.json  -o output.svg
 ```
 
-Omit `-t` entirely to use built-in defaults (light gray sections on a white background).
+Omit `-t` entirely to use `themes/plantuml.json` as the default theme.
+Edit that file directly to change the global baseline without writing a new theme.
 
 ---
 
@@ -28,8 +30,8 @@ Omit `-t` entirely to use built-in defaults (light gray sections on a white back
 
 When rendering a section, styles are merged in this order (later overrides earlier):
 
-1. Built-in defaults (hardcoded in `theme.py`)
-2. `theme.defaults` — your global baseline
+1. Built-in fallback defaults (`Theme.DEFAULT` in `theme.py` — active only when `themes/plantuml.json` is absent)
+2. `theme.defaults` — your global baseline (the default `themes/plantuml.json` supplies values here)
 3. `theme.areas[area_id]` — overrides for one area panel
 4. `theme.areas[area_id].sections[section_id]` — overrides for one specific section
 
@@ -39,7 +41,7 @@ This means you can set a default fill for all sections, then override only the o
 
 ## Step 3: Create your own theme file
 
-Start from `examples/light_theme.json` and adjust values. The minimal structure is:
+Start from `themes/plantuml.json` (or any built-in theme) and adjust values. The minimal structure is:
 
 ```json
 {
@@ -127,16 +129,6 @@ The `section_id` keys under `sections` must match `id` fields in `diagram.json`'
 | `growth_arrow_size` | number | `1` | Arrow size multiplier |
 | `growth_arrow_fill` | color | `"white"` | Arrow body fill |
 | `growth_arrow_stroke` | color | `"black"` | Arrow outline color |
-
-### Auto-hide labels
-
-| Property | Allowed values | Default | Effect |
-|----------|---------------|---------|--------|
-| `hide_size` | `"auto"`, `true`, `false` | `"auto"` | Hide size label when section is tiny |
-| `hide_name` | `"auto"`, `true`, `false` | `"auto"` | Hide name label when section is tiny |
-| `hide_address` | `"auto"`, `true`, `false` | `"auto"` | Hide address label when section is tiny |
-
-`"auto"` hides when the rendered section height falls below 20 px.
 
 ---
 

@@ -145,8 +145,8 @@ python scripts/mmpviz.py --validate diagram.json
 Auto-layout handles placement by default — you rarely need to touch `pos` or
 `size`.  Typical iteration focuses on:
 
-- **Section visibility**: if a section's labels are hidden, it is shorter than
-  `min_section_height`.  Increase `min_section_height` in `theme.json`, add a
+- **Section label overflow**: if a section is shorter than `font_size` px, its name
+  label overflows the box.  Increase `min_section_height` in `theme.json`, add a
   `section_size` filter on the area to exclude very small sections, or flag the
   section as `"break"` to compress it.
 - **Column arrangement**: the auto-layout assigns columns from the link graph.

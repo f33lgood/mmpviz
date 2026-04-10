@@ -9,11 +9,13 @@ FIXTURES = os.path.join(os.path.dirname(__file__), 'fixtures')
 
 class TestThemeDefaults(unittest.TestCase):
 
-    def test_no_path_uses_built_in_defaults(self):
+    def test_no_path_loads_default_theme(self):
+        # When no path is given, themes/plantuml.json is loaded automatically.
         t = Theme()
         style = t.resolve('nonexistent-area')
-        self.assertEqual(style['fill'], 'lightgrey')
-        self.assertEqual(style['stroke'], 'black')
+        # plantuml.json defaults override Theme.DEFAULT
+        self.assertEqual(style['fill'], '#FEFECE')
+        self.assertEqual(style['stroke'], '#A80036')
         self.assertEqual(style['break_size'], 20)
 
     def test_all_required_keys_present(self):
@@ -21,7 +23,7 @@ class TestThemeDefaults(unittest.TestCase):
         style = t.resolve('x')
         for key in ('background', 'fill', 'stroke', 'stroke_width', 'font_size',
                     'font_family', 'text_fill', 'break_size',
-                    'growth_arrow_size', 'hide_size', 'hide_name', 'hide_address'):
+                    'growth_arrow_size'):
             self.assertIn(key, style, f"Missing key: {key}")
 
 

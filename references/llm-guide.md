@@ -21,9 +21,7 @@ Keep them separate. `diagram.json` is machine-accurate (from datasheets/RTL); `t
 **The most common failure mode is sections that are too small to display text.**
 
 mmpviz renders each section with height proportional to its byte range within the
-display panel. The auto-hide thresholds are:
-- `hide_name: "auto"` — name hidden when rendered height < 20 px
-- `hide_address: "auto"` — address hidden when rendered height < 20 px
+display panel. All labels (name, address, size) are always rendered.
 
 ### Calculate section height before writing the diagram
 
@@ -89,10 +87,11 @@ sub-pixel.
 | Address hole / reserved range with no hardware behind it | **Break** — it is a genuine gap in the address space |
 | Functional section that is tiny relative to its neighbours (e.g., 4 KiB peripheral in a 256 KiB panel) | **`min_section_height`** in `theme.json` defaults — guarantees every visible section is at least N px tall |
 | One very large subarea is squeezing small neighbours | **`max_section_height`** in `theme.json` defaults — caps overly dominant subareas |
+| Section name and size label overlap in the rendered box | Nothing — the renderer detects x-axis label conflict automatically and inflates only that section's height |
 
 Using breaks on functional sections hides them visually; use height clamping instead so they remain readable.
 
-**Recommended defaults** for SoC maps: `"min_section_height": 20, "max_section_height": 300`.
+**`themes/plantuml.json` already sets** `"min_section_height": 20, "max_section_height": 300`. If you use the default theme (no `-t` flag), these are active without any additional configuration.
 
 ---
 
@@ -141,7 +140,8 @@ breaks. The renderer handles the coordinate mapping automatically.
 ## 6. Title Sizing and Panel Positioning
 
 The panel title is always rendered at font size 24 px, horizontally centered over the
-panel. Two pitfalls:
+panel. Auto-layout reserves adequate top padding automatically. The pitfalls below
+apply only when using **manual `pos`/`size`**:
 
 1. **Title clipped on the left.** A long title on a narrow panel will extend outside
    the SVG canvas. Keep titles short (10–15 characters) or use a wider panel.
@@ -313,11 +313,12 @@ or intermediate panel, usually at the bottom of the expanded region.
 
 ## 12. Horizontal Spacing Between Panels
 
-Address labels for a panel are rendered to the **right** of the panel's right edge
-(at `pos_x + panel_width + 10` px). If the next panel starts too close, these labels
-appear to belong to the wrong panel.
+Address labels for a panel are rendered to the **right** of the panel's right edge.
+If the next panel starts too close, these labels appear to belong to the wrong panel.
+Auto-layout reserves a 110 px right-pad when computing the canvas, so this is only
+a concern when placing panels manually.
 
-### Minimum gap
+### Minimum gap (manual layout)
 
 Leave at least **150 px** between any panel's right edge and the next panel's left
 edge. For panels that display many narrow sections with long hex addresses, increase
@@ -331,9 +332,9 @@ panel[i].pos_x + panel[i].size_x + 150 ≤ panel[i+1].pos_x
 
 ## 13. Break Sections Show Names
 
-Break sections now render their name label (auto-hidden at < 20 px like all sections).
-Since break sections are only 20 px tall by default, the name is hidden unless
-`break_size` is increased.
+Break sections render their name label. Since break sections are only `break_size` px
+tall (default 20 px) and all labels are always rendered, the name will overlap the box
+unless `break_size` is increased to at least `font_size` px.
 
 **Best practice for large break regions:** Embed the address range and size in the
 `name` field, because the address label itself is auto-hidden at 20 px:
@@ -354,10 +355,9 @@ even at small heights (e.g., tooltips, exported metadata).
 |---------|-------------|-----|
 | Overview panel looks blank or all sections are invisible | No breaks; huge address range compresses everything to sub-pixel | Add break sections for large gaps |
 | Title first character clipped | Title too long for panel width | Shorten title or widen panel |
-| Title not visible at all | `panel_pos_y` = 0 | Set `panel_pos_y` ≥ 50 |
+| Title not visible at all | `panel_pos_y` = 0 in manual layout | Set `panel_pos_y` ≥ 50, or switch to auto-layout |
 | Link band connects to the wrong detail panel | Area order wrong; wrong area comes first and its `lowest_memory`/`highest_memory` covers the linked section | Reorder areas so the intended target comes first |
 | Link band visible but band origin is at wrong vertical position in overview | Bug in older renderer: now fixed; source position is computed from compressed subarea | Upgrade to v1.1+ |
-| Detail panel shows `0x80`, `0x1000` labels in sections | `hide_size` is not set to `true` in the theme | Add `"hide_size": true` to `defaults` in `theme.json` |
 | "Section link ... is outside the shown areas" warning | Link address range not covered by any detail area's sections | Extend the detail area `range`, or add a hidden section that reaches the end address |
 | Unexpected colored section at bottom of overview or intermediate view | Sub-sections of an expanded region not fully hidden — at least one sub-section is missing from the hidden list | Add all sub-sections of the expanded region to the hidden list in every parent area |
 | Blank/empty stripe inside a panel | Gap section starts at wrong address, leaving an unmapped range | Recompute gap address as `previous.address + previous.size` |

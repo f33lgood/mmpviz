@@ -50,18 +50,53 @@ document_size = (max(orig_w, needed[0]), max(orig_h, needed[1]))
 
 ## 2. Section Height Sizing
 
-**Location:** `AreaView._compute_per_section_heights()` in `scripts/area_view.py`
+**Location:** `AreaView._section_label_min_h()`, `AreaView._compute_per_section_heights()`,
+`AreaView._process()` in `scripts/area_view.py`
 
-Called during `AreaView._process()` for each sub-area.  Distributes
-`available_px` among sections in two phases.
+Called during `AreaView._process()` for each sub-area.  First, a per-section
+minimum-height dict is built; then heights are distributed in two phases.
 
-### Phase 1 — Floor locking (min_h only)
+### Per-section min_h derivation
+
+`_process()` builds a dict `{id(s): floor_px}` for all visible sections:
+
+```
+for each visible section s:
+    user_min  = style.get('min_section_height', 0)
+    label_min = _section_label_min_h(s, font_size)
+    per_section_min_h[id(s)] = max(user_min, label_min)
+```
+
+`_section_label_min_h(s, font_size)` detects whether the size label
+(top-left, 12 px font) and the name label (horizontally centred, `font_size` px)
+would overlap on the x-axis at the current section width (`size_x`):
+
+```
+size_label_right = 2 + len(format_size(s.size)) × 0.6 × 12
+name_label_left  = size_x/2 − len(name_text) × 0.6 × font_size / 2
+
+if size_label_right > name_label_left:
+    return 30 + font_size      # inflate just enough to separate labels vertically
+else:
+    return 0.0                 # no conflict — keep proportional height
+```
+
+This means only sections whose size label and name label would genuinely
+collide receive an extra height floor; all other sections keep proportional
+sizing, keeping diagrams compact.
+
+### Phase 1 — Floor locking (min_h)
+
+`_compute_per_section_heights(sections, available_px, min_h, max_h)` accepts
+`min_h` as either a scalar (backward-compatible) or the per-section dict built
+above.
 
 ```
 heights = proportional(section.size / total_bytes) * available_px
 
 repeat up to N+1 times:
-    new_locks = {s: min_h for s in unlocked if heights[s] < min_h}
+    lo = min_h[id(s)] if dict else float(min_h)
+    new_locks = {s: lo for s in unlocked if heights[s] < lo}
     if not new_locks: break                    # converged
     if sum(locked) + sum(new_locks) >= available_px:
         return proportional(available_px)      # cannot honour all floors
@@ -77,16 +112,19 @@ After Phase 1 converges, any section exceeding `max_h` is capped and its
 surplus is redistributed proportionally to floored (min_h-locked) sections
 first, then to any remaining uncapped section.
 
-**Constants (from theme):**
+**Constants (from theme / plantuml.json defaults):**
 
-| Theme key              | Default | Meaning                           |
-|------------------------|---------|-----------------------------------|
-| `min_section_height`   | 40 px   | Section height floor (≥ font + 28)|
-| `max_section_height`   | 300 px  | Section height ceiling            |
-| `break_size`           | 20 px   | Fixed height for break sections   |
+| Theme key              | plantuml.json | Meaning                                         |
+|------------------------|---------------|-------------------------------------------------|
+| `min_section_height`   | 20 px         | User-controlled section height floor            |
+| `max_section_height`   | 300 px        | Section height ceiling                          |
+| `break_size`           | 20 px         | Fixed height for break sections                 |
 
 Break sections use a separate code path (`break_size` fixed height) and do
 **not** participate in `_compute_per_section_heights`.
+
+The label-conflict floor (`30 + font_size` px) is derived automatically from
+the section geometry — it is not a user-visible theme property.
 
 ---
 
@@ -165,7 +203,7 @@ A lightweight estimate used by `_auto_layout()` for bin-packing and initial
 size assignment.  Does not run the full section-height algorithm.
 
 ```python
-estimated = n_visible * min_h
+estimated = n_visible * user_min_h
           + n_breaks  * (break_size + 4)
           + 20                          # top/bottom padding
 return max(200.0, estimated)
@@ -173,9 +211,11 @@ return max(200.0, estimated)
 
 `n_visible` and `n_breaks` are counted after applying the area's `range`,
 `section_size` filter, and any per-area section flag overrides (break/hidden).
+`user_min_h` is `style.get('min_section_height', 0)`.
 
-This matches the minimum height the Phase 1 algorithm would produce if every
-visible section is pinned at `min_h`.
+Per-section label-conflict inflation (§2) is applied during actual rendering in
+`AreaView._process()` and is not included in the estimate — any resulting
+height increase is absorbed by canvas auto-expansion (§9).
 
 ---
 
@@ -308,8 +348,8 @@ return to_pixels_relative(address)   # fallback
 
 | Topic | Proposal | Implementation | Status |
 |-------|----------|----------------|--------|
-| **Section height: min_h derivation** | Auto-derive `min_h = font_size + 28` | Uses `min_section_height` from theme (default 40 = 12 + 28) | Functionally equivalent; not auto-derived |
-| **Section height: per-section floor** | Iterative lock-at-min_h with separate min/max phases | `_compute_per_section_heights` Phase 1 (floor) + Phase 2 (ceiling) | Implemented |
+| **Section height: min_h derivation** | Auto-derive `min_h = font_size + 28` | `_section_label_min_h()` computes per-section conflict-driven floor: `30 + font_size` only when size label and name label overlap on x-axis; 0 otherwise. User `min_section_height` applied independently. | Implemented — conflict-driven, per-section |
+| **Section height: per-section floor** | Iterative lock-at-min_h with separate min/max phases | `_compute_per_section_heights` Phase 1 (floor, accepts per-section dict) + Phase 2 (ceiling) | Implemented |
 | **Section height: max_h ceiling** | Redistribute surplus from capped sections | Phase 2 of `_compute_per_section_heights` | Implemented |
 | **Section height: area-level auto-expansion** | When overflow, expand H = Σ(min_h); re-run algorithm | Not at area level; canvas expands via `_auto_canvas_size()` | Partial — expansion is canvas-level, not area-level |
 | **Section height: break sections** | Breaks participate in iterative algorithm with min_h floor | Breaks use fixed `break_size` path; excluded from `_compute_per_section_heights` | Not implemented |

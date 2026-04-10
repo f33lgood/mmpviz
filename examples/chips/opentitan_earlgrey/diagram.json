@@ -1,9 +1,5 @@
 {
   "title": "OpenTitan Earl Grey Memory Map",
-  "size": [
-    1120,
-    1000
-  ],
   "sections": [
     {
       "id": "ROM_Debug",
@@ -51,31 +47,31 @@
       "id": "OvGap0",
       "address": "0x00020000",
       "size": "0x0FFE0000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OvGap1",
       "address": "0x10020000",
       "size": "0x0FFE0000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OvGap2",
       "address": "0x20100000",
       "size": "0x1FF00000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OvGap3",
       "address": "0x40800000",
       "size": "0x00800000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OvGap4",
       "address": "0x41210000",
       "size": "0x06DF0000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "DbIF",
@@ -87,7 +83,7 @@
       "id": "DbGap0",
       "address": "0x00001200",
       "size": "0x00006E00",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "ROM",
@@ -105,7 +101,7 @@
       "id": "DbEnd",
       "address": "0x00011000",
       "size": "0x0000F000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "UART0",
@@ -147,7 +143,7 @@
       "id": "PRsvd0",
       "address": "0x40060000",
       "size": "0x00020000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "I2C0",
@@ -171,7 +167,7 @@
       "id": "PRsvd1",
       "address": "0x400B0000",
       "size": "0x00030000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "PATTGEN",
@@ -183,7 +179,7 @@
       "id": "PRsvd2",
       "address": "0x400F0000",
       "size": "0x00010000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "RVTimer",
@@ -195,7 +191,7 @@
       "id": "PRsvd3",
       "address": "0x40110000",
       "size": "0x00020000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "OTPCtrl",
@@ -219,7 +215,7 @@
       "id": "PBreak0",
       "address": "0x40160000",
       "size": "0x001A0000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "SPIHost0",
@@ -243,7 +239,7 @@
       "id": "PBreak1",
       "address": "0x40330000",
       "size": "0x000D0000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "PwrMgr",
@@ -309,7 +305,7 @@
       "id": "PBreak2",
       "address": "0x404A0000",
       "size": "0x00060000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "SRAMCtrlRet",
@@ -321,7 +317,7 @@
       "id": "PBreak3",
       "address": "0x40510000",
       "size": "0x000F0000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "RetSRAM",
@@ -333,7 +329,7 @@
       "id": "PBreak4",
       "address": "0x40610000",
       "size": "0x001F0000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "FlashCtrl",
@@ -345,7 +341,7 @@
       "id": "CBreak0",
       "address": "0x41010000",
       "size": "0x000F0000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "AES",
@@ -405,7 +401,7 @@
       "id": "CRsvd0",
       "address": "0x41190000",
       "size": "0x00030000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "SRAMCtrlMain",
@@ -417,7 +413,7 @@
       "id": "CRsvd1",
       "address": "0x411D0000",
       "size": "0x00010000",
-      "name": "\u00b7\u00b7\u00b7"
+      "name": "···"
     },
     {
       "id": "ROMCtrl",
