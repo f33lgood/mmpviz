@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [1.2.0] - 2026-04-10
+## [1.2.0] - 2026-04-11
 
 ### Added
 
@@ -47,9 +47,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`references/auto-layout-algorithm.md`** — implementation reference for the
   auto-layout algorithm with a planned-vs-implemented comparison table.
 
+- **`examples/stack/basic/`** — Cortex-M SRAM layout with colored heap and
+  stack regions and directional growth arrows.
+
+- **`examples/stack/guard_page/`** — MPU stack guard page: heap and stack each
+  split into used/free regions, with a no-access guard page between them.
+
+- **`examples/stack/shadow_stack/`** — Shadow stack: a second, separate region
+  mirroring only return addresses alongside the main call stack.
+
 ### Fixed
 
-- Sections now reliably reach `min_section_height` even when the same area
+- **Auto-layout column placement** — the bin-packing threshold is now computed
+  per-column from the tallest view in that column rather than globally from the
+  canvas height. This prevents small views from being wrongly spilled to a new
+  column when the same column also contains one very large view.
+
+- **Auto-layout rangeless views** — a view with no explicit `range` now derives
+  its range from the full set of sections, so it can appear as a detail view to
+  the right of any view whose sections it contains. Previously it always landed
+  in column 0 with no outgoing link-graph edges.
+
+- **Address labels always use view-level text color** — boundary address labels
+  no longer inherit section-specific `text_fill` overrides. A section with a
+  dark background and `"text_fill": "#ffffff"` no longer rendered its boundary
+  labels (outside the section box) in white.
+
+- **`check.py` canvas bounds** — the validator now uses the actual auto-expanded
+  canvas dimensions instead of `diagram.json` `size`, eliminating false positives
+  for areas that lie within the expanded canvas but outside the declared `size`.
+
+- Sections now reliably reach `min_section_height` even when the same view
   contains both very large and very small sections.
 
 - Link bands align exactly with rendered section box edges (previously misaligned
@@ -63,6 +91,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   always 230 px; the canvas auto-expands via `_auto_canvas_size()`.
 
 ### Changed
+
+- **`theme.json` `"weight"` renamed to `"label_arrow_size"`** — the arrow-head
+  size multiplier for address annotation labels. Update any custom theme files.
+  Breaking rename.
+
+- **`theme.json` `"break_size"` renamed to `"break_height"`** — the fixed pixel
+  height of break sections. Update any custom theme files. Breaking rename.
+
+- **`diagram.json` `"areas"` renamed to `"views"`** — the top-level display array
+  is now `"views"`. Rename the key in existing files. Breaking rename.
+
+- **`views[].sections[].names` renamed to `ids`** — the per-view section-override
+  selector is now `"ids"`. The old name `"names"` was misleading — it matched
+  section `id` fields, not `name` fields. Breaking rename.
+
+- **`theme.json` `"areas"` renamed to `"views"`** — the per-view style block is
+  now `"views"`. Rename the key in existing theme files. Breaking rename.
 
 - **`"defaults"` renamed to `"style"`** — the top-level baseline block in
   `theme.json` is now `"style"`. Update any custom theme files by renaming the key.
@@ -83,6 +128,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   from `caliptra`, `stm32f103`, and `opentitan_earlgrey` diagram files.
 
 ### Removed
+
+- **`sections[].type`** — stored but never read by the renderer. Remove from
+  existing `diagram.json` files (silently ignored if present).
+
+- **`sections[].parent`** — stored but never used. Remove from existing files.
 
 - **Visibility control** — `hide_name`, `hide_address`, `hide_end_address`, and
   `hide_size` theme properties are gone. All section labels are always rendered.
@@ -158,7 +208,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`break_type` property removed.** Break sections now always render as a plain
   filled box (using `break_fill` as background). The four visual patterns
   (`"≈"`, `"~"`, `"/"`, `"..."`) have been removed. The structural break
-  behaviour (fixed `break_size` height, independent panel proportioning) is
+  behaviour (fixed `break_height` height, independent panel proportioning) is
   unchanged. Themes that set `break_type` can safely delete the property — it
   is silently ignored.
 

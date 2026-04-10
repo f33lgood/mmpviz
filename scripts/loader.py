@@ -43,25 +43,16 @@ def load(path: str) -> tuple:
         address = parse_int(raw_address)
         size = parse_int(raw_size)
 
-        _type = entry.get('type', 'section')
-        if _type not in ('area', 'section'):
-            raise ValueError(
-                f"diagram.json: section '{section_id}' has invalid type '{_type}', "
-                f"must be 'area' or 'section'")
-
         flags = entry.get('flags', [])
         if isinstance(flags, str):
             flags = [f.strip() for f in flags.split(',')]
 
         name = entry.get('name')
-        parent = entry.get('parent', 'none')
 
         sections.append(Section(
             size=size,
             address=address,
             id=section_id,
-            _type=_type,
-            parent=parent,
             flags=flags,
             name=name,
         ))
@@ -94,17 +85,14 @@ def validate(path: str) -> list:
                 errors.append(f"sections[{i}]: missing 'address'")
             if entry.get('size') is None:
                 errors.append(f"sections[{i}]: missing 'size'")
-            _type = entry.get('type', 'section')
-            if _type not in ('area', 'section'):
-                errors.append(f"sections[{i}]: invalid type '{_type}'")
 
-    if 'areas' in diagram:
-        if not isinstance(diagram['areas'], list):
-            errors.append("'areas' must be a list")
+    if 'views' in diagram:
+        if not isinstance(diagram['views'], list):
+            errors.append("'views' must be a list")
         else:
-            for i, area in enumerate(diagram['areas']):
-                if not area.get('id'):
-                    errors.append(f"areas[{i}]: missing 'id'")
+            for i, view in enumerate(diagram['views']):
+                if not view.get('id'):
+                    errors.append(f"views[{i}]: missing 'id'")
 
     size = diagram.get('size')
     if size is not None and (not isinstance(size, list) or len(size) != 2):

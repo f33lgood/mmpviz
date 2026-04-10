@@ -5,49 +5,42 @@
       "id": "ROM",
       "address": "0x00000000",
       "size": "0x00018000",
-      "type": "area",
       "name": "ROM"
     },
     {
       "id": "Crypto",
       "address": "0x10000000",
       "size": "0x00080000",
-      "type": "area",
       "name": "Crypto Subsystem"
     },
     {
       "id": "Peripherals",
       "address": "0x20000000",
       "size": "0x00008000",
-      "type": "area",
       "name": "Peripherals"
     },
     {
       "id": "SoC Interface",
       "address": "0x30000000",
       "size": "0x00080000",
-      "type": "area",
       "name": "SoC Interface"
     },
     {
       "id": "ICCM",
       "address": "0x40000000",
       "size": "0x00040000",
-      "type": "area",
       "name": "ICCM"
     },
     {
       "id": "DCCM",
       "address": "0x50000000",
       "size": "0x00040000",
-      "type": "area",
       "name": "DCCM"
     },
     {
       "id": "PIC",
       "address": "0x60000000",
       "size": "0x10000000",
-      "type": "area",
       "name": "PIC"
     },
     {
@@ -237,7 +230,7 @@
       "name": "Mailbox SRAM"
     }
   ],
-  "areas": [
+  "views": [
     {
       "id": "overview",
       "title": "Caliptra RoT",
@@ -247,7 +240,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "OvGap0",
             "OvGap1",
             "OvGap2",
@@ -260,7 +253,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "DOE",
             "ECC",
             "HMAC512",
@@ -302,7 +295,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "SoC Interface"
           ],
           "flags": [
@@ -310,7 +303,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "SocGap0",
             "SocMid"
           ],
@@ -329,7 +322,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "Peripherals"
           ],
           "flags": [
@@ -337,7 +330,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "PeriGap0",
             "PeriEnd"
           ],
@@ -356,7 +349,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "Crypto"
           ],
           "flags": [
@@ -364,7 +357,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "CrGap0",
             "CrGap1",
             "CrEnd"

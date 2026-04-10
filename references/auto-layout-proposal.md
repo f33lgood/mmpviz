@@ -47,7 +47,7 @@ brittle; a general solution should not need it.
 
 ### 1.2 Break sections have special fixed heights
 
-Break sections always get exactly `break_size` pixels regardless of the area's
+Break sections always get exactly `break_height` pixels regardless of the area's
 geometry. This hardcoded path bypasses the clamped-heights algorithm, creating
 inconsistency: a regular section that is too small gets auto-hidden, but a break
 section at the same pixel height does not.
@@ -176,9 +176,9 @@ However:
   it receives.
 - If the address range is small relative to other sections, the iterative
   algorithm may lock the break at `min_h`, just like any other short section.
-- The `break_size` theme property can serve as an explicit override: if
-  `s.size_bytes < break_threshold` and `break_size` is configured, clamp the
-  break section to `break_size` (treat it as a floor). This optional cap prevents
+- The `break_height` theme property can serve as an explicit override: if
+  `s.size_bytes < break_threshold` and `break_height` is configured, clamp the
+  break section to `break_height` (treat it as a floor). This optional cap prevents
   astronomically-large reserved regions from dominating height.
 
 The key shift: break sections participate in the same iterative algorithm.

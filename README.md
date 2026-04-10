@@ -105,7 +105,7 @@ Create `diagram.json` with your memory regions:
     { "id": "bss",   "address": "0x20000000", "size": "0x00800", "name": ".bss" },
     { "id": "stack", "address": "0x20004000", "size": "0x01000", "name": "Stack", "flags": ["grows-down"] }
   ],
-  "areas": [
+  "views": [
     { "id": "Flash", "title": "Flash Memory", "range": ["0x08000000", "0x08020000"] },
     { "id": "SRAM",  "title": "SRAM",         "range": ["0x20000000", "0x20005000"] }
   ]
@@ -154,7 +154,9 @@ python scripts/mmpviz.py -d diagram.json --validate
 | `examples/link/cortex_m3/` | Cortex-M3 link style reference |
 | `examples/break/` | Break section compression |
 | `examples/labels/` | Address label styles |
-| `examples/stack/` | Stack/heap growth arrows |
+| `examples/stack/basic/` | Basic Cortex-M SRAM layout — heap and stack with growth arrows |
+| `examples/stack/guard_page/` | MPU stack guard page — used/free split, no-access guard region |
+| `examples/stack/shadow_stack/` | Shadow stack — return-address-only region alongside the main call stack |
 
 Built-in themes in `themes/`: `default.json` (auto-loaded), `light.json`, `monochrome.json`, `plantuml.json`
 

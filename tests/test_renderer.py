@@ -13,8 +13,7 @@ FIXTURES = os.path.join(os.path.dirname(__file__), 'fixtures')
 
 
 def make_section(address, size, id='s', flags=None, name=None):
-    return Section(size=size, address=address, id=id,
-                   _type='section', parent='none', flags=flags, name=name)
+    return Section(size=size, address=address, id=id, flags=flags, name=name)
 
 
 def default_style():
@@ -22,9 +21,9 @@ def default_style():
         'background': 'white', 'fill': 'lightgrey', 'stroke': 'black',
         'stroke_width': 1, 'font_size': 16, 'font_family': 'Helvetica',
         'text_fill': 'black', 'text_stroke': 'black', 'text_stroke_width': 0,
-        'break_size': 20, 'break_type': '≈', 'opacity': 1,
+        'break_height': 20, 'opacity': 1,
         'growth_arrow_size': 1, 'growth_arrow_fill': 'white', 'growth_arrow_stroke': 'black',
-        'weight': 2, 'stroke_dasharray': '3,2',
+        'label_arrow_size': 2, 'stroke_dasharray': '3,2',
     }
 
 
@@ -134,8 +133,8 @@ class TestRendererFromFixtures(unittest.TestCase):
         import copy
         from loader import parse_int
         area_views = []
-        for area_config in diagram.get('areas', []):
-            area_id = area_config.get('id', '')
+        for area_config in diagram.get('views', []):
+            view_id = area_config.get('id', '')
             memory_range = area_config.get('range', [])
             rmin = parse_int(memory_range[0]) if len(memory_range) > 0 else None
             rmax = parse_int(memory_range[1]) if len(memory_range) > 1 else None
@@ -146,7 +145,7 @@ class TestRendererFromFixtures(unittest.TestCase):
                 continue
             area_views.append(AreaView(
                 sections=filtered,
-                style=theme.resolve(area_id),
+                style=theme.resolve(view_id),
                 area_config=area_config,
                 theme=theme,
             ))

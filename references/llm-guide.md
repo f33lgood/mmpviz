@@ -9,7 +9,7 @@ AI/LLM agents generating `diagram.json` + `theme.json` pairs for mmpviz.
 
 | File | Purpose |
 |------|---------|
-| `diagram.json` | **Addresses and layout** — sections (memory regions), areas (display panels), links (connections) |
+| `diagram.json` | **Addresses and layout** — sections (memory regions), views (display panels), links (connections) |
 | `theme.json` | **Visual style** — colors, fonts, link style, visibility flags |
 
 Keep them separate. `diagram.json` is machine-accurate (from datasheets/RTL); `theme.json` is human-readable styling.
@@ -57,18 +57,18 @@ maps), use **break sections** to compress the empty space.
 ### Pattern
 
 1. Create a gap section spanning the empty range with a filler name (e.g. `"···"`).
-2. In the area's `sections` list, apply `"flags": ["break"]` to that section.
-3. The break renders as a fixed-height zigzag symbol (`break_size` px, default 20).
+2. In the view's `sections` list, apply `"flags": ["break"]` to that section.
+3. The break renders as a fixed-height zigzag symbol (`break_height` px, default 20).
 4. All non-break sections are redistributed to fill the remaining panel height.
 
 ```json
 "sections": [
   { "id": "Gap0", "address": "0x00100000", "size": "0x0FF00000", "name": "···" }
 ],
-"areas": [
+"views": [
   {
     "sections": [
-      { "names": ["Gap0"], "flags": ["break"] }
+      { "ids": ["Gap0"], "flags": ["break"] }
     ]
   }
 ]
@@ -97,37 +97,37 @@ Using breaks on functional sections hides them visually; use height clamping ins
 
 ## 4. Link Bands — How Section Links Work
 
-`links.sections` draws a trapezoid band from `areas[0]` (the overview / source area)
-to the **first** detail area whose `lowest_memory ≤ link_start` AND `highest_memory ≥ link_end`.
+`links.sections` draws a trapezoid band from `views[0]` (the overview / source view)
+to the **first** detail view whose `lowest_memory ≤ link_start` AND `highest_memory ≥ link_end`.
 
 ### Rules
 
-- **Order matters.** The area in `areas` that should receive a specific link must come
-  *before* any other area that also covers the same address range.
+- **Order matters.** The view in `views` that should receive a specific link must come
+  *before* any other view that also covers the same address range.
 - **Hidden sections still count** toward `lowest_memory` / `highest_memory`. A detail
-  area can have all its sections hidden but still accept a link if its sections span
+  view can have all its sections hidden but still accept a link if its sections span
   the target address range.
 - **One link per entry.** Each string in `links.sections` creates at most one band
-  (to the first matching detail area). To link a section to multiple areas, use
+  (to the first matching detail view). To link a section to multiple views, use
   `links.addresses` for horizontal line annotations instead.
-- **Source area must contain the address.** If the overview doesn't cover the link
+- **Source view must contain the address.** If the overview doesn't cover the link
   section's address range, you get a warning and no band is drawn.
 
 ### Multi-level zoom pattern
 
 ```
-areas: [overview, detail-level-1, detail-level-2, ...]
+views: [overview, detail-level-1, detail-level-2, ...]
 links.sections: ["RegionA", "RegionB", ...]
 ```
 
-`RegionA` links to `detail-level-1` if that area covers it. `RegionB` links to
+`RegionA` links to `detail-level-1` if that view covers it. `RegionB` links to
 `detail-level-2` if `detail-level-1` does NOT cover `RegionB`'s range.
 
 ---
 
-## 5. Source-Area Link Alignment With Breaks
+## 5. Source-View Link Alignment With Breaks
 
-When the source area (overview) uses break compression, the link band's anchor point
+When the source view (overview) uses break compression, the link band's anchor point
 on the source side is computed from the **compressed** subarea position, not a naive
 proportional scaling. This means link bands visually align with the colored section
 boxes in the overview even when large gaps are compressed.
@@ -163,12 +163,12 @@ The title must fit within `panel_width` (ideally with ≥ 20 px margin on each s
 
 ## 7. Color Strategy (No Auto-Palette Yet)
 
-mmpviz supports a `palette` array in `theme.json`. Each non-break section in an area
+mmpviz supports a `palette` array in `theme.json`. Each non-break section in a view
 is assigned the next palette color cyclically, based on address order. Sections with
-explicit per-section color overrides in `theme.areas.<area-id>.sections.<section-id>`
+explicit per-section color overrides in `theme.views.<view-id>.sections.<section-id>`
 skip this.
 
-### Tips for multi-area diagrams
+### Tips for multi-view diagrams
 
 - Group **functionally related** regions with the same color family.
 - Use muted / desaturated colors; bright colors make text hard to read.
@@ -227,8 +227,8 @@ Common warnings and their causes:
 
 | Warning | Root cause |
 |---------|-----------|
-| `Section link [...] is outside the shown areas` | Link section address range not covered by any detail area. Either adjust the detail area's `range`, add a hidden section to extend `highest_memory`, or remove the entry from `links.sections`. |
-| `Area '...' has no sections after filtering` | `range` or `section_size` filter too tight. |
+| `Section link [...] is outside the shown views` | Link section address range not covered by any detail view. Either adjust the detail view's `range`, add a hidden section to extend `highest_memory`, or remove the entry from `links.sections`. |
+| `View '...' has no sections after filtering` | `range` or `section_size` filter too tight. |
 
 ### Step 3 — Visual spot-check (human)
 
@@ -245,7 +245,7 @@ Open the SVG in a browser and verify:
 
 ## 9. Multi-Level Zoom: Sub-Section Links
 
-`links.sections` always links from `areas[0]` (the overview). To create a second-level
+`links.sections` always links from `views[0]` (the overview). To create a second-level
 zoom — e.g., an APB detail view that itself links to a µDMA channel view — use
 `links.sub_sections`:
 
@@ -258,16 +258,16 @@ zoom — e.g., an APB detail view that itself links to a µDMA channel view — 
 }
 ```
 
-Each entry is `[source_area_id, section_id]`. The renderer draws a band from
-`source_area_id`'s right edge to the next area that covers `section_id`'s address range.
+Each entry is `[source_view_id, section_id]`. The renderer draws a band from
+`source_view_id`'s right edge to the next view that covers `section_id`'s address range.
 
 **Rules:**
-- The source area must be listed in `areas[]` by that exact `id`.
+- The source view must be listed in `views[]` by that exact `id`.
 - The section must exist somewhere in `sections[]`.
-- The target area is the first area (after the source in `areas[]` order) whose
+- The target view is the first view (after the source in `views[]` order) whose
   `lowest_memory` ≤ section start AND `highest_memory` ≥ section end.
 - Hidden sections extend `highest_memory`/`lowest_memory`, so a hidden terminator
-  section can be used to extend the target area's effective range.
+  section can be used to extend the target view's effective range.
 
 ---
 
@@ -279,7 +279,7 @@ the panel.
 
 ### Check
 
-For each consecutive pair of sections displayed in an area (in address order):
+For each consecutive pair of sections displayed in a view (in address order):
 ```
 section[i].address + section[i].size == section[i+1].address
 ```
@@ -292,18 +292,18 @@ visible blank band.
 
 ## 11. Hidden Section Exhaustiveness Rule
 
-When a section is **expanded** in a detail area (i.e., the detail area shows its
+When a section is **expanded** in a detail view (i.e., the detail view shows its
 sub-sections), the parent section AND all its sub-sections must be hidden in every
-area that is supposed to show only the collapsed view.
+view that is supposed to show only the collapsed view.
 
 ### Rule
 
-For each area at a higher zoom level (overview, intermediate view):
+For each view at a higher zoom level (overview, intermediate view):
 1. Hide the parent section (e.g., `"uDMA"`).
 2. Also hide every sub-section that falls within the parent's address range
    (e.g., `"UART"`, `"SPIM"`, `"I2C0"`, …). If you omit even one, it will
-   appear as an extra visible section in the parent area.
-3. If the detail area itself has a sub-sub-view (three levels of zoom), repeat
+   appear as an extra visible section in the parent view.
+3. If the detail view itself has a sub-sub-view (three levels of zoom), repeat
    for that level too.
 
 **Symptom when violated:** An unexpected colored section appears in the overview
@@ -332,9 +332,9 @@ panel[i].pos_x + panel[i].size_x + 150 ≤ panel[i+1].pos_x
 
 ## 13. Break Sections Show Names
 
-Break sections render their name label. Since break sections are only `break_size` px
+Break sections render their name label. Since break sections are only `break_height` px
 tall (default 20 px) and all labels are always rendered, the name will overlap the box
-unless `break_size` is increased to at least `font_size` px.
+unless `break_height` is increased to at least `font_size` px.
 
 **Best practice for large break regions:** Embed the address range and size in the
 `name` field, because the address label itself is auto-hidden at 20 px:
@@ -356,10 +356,10 @@ even at small heights (e.g., tooltips, exported metadata).
 | Overview panel looks blank or all sections are invisible | No breaks; huge address range compresses everything to sub-pixel | Add break sections for large gaps |
 | Title first character clipped | Title too long for panel width | Shorten title or widen panel |
 | Title not visible at all | `panel_pos_y` = 0 in manual layout | Set `panel_pos_y` ≥ 50, or switch to auto-layout |
-| Link band connects to the wrong detail panel | Area order wrong; wrong area comes first and its `lowest_memory`/`highest_memory` covers the linked section | Reorder areas so the intended target comes first |
+| Link band connects to the wrong detail panel | View order wrong; wrong view comes first and its `lowest_memory`/`highest_memory` covers the linked section | Reorder views so the intended target comes first |
 | Link band visible but band origin is at wrong vertical position in overview | Bug in older renderer: now fixed; source position is computed from compressed subarea | Upgrade to v1.1+ |
-| "Section link ... is outside the shown areas" warning | Link address range not covered by any detail area's sections | Extend the detail area `range`, or add a hidden section that reaches the end address |
-| Unexpected colored section at bottom of overview or intermediate view | Sub-sections of an expanded region not fully hidden — at least one sub-section is missing from the hidden list | Add all sub-sections of the expanded region to the hidden list in every parent area |
+| "Section link ... is outside the shown views" warning | Link address range not covered by any detail view's sections | Extend the detail view `range`, or add a hidden section that reaches the end address |
+| Unexpected colored section at bottom of overview or intermediate view | Sub-sections of an expanded region not fully hidden — at least one sub-section is missing from the hidden list | Add all sub-sections of the expanded region to the hidden list in every parent view |
 | Blank/empty stripe inside a panel | Gap section starts at wrong address, leaving an unmapped range | Recompute gap address as `previous.address + previous.size` |
 | Address labels appear to belong to wrong panel | Panels too close horizontally | Increase horizontal gap to ≥ 150 px between right edge of one panel and left edge of next |
 
@@ -370,17 +370,17 @@ even at small heights (e.g., tooltips, exported metadata).
 Before submitting a new example:
 
 - [ ] All section IDs are unique within the diagram
-- [ ] Section `address + size` values do not exceed the area `range` end
-- [ ] Every area's `pos` + `size` fits within the diagram `size` canvas
+- [ ] Section `address + size` values do not exceed the view's `range` end
+- [ ] Every view's `pos` + `size` fits within the diagram `size` canvas
 - [ ] Panel titles are ≤ `floor((panel_width − 40) / 13)` characters
 - [ ] All important sections are ≥ 20 px tall in their display panel (use breaks if not)
 - [ ] `links.sections` entries reference section IDs that exist in `sections[]`
-- [ ] The source area (areas[0]) covers every address in `links.sections`
-- [ ] Detail areas are ordered so each `links.sections` target comes before any other
-  area that happens to cover the same address range
+- [ ] The source view (views[0]) covers every address in `links.sections`
+- [ ] Detail views are ordered so each `links.sections` target comes before any other
+  view that happens to cover the same address range
 - [ ] Gap sections are contiguous: `gap.address == previous.address + previous.size`
 - [ ] Hidden lists are exhaustive: every sub-section of an expanded region is hidden
-  in ALL parent areas (not just the immediate parent)
+  in ALL parent views (not just the immediate parent)
 - [ ] Horizontal gap between panels ≥ 150 px
 - [ ] Break section names include address/size info (since address labels hide at 20 px)
 - [ ] Running `check.py` produces no ERRORs (exit 0 or 2)

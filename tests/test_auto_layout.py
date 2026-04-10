@@ -87,7 +87,7 @@ class TestAutoLayout(unittest.TestCase):
 
 
 def _sec(address, size, sid='s'):
-    return Section(size=size, address=address, id=sid, _type='section', parent='none')
+    return Section(size=size, address=address, id=sid)
 
 
 class TestBuildLinkGraph(unittest.TestCase):
@@ -132,14 +132,17 @@ class TestBuildLinkGraph(unittest.TestCase):
         g = build_link_graph(areas, secs)
         self.assertEqual(g['a'], [])
 
-    def test_area_without_range_has_no_outgoing_edges(self):
+    def test_area_without_range_derives_from_global_sections(self):
+        # A rangeless view acts as an overview spanning all sections.
+        # Edge a→b should be created because a's derived range covers the
+        # section, which in turn contains b's explicit range.
         areas = [
-            {'id': 'a'},   # no range
+            {'id': 'a'},   # no range — derives [0x0, 0x2000) from sections
             {'id': 'b', 'range': ['0x0', '0x1000']},
         ]
         secs = [_sec(0x0, 0x2000)]
         g = build_link_graph(areas, secs)
-        self.assertEqual(g.get('a', []), [])
+        self.assertIn('b', g.get('a', []))
 
     def test_no_duplicate_edges(self):
         # Two sections both containing area B → still only one edge A→B
@@ -265,7 +268,7 @@ class TestBuildLinkGraphChipExamples(unittest.TestCase):
         if not os.path.isfile(diagram_path):
             return None, None
         raw_sections, diagram = load(diagram_path)
-        area_configs = diagram.get('areas', []) or []
+        area_configs = diagram.get('views', []) or []
         return raw_sections, area_configs
 
     def test_stm32f103_overview_is_root(self):
@@ -298,11 +301,11 @@ class TestBuildLinkGraphChipExamples(unittest.TestCase):
             raw_sections, area_configs = self._load_chip(chip_name)
             if not area_configs:
                 continue
-            area_ids = [c['id'] for c in area_configs if 'id' in c]
+            view_ids = [c['id'] for c in area_configs if 'id' in c]
             g = build_link_graph(area_configs, raw_sections)
-            # Every area id should be a key in the graph
-            for aid in area_ids:
-                self.assertIn(aid, g, f"[{chip_name}] {aid!r} missing from graph")
+            # Every view id should be a key in the graph
+            for vid in view_ids:
+                self.assertIn(vid, g, f"[{chip_name}] {vid!r} missing from graph")
             # No self-loops
             for src, targets in g.items():
                 self.assertNotIn(src, targets, f"[{chip_name}] self-loop on {src!r}")

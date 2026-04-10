@@ -7,8 +7,8 @@ then assign each area to a layout column based on topological depth.
 Public API
 ----------
 build_link_graph(area_configs, sections) → {src_id: [tgt_id, ...]}
-assign_columns(graph, area_ids)          → {area_id: column_int}
-order_within_column(graph, columns, area_views) → {col: [area_id, ...]}
+assign_columns(graph, view_ids)          → {view_id: column_int}
+order_within_column(graph, columns, area_views) → {col: [view_id, ...]}
 """
 from collections import defaultdict, deque
 
@@ -52,13 +52,24 @@ def build_link_graph(area_configs: list, sections: list) -> dict:
                 pass
         return None, None
 
-    # Build range lookup  {area_id: (lo, hi)}
+    # Build range lookup  {view_id: (lo, hi)}
     area_ranges = {}
     for cfg in area_configs:
-        aid = cfg.get('id', '')
+        vid = cfg.get('id', '')
         lo, hi = _parse_range(cfg)
         if lo is not None and hi is not None:
-            area_ranges[aid] = (lo, hi)
+            area_ranges[vid] = (lo, hi)
+
+    # For views without an explicit range, derive from the global section extents.
+    # This allows rangeless overview views to act as link-graph sources.
+    live = [s for s in sections if s.size > 0]
+    if live:
+        global_lo = min(s.address for s in live)
+        global_hi = max(s.address + s.size for s in live)
+        for cfg in area_configs:
+            vid = cfg.get('id', '')
+            if vid not in area_ranges:
+                area_ranges[vid] = (global_lo, global_hi)
 
     graph = {cfg.get('id', ''): [] for cfg in area_configs}
 
@@ -98,26 +109,26 @@ def build_link_graph(area_configs: list, sections: list) -> dict:
 # Column assignment
 # ---------------------------------------------------------------------------
 
-def assign_columns(graph: dict, area_ids: list) -> dict:
+def assign_columns(graph: dict, view_ids: list) -> dict:
     """
-    Assign each area to a layout column using BFS + max-depth propagation.
+    Assign each view to a layout column using BFS + max-depth propagation.
 
-    Roots (areas with no incoming edges) are placed in column 0.  Each
+    Roots (views with no incoming edges) are placed in column 0.  Each
     successor is placed at max(current_column, source_column + 1).  This
     handles diamonds and multi-parent cases correctly.
 
-    Disconnected areas (no edges) are assigned column 0.
+    Disconnected views (no edges) are assigned column 0.
 
     Parameters
     ----------
     graph : dict  {source_id: [target_id, ...]}
-    area_ids : list of str
+    view_ids : list of str
 
     Returns
     -------
-    dict  {area_id: column_int}
+    dict  {view_id: column_int}
     """
-    in_degree = defaultdict(int, {aid: 0 for aid in area_ids})
+    in_degree = defaultdict(int, {vid: 0 for vid in view_ids})
     children = defaultdict(list)
 
     for src, targets in graph.items():
@@ -126,8 +137,8 @@ def assign_columns(graph: dict, area_ids: list) -> dict:
             in_degree[tgt] += 1
 
     # Kahn's algorithm: process in topological order, propagate max depth.
-    column = {aid: 0 for aid in area_ids}
-    queue = deque(aid for aid in area_ids if in_degree[aid] == 0)
+    column = {vid: 0 for vid in view_ids}
+    queue = deque(vid for vid in view_ids if in_degree[vid] == 0)
 
     while queue:
         src = queue.popleft()
@@ -161,17 +172,17 @@ def order_within_column(graph: dict, columns: dict, area_views: list) -> dict:
     Parameters
     ----------
     graph : dict  {source_id: [target_id, ...]}
-    columns : dict  {area_id: column_int}
+    columns : dict  {view_id: column_int}
     area_views : list of AreaView
-        Used to look up the pixel position of link sections in source areas.
+        Used to look up the pixel position of link sections in source views.
 
     Returns
     -------
-    dict  {column_int: [area_id, ...]}
-        Areas ordered top-to-bottom within each column.
+    dict  {column_int: [view_id, ...]}
+        Views ordered top-to-bottom within each column.
     """
-    # Build area_view lookup  {area_id: AreaView}
-    av_by_id = {av.area_id: av for av in area_views}
+    # Build area_view lookup  {view_id: AreaView}
+    av_by_id = {av.view_id: av for av in area_views}
 
     # Build reverse map: target → list of (source, section_midpoint_px)
     source_midpoints = defaultdict(list)
@@ -196,14 +207,14 @@ def order_within_column(graph: dict, columns: dict, area_views: list) -> dict:
             return float('inf')
         return sum(mids) / len(mids)
 
-    # Group areas by column and sort within each column
+    # Group views by column and sort within each column
     by_column = defaultdict(list)
-    for aid, col in columns.items():
-        by_column[col].append(aid)
+    for vid, col in columns.items():
+        by_column[col].append(vid)
 
     result = {}
-    for col, aids in by_column.items():
-        result[col] = sorted(aids, key=key)
+    for col, vids in by_column.items():
+        result[col] = sorted(vids, key=key)
 
     return result
 

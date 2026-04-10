@@ -118,9 +118,9 @@ first, then to any remaining uncapped section.
 |------------------------|--------------|--------------------------------------------------|
 | `min_section_height`   | 20 px         | User-controlled section height floor            |
 | `max_section_height`   | 300 px        | Section height ceiling                          |
-| `break_size`           | 20 px         | Fixed height for break sections                 |
+| `break_height`           | 20 px         | Fixed height for break sections                 |
 
-Break sections use a separate code path (`break_size` fixed height) and do
+Break sections use a separate code path (`break_height` fixed height) and do
 **not** participate in `_compute_per_section_heights`.
 
 The label-conflict floor (`30 + font_size` px) is derived automatically from
@@ -204,7 +204,7 @@ size assignment.  Does not run the full section-height algorithm.
 
 ```python
 estimated = n_visible * user_min_h
-          + n_breaks  * (break_size + 4)
+          + n_breaks  * (break_height + 4)
           + 20                          # top/bottom padding
 return max(200.0, estimated)
 ```
@@ -352,13 +352,13 @@ return to_pixels_relative(address)   # fallback
 | **Section height: per-section floor** | Iterative lock-at-min_h with separate min/max phases | `_compute_per_section_heights` Phase 1 (floor, accepts per-section dict) + Phase 2 (ceiling) | Implemented |
 | **Section height: max_h ceiling** | Redistribute surplus from capped sections | Phase 2 of `_compute_per_section_heights` | Implemented |
 | **Section height: area-level auto-expansion** | When overflow, expand H = Σ(min_h); re-run algorithm | Not at area level; canvas expands via `_auto_canvas_size()` | Partial — expansion is canvas-level, not area-level |
-| **Section height: break sections** | Breaks participate in iterative algorithm with min_h floor | Breaks use fixed `break_size` path; excluded from `_compute_per_section_heights` | Not implemented |
+| **Section height: break sections** | Breaks participate in iterative algorithm with min_h floor | Breaks use fixed `break_height` path; excluded from `_compute_per_section_heights` | Not implemented |
 | **Link graph construction** | Edge A→B when B.range ⊆ section L in A | `build_link_graph()` — identical logic | Implemented |
 | **Multiple parents** | Use first-encountered (BFS) source | `assign_columns()` uses max-depth rule | Implemented (stricter than proposal) |
 | **Column assignment: BFS depth** | BFS with max-depth propagation | `assign_columns()` — Kahn's algorithm with max propagation | Implemented |
 | **Column assignment: column cap (N ≤ 4)** | Warn when > 3 columns; merge deepest levels | No cap; natural DAG depth used | Not implemented |
 | **Root detection heuristics** | Widest range or most sections when no edges | Areas with in-degree 0 (no special tie-breaking) | Simplified |
-| **Area height computation** | Run Phase 1 algorithm per area for exact height | `_estimate_area_height`: `n_visible × min_h + n_breaks × (break_size+4) + 20` | Simplified — formula, not full algorithm |
+| **Area height computation** | Run Phase 1 algorithm per area for exact height | `_estimate_area_height`: `n_visible × min_h + n_breaks × (break_height+4) + 20` | Simplified — formula, not full algorithm |
 | **Minimum area height (3 × min_h)** | `max(H_area, 3 × min_h)` | `max(200.0, estimated)` — hardcoded 200 px floor | Approximate |
 | **Area ordering: crossing minimisation** | Sort column C+1 by source midpoint | `order_within_column()` implemented but not wired into `get_area_views()` | Implemented, not active |
 | **Vertical placement: top alignment** | All columns start at same y | TITLE_SPACE = 60 px for every column | Implemented |

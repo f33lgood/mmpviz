@@ -28,9 +28,9 @@ DEFAULT_THEME = os.path.join(os.path.dirname(__file__), '..', 'examples', 'theme
 
 
 def strip_layout(diagram: dict) -> dict:
-    """Return a copy of the diagram with pos/size removed from every area config."""
+    """Return a copy of the diagram with pos/size removed from every view config."""
     d = copy.deepcopy(diagram)
-    for area in d.get('areas', []):
+    for area in d.get('views', []):
         area.pop('pos', None)
         area.pop('size', None)
     return d

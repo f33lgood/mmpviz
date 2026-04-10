@@ -18,13 +18,13 @@ class TestThemeDefaults(unittest.TestCase):
         # default.json style overrides Theme.DEFAULT
         self.assertEqual(style['fill'], '#e8e8e8')
         self.assertEqual(style['stroke'], '#555555')
-        self.assertEqual(style['break_size'], 20)
+        self.assertEqual(style['break_height'], 20)
 
     def test_all_required_keys_present(self):
         t = Theme()
         style = t.resolve('x')
         for key in ('background', 'fill', 'stroke', 'stroke_width', 'font_size',
-                    'font_family', 'text_fill', 'break_size',
+                    'font_family', 'text_fill', 'break_height',
                     'growth_arrow_size'):
             self.assertIn(key, style, f"Missing key: {key}")
 
@@ -245,7 +245,7 @@ class TestThemeInheritance(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             parent_path = self._write_tmp(d, {
                 "schema_version": 1,
-                "areas": {
+                "views": {
                     "flash": {
                         "fill": "#parent-flash",
                         "sections": {
@@ -258,7 +258,7 @@ class TestThemeInheritance(unittest.TestCase):
             child_path = self._write_tmp(d, {
                 "schema_version": 1,
                 "extends": f"./{os.path.basename(parent_path)}",
-                "areas": {
+                "views": {
                     "flash": {
                         "sections": {
                             "text": {"fill": "#child-text"}

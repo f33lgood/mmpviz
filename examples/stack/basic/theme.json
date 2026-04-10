@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "extends": "default",
+  "views": {
+    "sram": {
+      "sections": {
+        "heap":  { "fill": "#aed6f1" },
+        "free":  { "fill": "#fdebd0" },
+        "stack": { "fill": "#a9dfbf" }
+      }
+    }
+  }
+}

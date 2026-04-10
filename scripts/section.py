@@ -1,7 +1,7 @@
 class Section:
     """
     Holds logical and graphical information for a given section, as well as other properties such as
-    style, visibility, type, flags, etc.
+    style, visibility, flags, etc.
 
     `style` is a plain dict resolved from theme.json — use .get() to access values.
     """
@@ -15,9 +15,7 @@ class Section:
     label_offset: int = 10
     style: dict
 
-    def __init__(self, size, address, id, _type, parent, flags=None, name=None):
-        self.type = _type
-        self.parent = parent
+    def __init__(self, size, address, id, flags=None, name=None):
         self.size = size
         self.address = address
         self.id = id
@@ -25,6 +23,7 @@ class Section:
         self.size_y = 0
         self.size_x = 0
         self.style = {}
+        self.addr_label_style = {}  # view-level style (no section overrides) for address labels
         self.flags = flags if flags is not None else []
         self.size_y_override = None   # set by per-section height algorithm
         self.pos_y_in_subarea = None  # set by per-section height algorithm

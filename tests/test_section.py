@@ -8,8 +8,7 @@ from section import Section
 class TestSectionFlags(unittest.TestCase):
 
     def _make(self, flags=None):
-        return Section(size=0x1000, address=0x08000000, id='test',
-                       _type='section', parent='none', flags=flags)
+        return Section(size=0x1000, address=0x08000000, id='test', flags=flags)
 
     def test_default_flags_empty(self):
         s = self._make()
@@ -46,17 +45,17 @@ class TestSectionFlags(unittest.TestCase):
 class TestSectionProperties(unittest.TestCase):
 
     def test_addr_label_pos_x(self):
-        s = Section(size=0, address=0, id='x', _type='section', parent='none')
+        s = Section(size=0, address=0, id='x')
         s.size_x = 200
         self.assertEqual(s.addr_label_pos_x, 210)  # size_x + label_offset(10)
 
     def test_name_label_pos_x(self):
-        s = Section(size=0, address=0, id='x', _type='section', parent='none')
+        s = Section(size=0, address=0, id='x')
         s.size_x = 200
         self.assertEqual(s.name_label_pos_x, 100)
 
     def test_name_label_pos_y(self):
-        s = Section(size=0, address=0, id='x', _type='section', parent='none')
+        s = Section(size=0, address=0, id='x')
         s.pos_y = 100
         s.size_y = 40
         self.assertEqual(s.name_label_pos_y, 120)

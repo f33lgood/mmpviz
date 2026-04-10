@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "extends": "default",
+  "views": {
+    "memory": {
+      "sections": {
+        "heap_used":   { "fill": "#5dade2" },
+        "heap_free":   { "fill": "#aed6f1" },
+        "stack_used":  { "fill": "#52be80" },
+        "stack_free":  { "fill": "#a9dfbf" },
+        "shadow_used": { "fill": "#8e44ad", "text_fill": "#ffffff" },
+        "shadow_free": { "fill": "#d7bde2" }
+      }
+    }
+  }
+}

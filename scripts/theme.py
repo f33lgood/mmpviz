@@ -18,7 +18,7 @@ _THEMES_DIR = os.path.normpath(os.path.join(_HERE, '..', 'themes'))
 _MAX_INHERITANCE_DEPTH = 10
 _KNOWN_TOP_LEVEL_KEYS = frozenset({
     "schema_version", "extends",
-    "style", "palette", "areas", "links", "labels"
+    "style", "palette", "views", "links", "labels"
 })
 
 
@@ -33,10 +33,10 @@ class Theme:
     Style resolution order (later overrides earlier):
       1. DEFAULT (built-in baseline)
       2. theme["style"] (user global overrides)
-      3. theme["areas"][area_id] (area-level overrides, minus the 'sections' subkey)
-      4. theme["areas"][area_id]["sections"][section_id] (section-level overrides)
+      3. theme["views"][view_id] (view-level overrides, minus the 'sections' subkey)
+      4. theme["views"][view_id]["sections"][section_id] (section-level overrides)
 
-    Call resolve(area_id, section_id) to get a merged flat style dict.
+    Call resolve(view_id, section_id) to get a merged flat style dict.
 
     Inheritance: theme files may declare "extends": "<name-or-path>" to inherit
     from a base theme. Built-in names: default, light, monochrome, plantuml.
@@ -55,11 +55,11 @@ class Theme:
         "text_stroke": "none",
         "text_stroke_width": 0,
         "opacity": 1,
-        "break_size": 20,
+        "break_height": 20,
         "growth_arrow_size": 1,
         "growth_arrow_fill": "white",
         "growth_arrow_stroke": "black",
-        "weight": 2,
+        "label_arrow_size": 2,
     }
 
     DEFAULT_LINKS = {
@@ -168,7 +168,7 @@ class Theme:
         for key in raw:
             if key not in _KNOWN_TOP_LEVEL_KEYS:
                 logger.warning(f"Theme '{path}': unrecognized top-level key '{key}' (ignored)")
-        for block in ("style", "areas", "links", "labels"):
+        for block in ("style", "views", "links", "labels"):
             val = raw.get(block)
             if val is not None and not isinstance(val, dict):
                 raise ThemeError(
@@ -196,20 +196,20 @@ class Theme:
         elif "palette" in parent:
             result["palette"] = parent["palette"]
 
-        # Areas: two-level merge
-        p_areas = parent.get("areas", {})
-        c_areas = child.get("areas", {})
-        if p_areas or c_areas:
-            result["areas"] = Theme._merge_areas(p_areas, c_areas)
+        # Views: two-level merge
+        p_views = parent.get("views", {})
+        c_views = child.get("views", {})
+        if p_views or c_views:
+            result["views"] = Theme._merge_views(p_views, c_views)
 
         return result
 
     @staticmethod
-    def _merge_areas(p_areas, c_areas):
+    def _merge_views(p_views, c_views):
         result = {}
-        for aid in set(p_areas) | set(c_areas):
-            p = p_areas.get(aid, {})
-            c = c_areas.get(aid, {})
+        for vid in set(p_views) | set(c_views):
+            p = p_views.get(vid, {})
+            c = c_views.get(vid, {})
             p_secs = p.get("sections", {})
             c_secs = c.get("sections", {})
             merged_secs = {}
@@ -219,7 +219,7 @@ class Theme:
             merged.update({k: v for k, v in c.items() if k != "sections"})
             if merged_secs:
                 merged["sections"] = merged_secs
-            result[aid] = merged
+            result[vid] = merged
         return result
 
     # ------------------------------------------------------------------
@@ -230,18 +230,18 @@ class Theme:
         """Merge built-in defaults with theme-level style."""
         return {**self.DEFAULT, **{k: v for k, v in self._data.get('style', {}).items()}}
 
-    def resolve(self, area_id: str, section_id: str = None,
+    def resolve(self, view_id: str, section_id: str = None,
                 palette_index: int = None) -> dict:
         """
-        Resolve and return a merged style dict for the given area (and optionally section).
+        Resolve and return a merged style dict for the given view (and optionally section).
 
         When ``palette_index`` is provided and the theme defines a ``palette`` array,
         the palette color is used as ``fill`` unless an explicit fill is already set at
-        the area or section level.
+        the view or section level.
         """
         base = self._base()
 
-        area_data = self._data.get('areas', {}).get(area_id, {})
+        area_data = self._data.get('views', {}).get(view_id, {})
         area_style = {k: v for k, v in area_data.items() if k != 'sections'}
 
         section_style = {}

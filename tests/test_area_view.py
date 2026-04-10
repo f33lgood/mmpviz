@@ -11,15 +11,14 @@ FIXTURES = os.path.join(os.path.dirname(__file__), 'fixtures')
 
 
 def make_section(address, size, id='s', flags=None):
-    return Section(size=size, address=address, id=id,
-                   _type='section', parent='none', flags=flags)
+    return Section(size=size, address=address, id=id, flags=flags)
 
 
 def default_style():
     return {
         'background': 'white', 'fill': 'lightgrey', 'stroke': 'black',
         'stroke_width': 1, 'font_size': 16, 'font_family': 'Helvetica',
-        'text_fill': 'black', 'break_size': 20, 'break_type': '≈',
+        'text_fill': 'black', 'break_height': 20,
     }
 
 
@@ -91,7 +90,7 @@ class TestAreaViewStyleOverride(unittest.TestCase):
         s = make_section(0x0, 0x400, 's1')
         area_config = {
             'id': 'av', 'title': 'T', 'pos': [0, 500], 'size': [200, 500],
-            'sections': [{'names': ['s1'], 'flags': ['break']}]
+            'sections': [{'ids': ['s1'], 'flags': ['break']}]
         }
         av = AreaView(
             sections=Sections([s]),
@@ -225,14 +224,11 @@ class TestPerSectionHeightsIntegration(unittest.TestCase):
 
     def _make_area(self, min_h, max_h=None, big_size=0x10000, small_size=0x10):
         """Area with a break, one big section, one small section, one post-break section."""
-        big = Section(size=big_size, address=0x0000, id='big',
-                      _type='section', parent='none')
-        small = Section(size=small_size, address=big_size, id='small',
-                        _type='section', parent='none')
+        big = Section(size=big_size, address=0x0000, id='big')
+        small = Section(size=small_size, address=big_size, id='small')
         brk = Section(size=0x1000, address=big_size + small_size, id='brk',
-                      _type='section', parent='none', flags=['break'])
-        after = Section(size=0x1000, address=big_size + small_size + 0x1000, id='after',
-                        _type='section', parent='none')
+                      flags=['break'])
+        after = Section(size=0x1000, address=big_size + small_size + 0x1000, id='after')
         style = default_style()
         style['min_section_height'] = min_h
         if max_h is not None:
@@ -280,8 +276,7 @@ class TestPerSectionHeightsIntegration(unittest.TestCase):
         #   name_left( 5-char) = 100 -  5 * 0.6*16/2 = 100 - 24   = 76.0  → no conflict
         style = default_style()  # font_size=16, no min_section_height
         s_conflict = make_section(0x0, 0x1000, 'long_section_name')   # 17-char name
-        brk = Section(size=0x100, address=0x1000, id='brk',
-                      _type='section', parent='none', flags=['break'])
+        brk = Section(size=0x100, address=0x1000, id='brk', flags=['break'])
         s_ok = make_section(0x1100, 0x1000, 'short')                   # 5-char name
         av = AreaView(
             sections=Sections([s_conflict, brk, s_ok]),

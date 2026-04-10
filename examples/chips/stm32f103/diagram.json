@@ -3,109 +3,92 @@
     {
       "id": "Aliased",
       "address": "0x00000000",
-      "size": "0x08000000",
-      "type": "area"
+      "size": "0x08000000"
     },
     {
       "id": "Flash Memory",
       "address": "0x08000000",
-      "size": "0x00020000",
-      "type": "area"
+      "size": "0x00020000"
     },
     {
       "id": "Reserved0",
       "address": "0x08020000",
-      "size": "0x17FDF000",
-      "type": "area"
+      "size": "0x17FDF000"
     },
     {
       "id": "System Memory",
       "address": "0x1FFFF000",
-      "size": "0x00000800",
-      "type": "area"
+      "size": "0x00000800"
     },
     {
       "id": "Option Bytes",
       "address": "0x1FFFF800",
-      "size": "0x00000010",
-      "type": "area"
+      "size": "0x00000010"
     },
     {
       "id": "Reserved00",
       "address": "0x1FFFF810",
-      "size": "0x000007F0",
-      "type": "area"
+      "size": "0x000007F0"
     },
     {
       "id": "none",
       "address": "0x00000000",
-      "size": "0x20000000",
-      "type": "area"
+      "size": "0x20000000"
     },
     {
       "id": "none",
       "address": "0x20000000",
-      "size": "0x20000000",
-      "type": "area"
+      "size": "0x20000000"
     },
     {
       "id": "none",
       "address": "0x40000000",
-      "size": "0x20000000",
-      "type": "area"
+      "size": "0x20000000"
     },
     {
       "id": "none",
       "address": "0x60000000",
-      "size": "0x20000000",
-      "type": "area"
+      "size": "0x20000000"
     },
     {
       "id": "none",
       "address": "0x80000000",
-      "size": "0x20000000",
-      "type": "area"
+      "size": "0x20000000"
     },
     {
       "id": "none",
       "address": "0xA0000000",
-      "size": "0x20000000",
-      "type": "area"
+      "size": "0x20000000"
     },
     {
       "id": "none",
       "address": "0xC0000000",
-      "size": "0x20000000",
-      "type": "area"
+      "size": "0x20000000"
     },
     {
       "id": "none",
       "address": "0xE0100000",
-      "size": "0x0FE00000",
-      "type": "area"
+      "size": "0x0FE00000"
     },
     {
       "id": "SRAM",
       "address": "0x20000000",
-      "size": "0x20000000",
-      "type": "area"
+      "size": "0x20000000"
     },
     {
       "id": "Peripherals",
       "address": "0x40000000",
-      "size": "0x20000000",
-      "type": "area"
+      "size": "0x20000000"
     },
     {
       "id": "M3 Cortex Internal Peripherals",
       "address": "0xE0000000",
-      "size": "0x01000000",
-      "type": "area"
+      "size": "0x01000000"
     },
     {
       "id": "OvBreakCode",
-      "address": "0x08020000",
-      "size": "0x17FDF000",
+      "address": "0x08000000",
+      "size": "0x18000000",
       "name": "···"
     },
     {
@@ -129,269 +112,225 @@
     {
       "id": "TIM2",
       "address": "0x40000000",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "TIM3",
       "address": "0x40000400",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "TIM4",
       "address": "0x40000800",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved1",
       "address": "0x40000C00",
-      "size": "0x00001C00",
-      "type": "area"
+      "size": "0x00001C00"
     },
     {
       "id": "RTC",
       "address": "0x40002800",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "WWDG",
       "address": "0x40002C00",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "IWDG",
       "address": "0x40003000",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved2",
       "address": "0x40003400",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "SPI2",
       "address": "0x40003800",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved3",
       "address": "0x40003C00",
-      "size": "0x00000800",
-      "type": "area"
+      "size": "0x00000800"
     },
     {
       "id": "USART2",
       "address": "0x40004400",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "USART3",
       "address": "0x40004800",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved4",
       "address": "0x40004C00",
-      "size": "0x00000800",
-      "type": "area"
+      "size": "0x00000800"
     },
     {
       "id": "I2C1",
       "address": "0x40005400",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "I2C2",
       "address": "0x40005800",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "USB Registers",
       "address": "0x40005C00",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "USB/CAN SRAM",
       "address": "0x40006000",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "BXCAN",
       "address": "0x40006400",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved5",
       "address": "0x40006800",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "BKP",
       "address": "0x40006C00",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "PWR",
       "address": "0x40007000",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved6",
       "address": "0x40007400",
-      "size": "0x00008C00",
-      "type": "area"
+      "size": "0x00008C00"
     },
     {
       "id": "AFIO",
       "address": "0x40010000",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "EXTI",
       "address": "0x40010400",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "PORT A",
       "address": "0x40010800",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "PORT B",
       "address": "0x40010C00",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "PORT C",
       "address": "0x40011000",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "PORT D",
       "address": "0x40011400",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "PORT E",
       "address": "0x40011800",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved7",
       "address": "0x40011C00",
-      "size": "0x00000800",
-      "type": "area"
+      "size": "0x00000800"
     },
     {
       "id": "ADC1",
       "address": "0x40012400",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "ADC2",
       "address": "0x40012800",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "TIM1",
       "address": "0x40012C00",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "SPI1",
       "address": "0x40013000",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved7B",
       "address": "0x40013400",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "USART1",
       "address": "0x40013800",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved8",
       "address": "0x40013C00",
-      "size": "0x0000C400",
-      "type": "area"
+      "size": "0x0000C400"
     },
     {
       "id": "DMA",
       "address": "0x40020000",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved9",
       "address": "0x40020400",
-      "size": "0x00000C00",
-      "type": "area"
+      "size": "0x00000C00"
     },
     {
       "id": "RCC",
       "address": "0x40021000",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved10",
       "address": "0x40021400",
-      "size": "0x00000C00",
-      "type": "area"
+      "size": "0x00000C00"
     },
     {
       "id": "Flash Interface",
       "address": "0x40022000",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     },
     {
       "id": "Reserved11",
       "address": "0x40022400",
-      "size": "0x00000C00",
-      "type": "area"
+      "size": "0x00000C00"
     },
     {
       "id": "CRC",
       "address": "0x40023000",
-      "size": "0x00000400",
-      "type": "area"
+      "size": "0x00000400"
     }
   ],
-  "areas": [
+  "views": [
     {
       "id": "overview-view",
       "title": "STM32F103 Memory Space",
@@ -405,7 +344,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "OvBreakCode",
             "OvBreakExternal",
             "OvBreakVendor"
@@ -415,7 +354,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "none",
             "ApbEndBus"
           ],
@@ -458,7 +397,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "Reserved1",
             "Reserved2",
             "Reserved3",
@@ -478,7 +417,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "Peripherals",
             "none"
           ],

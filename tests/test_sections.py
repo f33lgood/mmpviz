@@ -7,8 +7,7 @@ from sections import Sections
 
 
 def make_section(address, size, id='s', flags=None):
-    return Section(size=size, address=address, id=id,
-                   _type='section', parent='none', flags=flags)
+    return Section(size=size, address=address, id=id, flags=flags)
 
 
 class TestSectionsFilters(unittest.TestCase):

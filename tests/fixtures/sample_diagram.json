@@ -2,13 +2,13 @@
   "title": "Test Memory Map",
   "size": [400, 600],
   "sections": [
-    { "id": "Flash",  "address": "0x08000000", "size": "0x20000", "type": "area" },
+    { "id": "Flash",  "address": "0x08000000", "size": "0x20000" },
     { "id": "text",   "address": "0x08000000", "size": "0x4000",  "flags": ["grows-up"], "name": "Code" },
     { "id": "rodata", "address": "0x08004000", "size": "0x1000" },
-    { "id": "SRAM",   "address": "0x20000000", "size": "0x5000",  "type": "area" },
+    { "id": "SRAM",   "address": "0x20000000", "size": "0x5000" },
     { "id": "stack",  "address": "0x20004800", "size": "0x0800",  "flags": ["grows-down"] }
   ],
-  "areas": [
+  "views": [
     {
       "id": "flash-view",
       "title": "Flash Memory",

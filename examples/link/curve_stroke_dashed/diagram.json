@@ -16,7 +16,7 @@
       "size": "0x10000"
     }
   ],
-  "areas": [
+  "views": [
     {
       "id": "source",
       "title": "Full View",

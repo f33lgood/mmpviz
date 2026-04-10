@@ -7,7 +7,7 @@
     "font_size": 14,
     "text_fill": "#e94560"
   },
-  "areas": {
+  "views": {
     "flash-view": {
       "fill": "#08c6ab",
       "background": "#212b38",

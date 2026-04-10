@@ -49,16 +49,6 @@ class TestLoadFixture(unittest.TestCase):
         rodata = next(s for s in sections if s.id == 'rodata')
         self.assertIsNone(rodata.name)
 
-    def test_default_type_is_section(self):
-        sections, _ = load(os.path.join(FIXTURES, 'sample_diagram.json'))
-        rodata = next(s for s in sections if s.id == 'rodata')
-        self.assertEqual(rodata.type, 'section')
-
-    def test_area_type(self):
-        sections, _ = load(os.path.join(FIXTURES, 'sample_diagram.json'))
-        flash = next(s for s in sections if s.id == 'Flash')
-        self.assertEqual(flash.type, 'area')
-
     def test_flags_parsed(self):
         sections, _ = load(os.path.join(FIXTURES, 'sample_diagram.json'))
         text = next(s for s in sections if s.id == 'text')
@@ -89,12 +79,15 @@ class TestLoadErrors(unittest.TestCase):
         with self.assertRaises(ValueError):
             load(path)
 
-    def test_invalid_type_raises(self):
+    def test_unknown_fields_are_ignored(self):
+        # Extra fields like 'type' or 'parent' are silently ignored
         path = self._write_tmp({"sections": [
-            {"id": "x", "address": "0x0", "size": "0x100", "type": "invalid"}
+            {"id": "x", "address": "0x0", "size": "0x100",
+             "type": "area", "parent": "root"}
         ]})
-        with self.assertRaises(ValueError):
-            load(path)
+        sections, _ = load(path)
+        self.assertEqual(len(sections), 1)
+        self.assertEqual(sections[0].id, 'x')
 
 
 class TestValidate(unittest.TestCase):

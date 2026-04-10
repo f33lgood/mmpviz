@@ -35,8 +35,8 @@ When rendering a section, styles are merged in this order (later overrides earli
 
 1. Built-in fallback defaults (`Theme.DEFAULT` in `theme.py`)
 2. `theme.style` — the global baseline from the loaded theme (or its `extends` ancestor)
-3. `theme.areas[area_id]` — overrides for one area panel
-4. `theme.areas[area_id].sections[section_id]` — overrides for one specific section
+3. `theme.views[view_id]` — overrides for one view panel
+4. `theme.views[view_id].sections[section_id]` — overrides for one specific section within that view
 
 This means you can set a default fill for all sections, then override only the ones
 that matter.
@@ -87,7 +87,7 @@ To start from scratch without inheriting, omit `"extends"` and supply a complete
 }
 ```
 
-Add `areas` to style specific panels and sections within them:
+Add `views` to style specific panels and sections within them:
 
 ```json
 {
@@ -100,7 +100,7 @@ Add `areas` to style specific panels and sections within them:
     "font_size": 13,
     "font_family": "Helvetica"
   },
-  "areas": {
+  "views": {
     "flash-view": {
       "background": "white",
       "fill": "#caf0f8",
@@ -121,8 +121,8 @@ Add `areas` to style specific panels and sections within them:
 }
 ```
 
-The `area_id` keys (`"flash-view"`, `"sram-view"`) must match the `id` fields in
-`diagram.json`'s `areas` array. The `section_id` keys under `sections` must match
+The `view_id` keys (`"flash-view"`, `"sram-view"`) must match the `id` fields in
+`diagram.json`'s `views` array. The `section_id` keys under `sections` must match
 `id` fields in `diagram.json`'s `sections` array.
 
 ---
@@ -133,7 +133,7 @@ The `area_id` keys (`"flash-view"`, `"sram-view"`) must match the `id` fields in
 
 | Property | Type | Default | Effect |
 |----------|------|---------|--------|
-| `background` | color | `"white"` | Area panel background |
+| `background` | color | `"white"` | View panel background |
 | `fill` | color | `"lightgrey"` | Section box fill |
 | `stroke` | color | `"black"` | Box and panel outline color |
 | `stroke_width` | number | `1` | Outline thickness in pixels |
@@ -146,15 +146,17 @@ The `area_id` keys (`"flash-view"`, `"sram-view"`) must match the `id` fields in
 |----------|------|---------|--------|
 | `font_size` | number | `16` | Font size in pixels |
 | `font_family` | string | `"Helvetica"` | Font family |
-| `text_fill` | color | `"black"` | Text color |
+| `text_fill` | color | `"black"` | Name label color inside the section box. Address labels outside the box always use the view-level value — see note below. |
 | `text_stroke` | color | `"black"` | Text outline color |
 | `text_stroke_width` | number | `0` | Text outline thickness |
+
+**Note on `text_fill` scope:** a `text_fill` override in a section entry (`views[id].sections[id]`) applies only to the name label rendered _inside_ the section box. Boundary address labels are rendered _outside_ the box and always inherit the view-level `text_fill`. This means a dark-background section with `"text_fill": "#ffffff"` will have white text inside the box but black (view-level) address labels beside it.
 
 ### Break sections
 
 | Property | Type | Default | Effect |
 |----------|------|---------|--------|
-| `break_size` | number | `20` | Height in pixels of each break |
+| `break_height` | number | `20` | Height in pixels of each break |
 | `break_fill` | color | *(same as `fill`)* | Background fill for break-section boxes |
 
 ### Section height clamping
@@ -193,8 +195,8 @@ Add `"links"` and `"labels"` keys at the top level of your theme:
 }
 ```
 
-Links are the connecting bands between areas. Labels are the annotated address lines
-drawn inside or beside an area panel.
+Links are the connecting bands between views. Labels are the annotated address lines
+drawn inside or beside a view panel.
 
 ---
 
@@ -216,8 +218,8 @@ Any valid SVG color string works:
 - Keep theme files small — use `"extends"` to inherit a built-in base and only
   override what you need.
 - Use one shared theme for a family of diagrams (e.g. all boards in a product line).
-- The `sections` key inside an area override only accepts section `id` values, not
+- The `sections` key inside a view override only accepts section `id` values, not
   section `name` values.
 - `stroke_dasharray: "none"` disables dashing for solid outlines.
 - `min_section_height` and `max_section_height` are especially important for chips
-  with both large (GB) and tiny (KB) sections in the same area.
+  with both large (GB) and tiny (KB) sections in the same view.

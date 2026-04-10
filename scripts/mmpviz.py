@@ -105,7 +105,7 @@ def _auto_layout(area_configs: list, document_size: tuple,
         return result
 
     # --- Column-based layout with greedy bin-packing ---
-    available_h = max(100.0, H - TITLE_SPACE - BOTTOM_PAD)
+    base_available_h = max(100.0, H - TITLE_SPACE - BOTTOM_PAD)
     # Horizontal gap between a column's right edge and the next column's left edge.
     # Must fit address labels (~82 px at 12 pt / 32-bit) + link-band jog + breathing
     # room — proposal §8.3 LINK_BAND_MIN = addr_width + 20 = 102 px; use 120 for safety.
@@ -142,6 +142,14 @@ def _auto_layout(area_configs: list, document_size: tuple,
 
     for dag_col in dag_col_indices:
         areas = list(col_cfgs[dag_col])
+        # Per-column available height: at least as tall as the tallest single view in
+        # this column.  This prevents the initial document_size (which is just a floor
+        # hint) from artificially splitting small views into too many sub-columns while
+        # still allowing a genuinely large view (e.g. APB with 30+ sections) to spill
+        # into its own sub-column when mixed with smaller views.
+        max_item_h = max((_area_h(c) for c in areas), default=base_available_h)
+        available_h = max(base_available_h, max_item_h)
+
         # Greedily fill bin(s) for this DAG column
         current_bin: list = []
         for cfg in areas:
@@ -150,14 +158,14 @@ def _auto_layout(area_configs: list, document_size: tuple,
                 # Fits (or first item — always place it even if already tall)
                 current_bin.append(cfg)
             else:
-                # Overflow: spill when bin already has ≥2 areas (proposal §7.3:
-                # prefer split when 3+ areas; allow scale only for 1-item bins).
+                # Overflow: spill when bin already has ≥2 views (proposal §7.3:
+                # prefer split when 3+ views; allow scale only for 1-item bins).
                 if len(current_bin) >= 2:
-                    # Spill: commit current bin, start a new one with this area
+                    # Spill: commit current bin, start a new one with this view
                     final_cols.append(current_bin)
                     current_bin = [cfg]
                 else:
-                    # Only 1 area already — accept both in the same bin;
+                    # Only 1 view already — accept both in the same bin;
                     # canvas will auto-expand to fit (no scaling applied).
                     current_bin.append(cfg)
 
@@ -223,10 +231,10 @@ def _apply_area_section_flags(sections: list, area_config: dict) -> list:
     if not inner_overrides:
         return sections
 
-    # Build name → set of extra flags
+    # Build id → set of extra flags
     name_flags: dict = {}
     for override in inner_overrides:
-        for name in (override.get('names') or []):
+        for name in (override.get('ids') or []):
             for flag in (override.get('flags') or []):
                 name_flags.setdefault(name, set()).add(flag)
 
@@ -259,7 +267,7 @@ def _estimate_area_height(sections: list, style: dict, area_config: dict = None)
         sections = _apply_area_section_flags(sections, area_config)
 
     user_min_h = float(style.get('min_section_height', 0))
-    break_size = float(style.get('break_size', 20))
+    break_height = float(style.get('break_height', 20))
     top_bottom_pad = 20.0  # area-internal padding
 
     n_visible = sum(
@@ -272,7 +280,7 @@ def _estimate_area_height(sections: list, style: dict, area_config: dict = None)
     # Per-section label-conflict inflation is applied during actual rendering
     # in AreaView._process(); the estimate only needs to be in the right ballpark.
     estimated = (n_visible * user_min_h
-                 + n_breaks * (break_size + 4)
+                 + n_breaks * (break_height + 4)
                  + top_bottom_pad)
     return max(200.0, estimated)
 
@@ -281,16 +289,16 @@ def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: T
     """
     Build AreaView objects from diagram config.
 
-    If no 'areas' are configured in the diagram, returns a single default area
-    spanning all sections. Otherwise, creates one AreaView per configured area
+    If no 'views' are configured in the diagram, returns a single default view
+    spanning all sections. Otherwise, creates one AreaView per configured view
     with filtering and layout applied.
 
-    ``pos`` and ``size`` inside each area entry are optional — _auto_layout()
+    ``pos`` and ``size`` inside each view entry are optional — _auto_layout()
     fills them in when absent.  When section link-graph data is available,
-    areas are arranged in columns derived from topological depth; otherwise
+    views are arranged in columns derived from topological depth; otherwise
     they are distributed evenly left-to-right.
     """
-    area_configurations = diagram.get('areas', []) or []
+    area_configurations = diagram.get('views', []) or []
 
     if not area_configurations:
         return [AreaView(
@@ -307,17 +315,17 @@ def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: T
     columns = None
     area_heights = None
     if needs_auto:
-        area_ids = [c['id'] for c in area_configurations if 'id' in c]
+        view_ids = [c['id'] for c in area_configurations if 'id' in c]
         graph = build_link_graph(area_configurations, raw_sections)
-        columns = assign_columns(graph, area_ids)
+        columns = assign_columns(graph, view_ids)
 
-        # Pre-filter sections per area to estimate heights
+        # Pre-filter sections per view to estimate heights
         area_heights = {}
         for area_config in area_configurations:
             if 'size' in area_config:
                 continue
-            aid = area_config.get('id', '')
-            area_style = theme.resolve(aid)
+            vid = area_config.get('id', '')
+            area_style = theme.resolve(vid)
             memory_range = area_config.get('range', None)
             section_size = area_config.get('section_size', None)
             range_min = parse_int(memory_range[0]) if memory_range and len(memory_range) > 0 else None
@@ -331,7 +339,7 @@ def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: T
                 .filter_size_min(size_min)
                 .filter_size_max(size_max)
             )
-            area_heights[aid] = _estimate_area_height(filtered.get_sections(), area_style, area_config)
+            area_heights[vid] = _estimate_area_height(filtered.get_sections(), area_style, area_config)
 
     area_configurations = _auto_layout(
         area_configurations, tuple(document_size),
@@ -340,7 +348,7 @@ def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: T
 
     area_views = []
     for i, area_config in enumerate(area_configurations):
-        area_id = area_config.get('id', f'area-{i}')
+        view_id = area_config.get('id', f'view-{i}')
         memory_range = area_config.get('range', None)
         section_size = area_config.get('section_size', None)
 
@@ -366,11 +374,11 @@ def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: T
 
         if len(filtered_sections.get_sections()) == 0:
             logger.warning(
-                f"Area '{area_id}' (index {i}) has no sections after filtering. "
-                f"Check range and section_size settings. This area will be omitted.")
+                f"View '{view_id}' (index {i}) has no sections after filtering. "
+                f"Check range and section_size settings. This view will be omitted.")
             continue
 
-        area_style = theme.resolve(area_id)
+        area_style = theme.resolve(view_id)
 
         area_views.append(AreaView(
             sections=filtered_sections,
@@ -430,7 +438,7 @@ def main():
     links = Links(links_config=links_config, style=links_style)
 
     # Build area views
-    area_configs = diagram.get('areas', []) or []
+    area_configs = diagram.get('views', []) or []
     needs_auto = any('pos' not in c or 'size' not in c for c in area_configs)
     area_views = get_area_views(raw_sections, base_style, diagram, theme)
     if not area_views:

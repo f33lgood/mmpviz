@@ -11,7 +11,7 @@
     { "id": "stack",       "address": "0x20003000", "size": "0x00001000", "name": "Stack", "flags": ["grows-down"] }
   ],
 
-  "areas": [
+  "views": [
     {
       "id": "flash",
       "title": "Flash (128 KB)",

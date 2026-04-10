@@ -59,5 +59,5 @@ class Links:
                 valid.append(entry)
             else:
                 logger.warning(
-                    f"Sub-section link must be [source_area_id, section_id], skipping: {entry}")
+                    f"Sub-section link must be [source_view_id, section_id], skipping: {entry}")
         self.sub_sections = valid

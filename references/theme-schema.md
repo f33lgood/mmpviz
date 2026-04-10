@@ -22,7 +22,7 @@ python scripts/mmpviz.py -d diagram.json -t themes/light.json -o map.svg  # by p
 | `monochrome` | `themes/monochrome.json` | Grayscale only, high contrast. Suitable for black-and-white printing. |
 | `plantuml` | `themes/plantuml.json` | PlantUML-style pastel fills with red outlines. |
 
-These themes set only `style` and `links`/`labels` blocks — no area- or section-specific
+These themes set only `style` and `links`/`labels` blocks — no view- or section-specific
 overrides — so they work with any `diagram.json` without modification.
 
 ---
@@ -35,19 +35,19 @@ theme.json
 ├── extends          → built-in name or path to inherit from (optional)
 ├── style            → global baseline (applies to everything)
 ├── palette          → automatic section colors by address order
-├── areas
-│   └── <area-id>    → overrides for a specific area (by id from diagram.json)
+├── views
+│   └── <view-id>    → overrides for a specific view (by id from diagram.json)
 │       └── sections
-│           └── <section-id>  → overrides for a specific section within that area
-├── links            → style for cross-area connection bands
+│           └── <section-id>  → overrides for a specific section within that view
+├── links            → style for cross-view connection bands
 └── labels           → style for address annotation lines
 ```
 
 **Resolution order** (later overrides earlier):
 1. Built-in fallback defaults (`Theme.DEFAULT` in `theme.py`)
 2. `theme.style` (global baseline from the loaded theme file, or its `extends` ancestor)
-3. `theme.areas[area_id]`
-4. `theme.areas[area_id].sections[section_id]`
+3. `theme.views[view_id]`
+4. `theme.views[view_id].sections[section_id]`
 
 ---
 
@@ -91,7 +91,7 @@ The `extends` value is resolved in order:
 **Merge semantics:**
 - `style`, `links`, `labels` — shallow merge; child values override parent
 - `palette` — child replaces parent entirely; absent in child → inherit parent's
-- `areas` — two-level merge (area properties, then section properties within each area)
+- `views` — two-level merge (view properties, then section properties within each view)
 - `schema_version` and `extends` are stripped from the merged result
 
 **Circular or missing references** raise `ThemeError` at load time.
@@ -101,7 +101,7 @@ The `extends` value is resolved in order:
 ## `palette` — Automatic Section Colors
 
 An optional top-level array of color strings. When present, sections that have **no
-explicit `fill`** at the area or section level are assigned colors from the palette in
+explicit `fill`** at the view or section level are assigned colors from the palette in
 address order (first section → `palette[0]`, second → `palette[1]`, wrapping around).
 Break sections do not consume a palette slot.
 
@@ -113,8 +113,8 @@ Break sections do not consume a palette slot.
 ```
 
 **Override precedence:**
-1. `theme.areas[area_id].sections[section_id].fill` — wins over palette
-2. `theme.areas[area_id].fill` — wins over palette
+1. `theme.views[view_id].sections[section_id].fill` — wins over palette
+2. `theme.views[view_id].fill` — wins over palette
 3. `palette[index % len(palette)]` — applied when neither above is set
 4. `theme.style.fill` — used when no palette is defined
 
@@ -131,7 +131,7 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `background` | color string | `"white"` | Area frame background fill |
+| `background` | color string | `"white"` | View frame background fill |
 | `fill` | color string | `"lightgrey"` | Section box fill color |
 | `stroke` | color string | `"black"` | Outline color for boxes and frames |
 | `stroke_width` | number | `1` | Outline thickness in pixels |
@@ -144,7 +144,7 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 |----------|------|---------|-------------|
 | `font_size` | number or string | `16` | Font size in px (number or `"16px"`) |
 | `font_family` | string | `"Helvetica"` | Font family |
-| `text_fill` | color string | `"black"` | Text color |
+| `text_fill` | color string | `"black"` | Text color for the section **name** label inside the box. Address labels outside the box always use the view-level `text_fill`, so a dark-background section with `"text_fill": "#ffffff"` does not turn its boundary address labels white. |
 | `text_stroke` | color string | `"black"` | Text outline color |
 | `text_stroke_width` | number | `0` | Text outline thickness |
 
@@ -152,7 +152,7 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `break_size` | number | `20` | Height in pixels of a break section |
+| `break_height` | number | `20` | Height in pixels of a break section |
 | `break_fill` | color string | *(same as `fill`)* | Background fill of a break-section box. Falls back to `fill` when unset. |
 
 ### Section Height Clamping
@@ -186,7 +186,7 @@ Controls how pixel height is distributed across subareas (regions between break 
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `weight` | number | `2` | Arrow head size multiplier for labels |
+| `label_arrow_size` | number | `2` | Arrow head size multiplier for labels |
 
 ---
 
@@ -243,12 +243,12 @@ Any valid SVG color string is accepted:
     "text_fill": "#a8dadc",
     "text_stroke_width": 0,
     "opacity": 1,
-    "break_size": 24,
+    "break_height": 24,
     "growth_arrow_size": 1,
     "growth_arrow_fill": "#e94560",
     "growth_arrow_stroke": "#e94560"
   },
-  "areas": {
+  "views": {
     "flash-view": {
       "background": "#212b38",
       "fill": "#08c6ab",

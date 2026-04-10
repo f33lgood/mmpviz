@@ -3,44 +3,37 @@
     {
       "id": "SRAM Area",
       "address": "0x20000000",
-      "size": "0x20000000",
-      "type": "area"
+      "size": "0x20000000"
     },
     {
       "id": "Peripheral",
       "address": "0x40000000",
-      "size": "0x20000000",
-      "type": "area"
+      "size": "0x20000000"
     },
     {
       "id": "External RAM",
       "address": "0x60000000",
-      "size": "0x40000000",
-      "type": "area"
+      "size": "0x40000000"
     },
     {
       "id": "External Device",
       "address": "0xA0000000",
-      "size": "0x40000000",
-      "type": "area"
+      "size": "0x40000000"
     },
     {
       "id": "Private Periph. Bus - Internal",
       "address": "0xE0000000",
-      "size": "0x08000000",
-      "type": "area"
+      "size": "0x08000000"
     },
     {
       "id": "Private Periph. Bus - External",
       "address": "0xE8000000",
-      "size": "0x08000000",
-      "type": "area"
+      "size": "0x08000000"
     },
     {
       "id": "Vendor Specific",
       "address": "0xF0000000",
-      "size": "0x08000000",
-      "type": "area"
+      "size": "0x08000000"
     },
     {
       "id": "TPIU",
@@ -123,7 +116,7 @@
       "size": "0x01000000"
     }
   ],
-  "areas": [
+  "views": [
     {
       "id": "full-view",
       "title": "Full Memory Map",
@@ -144,7 +137,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "ETM",
             "Peripheral"
           ],
@@ -163,7 +156,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "Bit"
           ],
           "flags": [
@@ -171,7 +164,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "Reserved"
           ],
           "flags": [

@@ -23,7 +23,7 @@ Exit codes: **0** = no issues, **1** = one or more ERRORs, **2** = warnings only
 | `out-of-canvas` | ERROR | Panel extends beyond the canvas boundary |
 | `panel-overlap` | ERROR | Two panels' bounding rectangles physically intersect |
 | `band-too-wide` | WARN | Link band horizontal span exceeds readability guideline |
-| `unresolved-section` | ERROR | `links.sections` entry not found in any area |
+| `unresolved-section` | ERROR | `links.sections` entry not found in any view |
 | `title-overlap` | WARN | Panel title intrudes into the panel above it |
 | `label-overlap` | WARN | Address labels of one panel overlap the next panel |
 
@@ -140,11 +140,11 @@ gap is **≥ 150 px** (see `references/layout-guide.md`) to allow breathing room
 
 ### `band-too-wide` — WARN
 
-**What it detects:** The horizontal span of a link band (from the source area's right
+**What it detects:** The horizontal span of a link band (from the source view's right
 edge to the target detail panel's left edge) exceeds the readability guideline.
 
 **Thresholds:**
-- Span **> 200 px** for the nearest detail panel (first non-source area in `areas[]`
+- Span **> 200 px** for the nearest detail panel (first non-source view in `views[]`
   that covers the linked section): warns that the ideal is ≤ 200 px.
 - Span **> 600 px** for any detail panel: warns that opacity should be reduced to
   0.3–0.4 to keep the long band from dominating the diagram.
@@ -159,22 +159,22 @@ edge to the target detail panel's left edge) exceeds the readability guideline.
 ### `unresolved-section` — ERROR
 
 **What it detects:** A section ID listed in `links.sections` (or `links.sub_sections`)
-does not appear in any area's filtered section set after all range, size, and flag
+does not appear in any view's filtered section set after all range, size, and flag
 filters are applied. The renderer silently skips unresolved links, so this check catches
 the resulting missing band before visual inspection.
 
 **Common causes:**
 - Typo in the section ID.
-- The section exists in `sections[]` but is excluded by the area's `range` or
+- The section exists in `sections[]` but is excluded by the view's `range` or
   `section_size` filter.
-- The section has the `hidden` flag applied in all areas that cover it.
+- The section has the `hidden` flag applied in all views that cover it.
 - The section was deleted from `sections[]` but the link entry was not updated.
 
 **How to fix:**
 - Correct the section ID spelling in `links.sections`.
-- Extend the relevant detail area's `range` so the section falls within it.
+- Extend the relevant detail view's `range` so the section falls within it.
 - Remove the hidden flag, or add a separate (non-hidden) copy of the section in a
-  detail area that covers its address range.
+  detail view that covers its address range.
 - Remove the stale entry from `links.sections`.
 
 ---

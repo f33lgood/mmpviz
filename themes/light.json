@@ -11,13 +11,13 @@
     "text_stroke": "none",
     "text_stroke_width": 0,
     "opacity": 1,
-    "break_size": 20,
+    "break_height": 20,
     "growth_arrow_size": 1,
     "growth_arrow_fill": "#dce8f0",
     "growth_arrow_stroke": "#7a97b0",
     "min_section_height": 20,
     "max_section_height": 300,
-    "weight": 2
+    "label_arrow_size": 2
   },
   "palette": [
     "#b8d4e8", "#a8d5ba", "#c9b8d4", "#d4c4a8", "#a8c4d4", "#d4a8b8", "#c4d4a8"

@@ -34,7 +34,7 @@ class AreaView:
         self.area = area_config or {}
         self.style = style
         self.theme = theme
-        self.area_id = self.area.get('id', '')
+        self.view_id = self.area.get('id', '')
 
         self.start_address = safe_element_dict_get(self.area, 'start',
                                                    self.sections.lowest_memory)
@@ -110,7 +110,7 @@ class AreaView:
         Apply style and flag overrides to each section.
 
         Style comes from the theme (area-level + section-level resolution).
-        Flags and structural overrides (address, size, type) come from diagram.json area config.
+        Flags and structural overrides (address, size) come from diagram.json view config.
 
         Palette indices are assigned in address order, counting only non-break sections
         (break sections are visual separators and do not consume a palette slot).
@@ -127,19 +127,20 @@ class AreaView:
             # Resolve style from theme; fall back to area-level style dict
             if self.theme:
                 section.style = self.theme.resolve(
-                    self.area_id, section.id,
+                    self.view_id, section.id,
                     palette_index=palette_indices.get(section.id))
+                section.addr_label_style = self.theme.resolve(self.view_id)
             else:
                 section.style = copy.deepcopy(self.style)
+                section.addr_label_style = copy.deepcopy(self.style)
 
-            # Apply diagram config overrides (flags, address, size, type) — no style here
+            # Apply diagram config overrides (flags, address, size) — no style here
             inner_sections = safe_element_dict_get(self.area, 'sections', []) or []
             for element in inner_sections:
-                section_names = safe_element_dict_get(element, 'names', []) or []
-                for item in section_names:
+                section_ids = safe_element_dict_get(element, 'ids', []) or []
+                for item in section_ids:
                     if item == section.id:
                         section.address = element.get('address', section.address)
-                        section.type = element.get('type', section.type)
                         section.size = element.get('size', section.size)
                         # APPEND new flags (config adds to map-file flags)
                         for flag in element.get('flags', []):
@@ -393,7 +394,7 @@ class AreaView:
 
         breaks_count = len(self.sections.filter_breaks().get_sections())
         area_has_breaks = breaks_count >= 1
-        breaks_section_size_y_px = self.style.get('break_size', 20)
+        breaks_section_size_y_px = self.style.get('break_height', 20)
 
         if not area_has_breaks:
             self.processed_section_views.append(self)

@@ -46,21 +46,21 @@ from mmpviz import get_area_views, _auto_layout
 class Issue:
     """A single check finding."""
 
-    def __init__(self, rule: str, area_id: str,
+    def __init__(self, rule: str, view_id: str,
                  section_id: str | None, message: str):
         self.rule = rule
-        self.area_id = area_id
+        self.view_id = view_id
         self.section_id = section_id
         self.message = message
 
     def __str__(self) -> str:
-        loc = f"{self.area_id}/{self.section_id}" if self.section_id else self.area_id
+        loc = f"{self.view_id}/{self.section_id}" if self.section_id else self.view_id
         return f"{self.rule} in {loc}: {self.message}"
 
     def to_dict(self) -> dict:
         return {
             "rule": self.rule,
-            "area": self.area_id,
+            "view": self.view_id,
             "section": self.section_id,
             "message": self.message,
         }
@@ -74,7 +74,7 @@ def _populate_section_heights(area_views: list) -> list:
     """
     Compute size_y / pos_y / size_x for every visible section in every subarea.
 
-    Returns a flat list of (area_id, section, subarea) triples.
+    Returns a flat list of (view_id, section, subarea) triples.
     """
     result = []
     for area in area_views:
@@ -87,7 +87,7 @@ def _populate_section_heights(area_views: list) -> list:
                 section.pos_y = sub.to_pixels(
                     sub.end_address - section.size - section.address)
                 section.pos_x = 0
-                result.append((area.area_id, section, sub))
+                result.append((area.view_id, section, sub))
     return result
 
 
@@ -95,7 +95,7 @@ def _populate_section_heights(area_views: list) -> list:
 # Individual rule checkers
 # ---------------------------------------------------------------------------
 
-def _check_min_height_violated(area_id: str, section, sub) -> list[Issue]:
+def _check_min_height_violated(view_id: str, section, sub) -> list[Issue]:
     """
     Section height is below min_section_height.
 
@@ -115,7 +115,7 @@ def _check_min_height_violated(area_id: str, section, sub) -> list[Issue]:
         return []
     if section.size_y < min_h - 1e-6:
         return [Issue(
-            'min-height-violated', area_id, section.id,
+            'min-height-violated', view_id, section.id,
             f"height {section.size_y:.1f} px < min_section_height {min_h:.0f} px "
             f"— proportional fallback likely triggered; increase panel height or "
             f"raise max_section_height in the area theme",
@@ -131,12 +131,12 @@ def _check_out_of_canvas(area_views: list, canvas_w: float, canvas_h: float) -> 
         bottom = area.pos_y + area.size_y
         if right > canvas_w:
             issues.append(Issue(
-                'out-of-canvas', area.area_id, None,
+                'out-of-canvas', area.view_id, None,
                 f"right edge {right:.0f} px exceeds canvas width {canvas_w:.0f} px",
             ))
         if bottom > canvas_h:
             issues.append(Issue(
-                'out-of-canvas', area.area_id, None,
+                'out-of-canvas', area.view_id, None,
                 f"bottom edge {bottom:.0f} px exceeds canvas height {canvas_h:.0f} px",
             ))
     return issues
@@ -175,7 +175,7 @@ def _check_band_too_wide(area_views: list, raw_sections: list,
                 span = area.pos_x - source_right
                 if span > 600:
                     issues.append(Issue(
-                        'band-too-wide', area.area_id, section_id,
+                        'band-too-wide', area.view_id, section_id,
                         f"link band span {span:.0f} px > 600 px guideline "
                         f"— consider increasing link opacity to 0.3–0.4",
                     ))
@@ -183,7 +183,7 @@ def _check_band_too_wide(area_views: list, raw_sections: list,
                     # Only warn for nearest-column violations (first non-source area)
                     if area is area_views[1]:
                         issues.append(Issue(
-                            'band-too-wide', area.area_id, section_id,
+                            'band-too-wide', area.view_id, section_id,
                             f"nearest-column link band span {span:.0f} px > 200 px "
                             f"— ideal is ≤ 200 px for the closest panel",
                         ))
@@ -237,9 +237,9 @@ def _check_panel_overlap(area_views: list) -> list[Issue]:
             v = a.pos_y < b.pos_y + b.size_y and a.pos_y + a.size_y > b.pos_y
             if h and v:
                 issues.append(Issue(
-                    'panel-overlap', a.area_id, None,
+                    'panel-overlap', a.view_id, None,
                     f"panel [{a.pos_x},{a.pos_y} {a.size_x}×{a.size_y}] physically overlaps "
-                    f"'{b.area_id}' [{b.pos_x},{b.pos_y} {b.size_x}×{b.size_y}]"
+                    f"'{b.view_id}' [{b.pos_x},{b.pos_y} {b.size_x}×{b.size_y}]"
                     f" — adjust pos or size in diagram.json",
                 ))
     return issues
@@ -269,9 +269,9 @@ def _check_title_overlap(area_views: list) -> list[Issue]:
                 continue
             overlap = b_bottom - a_title_top
             issues.append(Issue(
-                'title-overlap', a.area_id, None,
-                f"title of '{a.area_id}' (needs y≥{a_title_top:.0f}) overlaps bottom of "
-                f"'{b.area_id}' (y={b_bottom:.0f}) by {overlap:.0f} px "
+                'title-overlap', a.view_id, None,
+                f"title of '{a.view_id}' (needs y≥{a_title_top:.0f}) overlaps bottom of "
+                f"'{b.view_id}' (y={b_bottom:.0f}) by {overlap:.0f} px "
                 f"— increase vertical gap to at least {_TITLE_CLEARANCE_PX} px",
             ))
     return issues
@@ -328,9 +328,9 @@ def _check_label_overlap(area_views: list) -> list[Issue]:
                 gap    = b.pos_x - a_right
                 needed = int(_ADDR_LABEL_H_OFFSET + label_w)
                 issues.append(Issue(
-                    'label-overlap', a.area_id, None,
-                    f"address labels of '{a.area_id}' extend to ~{a_label_ext:.0f} px but "
-                    f"'{b.area_id}' starts at {b.pos_x} px "
+                    'label-overlap', a.view_id, None,
+                    f"address labels of '{a.view_id}' extend to ~{a_label_ext:.0f} px but "
+                    f"'{b.view_id}' starts at {b.pos_x} px "
                     f"(gap {gap:.0f} px < {needed} px needed: "
                     f"{chars}-char label at font_size={font_size:.0f})"
                     f" — widen horizontal gap or move panels apart",
@@ -391,12 +391,12 @@ def _check_addr_64bit_column_width(area_views: list) -> list[Issue]:
 
         if gap < needed:
             issues.append(Issue(
-                'addr-64bit-column-width', area.area_id, None,
-                f"column gap to '{right_area.area_id}' is {gap:.0f} px but "
+                'addr-64bit-column-width', area.view_id, None,
+                f"column gap to '{right_area.view_id}' is {gap:.0f} px but "
                 f"64-bit address labels need ~{needed:.0f} px "
                 f"({_ADDR_LABEL_H_OFFSET} px offset + {_ADDR_LABEL_CHARS_64}-char label "
                 f"+ {_ADDR_64BIT_EXTRA_CLEARANCE} px clearance at font_size={font_size:.0f}) "
-                f"— widen the gap or move '{right_area.area_id}' further right",
+                f"— widen the gap or move '{right_area.view_id}' further right",
             ))
 
     return issues
@@ -404,8 +404,8 @@ def _check_addr_64bit_column_width(area_views: list) -> list[Issue]:
 
 def _check_unresolved_link_sections(area_views: list, raw_sections: list,
                                     links_config: dict) -> list[Issue]:
-    """Section listed in links.sections does not appear in any area's filtered sections."""
-    # Collect all section IDs that appear in any area after filtering/flag application
+    """Section listed in links.sections does not appear in any view's filtered sections."""
+    # Collect all section IDs that appear in any view after filtering/flag application
     area_section_ids = set()
     for area in area_views:
         for sub in area.get_split_area_views():
@@ -419,7 +419,7 @@ def _check_unresolved_link_sections(area_views: list, raw_sections: list,
         if section_id not in area_section_ids:
             issues.append(Issue(
                 'unresolved-section', 'links', section_id,
-                f"'{section_id}' not found in any area after filtering",
+                f"'{section_id}' not found in any view after filtering",
             ))
     return issues
 
@@ -448,15 +448,19 @@ def run_checks(diagram: dict, raw_sections: list, area_views: list,
                enabled_rules: set) -> list[Issue]:
     canvas = diagram.get('size', list(DefaultAppValues.DOCUMENT_SIZE))
     canvas_w, canvas_h = float(canvas[0]), float(canvas[1])
+    # Auto-layout expands the canvas beyond diagram.size; use actual content bounds.
+    if area_views:
+        canvas_w = max(canvas_w, max(av.pos_x + av.size_x for av in area_views) + 110)
+        canvas_h = max(canvas_h, max(av.pos_y + av.size_y for av in area_views) + 30)
     links_config = diagram.get('links', {})
 
     issues = []
 
     # Per-section rules (run all; filter by enabled_rules at the end)
     section_data = _populate_section_heights(area_views)
-    for area_id, section, sub in section_data:
+    for view_id, section, sub in section_data:
         for rule_fn in PER_SECTION_RULES:
-            issues.extend(rule_fn(area_id, section, sub))
+            issues.extend(rule_fn(view_id, section, sub))
 
     # Area-level rules
     issues.extend(_check_out_of_canvas(area_views, canvas_w, canvas_h))
@@ -523,7 +527,7 @@ def main():
     base_style = theme.resolve('')
     area_views = get_area_views(raw_sections, base_style, diagram, theme)
     if not area_views:
-        print("Error: no area views could be created.", file=sys.stderr)
+        print("Error: no views could be created.", file=sys.stderr)
         sys.exit(1)
 
     issues = run_checks(diagram, raw_sections, area_views, enabled_rules)

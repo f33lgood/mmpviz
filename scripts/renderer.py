@@ -81,11 +81,11 @@ class MapRenderer:
 
         growths_group = svg.g()
 
-        # Section links (zoom bands from areas[0])
+        # Section links (zoom bands from views[0])
         if self.links_sections:
             svg.root.append(self._draw_section_links())
 
-        # Sub-section links (zoom bands from named detail areas)
+        # Sub-section links (zoom bands from named detail views)
         if self.links and self.links.sub_sections:
             svg.root.append(self._draw_sub_section_links())
 
@@ -228,7 +228,7 @@ class MapRenderer:
         return self._make_text(
             f"0x{section.address:08x}",
             section.addr_label_pos_x, section.addr_label_pos_y,
-            style=section.style,
+            style=section.addr_label_style,
             anchor='start',
         )
 
@@ -236,7 +236,7 @@ class MapRenderer:
         return self._make_text(
             f"0x{section.address + section.size:08x}",
             section.addr_label_pos_x, section.end_addr_label_pos_y,
-            style=section.style,
+            style=section.addr_label_style,
             anchor='start',
             baseline='middle',
         )
@@ -312,9 +312,9 @@ class MapRenderer:
         angle = angle_map.get(direction, 180)
 
         style = label.style
-        weight = _s(style, 'weight', 2)
-        arrow_head_width = 5 * weight
-        arrow_head_height = 10 * weight
+        label_arrow_size = _s(style, 'label_arrow_size', 2)
+        arrow_head_width = 5 * label_arrow_size
+        arrow_head_height = 10 * label_arrow_size
 
         group = self.svg.g()
         pts = [
@@ -401,20 +401,20 @@ class MapRenderer:
 
     def _draw_sub_section_links(self) -> ET.Element:
         """
-        Draw link bands that originate from a named detail area rather than areas[0].
-        Configured via links.sub_sections: [[source_area_id, section_id], ...].
-        The band connects from the source area's section to the first subsequent area
+        Draw link bands that originate from a named detail view rather than views[0].
+        Configured via links.sub_sections: [[source_view_id, section_id], ...].
+        The band connects from the source view's section to the first subsequent view
         whose sections span the section's address range.
         """
         group = self.svg.g()
         link_style = self.links.style if self.links else {}
 
-        for source_area_id, section_id in self.links.sub_sections:
+        for source_view_id, section_id in self.links.sub_sections:
             source_area = next(
-                (a for a in self.area_views if a.area_id == source_area_id), None)
+                (a for a in self.area_views if a.view_id == source_view_id), None)
             if source_area is None:
                 logger.warning(
-                    f"Sub-section link: source area '{source_area_id}' not found")
+                    f"Sub-section link: source view '{source_view_id}' not found")
                 continue
 
             # Find the section's address range (first occurrence across all areas)
@@ -446,8 +446,8 @@ class MapRenderer:
 
             if not drawn:
                 logger.warning(
-                    f"Sub-section link '{section_id}' from '{source_area_id}': "
-                    f"no target area found")
+                    f"Sub-section link '{section_id}' from '{source_view_id}': "
+                    f"no target view found")
 
         return group
 
@@ -468,7 +468,7 @@ class MapRenderer:
             if not drawn:
                 logger.warning(
                     f"Section link [{hex(section_link[0])}, {hex(section_link[1])}] is "
-                    f"outside the shown areas")
+                    f"outside the shown views")
         return linked_sections_group
 
     def _get_points_for_address(self, address, area_view, source_area=None) -> list:

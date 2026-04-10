@@ -56,7 +56,7 @@ Adjust font sizes in `theme.json` to match (see the note at the end).
 
 ```json
 "size": [600, 849],
-"areas": [
+"views": [
   {
     "id": "main-view",
     "title": "Memory Map",
@@ -70,7 +70,7 @@ Adjust font sizes in `theme.json` to match (see the note at the end).
 
 ```json
 "size": [600, 849],
-"areas": [
+"views": [
   {
     "id": "overview",
     "title": "Overview",
@@ -90,7 +90,7 @@ Adjust font sizes in `theme.json` to match (see the note at the end).
 
 ```json
 "size": [849, 600],
-"areas": [
+"views": [
   {
     "id": "source",
     "title": "Overview",
@@ -116,7 +116,7 @@ Adjust font sizes in `theme.json` to match (see the note at the end).
 
 ```json
 "size": [960, 540],
-"areas": [
+"views": [
   {
     "id": "source",
     "title": "Memory Map",
@@ -136,7 +136,7 @@ Adjust font sizes in `theme.json` to match (see the note at the end).
 
 ```json
 "size": [960, 540],
-"areas": [
+"views": [
   {
     "id": "source",
     "title": "Overview",
@@ -162,7 +162,7 @@ Adjust font sizes in `theme.json` to match (see the note at the end).
 
 ```json
 "size": [800, 600],
-"areas": [
+"views": [
   {
     "id": "source",
     "title": "Memory Map",

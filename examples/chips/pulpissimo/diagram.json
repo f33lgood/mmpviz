@@ -5,21 +5,18 @@
       "id": "AXI Plug",
       "address": "0x10000000",
       "size": "0x00400000",
-      "type": "area",
       "name": "AXI Plug"
     },
     {
       "id": "Boot ROM",
       "address": "0x1A000000",
       "size": "0x00040000",
-      "type": "area",
       "name": "Boot ROM"
     },
     {
       "id": "APB Bus",
       "address": "0x1A100000",
       "size": "0x00040000",
-      "type": "area",
       "name": "APB Peripheral Bus"
     },
     {
@@ -122,7 +119,6 @@
       "id": "Chip Ctrl",
       "address": "0x1A120000",
       "size": "0x00020000",
-      "type": "area",
       "name": "Chip Control"
     },
     {
@@ -216,7 +212,7 @@
       "name": "Shared TCDM"
     }
   ],
-  "areas": [
+  "views": [
     {
       "id": "overview",
       "title": "PULPissimo SoC",
@@ -226,7 +222,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "Gap0",
             "Gap1",
             "Gap2"
@@ -236,7 +232,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "FLL",
             "GPIO",
             "uDMA",
@@ -279,7 +275,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "APB Rsvd0",
             "APB Rsvd1",
             "Chip Ctrl"
@@ -289,7 +285,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "uDMA Cfg",
             "UART",
             "SPIM",
@@ -308,7 +304,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "L2 Priv 0",
             "L2 Priv 1",
             "L2 TCDM"
@@ -328,7 +324,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "Chip Ctrl"
           ],
           "flags": [
@@ -336,7 +332,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "CC Rsvd"
           ],
           "flags": [
@@ -354,7 +350,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "uDMA"
           ],
           "flags": [
@@ -362,7 +358,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "uDMA End"
           ],
           "flags": [

@@ -5,7 +5,7 @@
     "stroke": "black"
   },
   "palette": ["#aabbcc", "#bbccaa", "#ccaabb"],
-  "areas": {
+  "views": {
     "with-area-fill": {
       "fill": "#explicit-area"
     },

@@ -5,42 +5,36 @@
       "id": "ROM_Debug",
       "address": "0x00000000",
       "size": "0x00020000",
-      "type": "area",
       "name": "Debug / ROM"
     },
     {
       "id": "MainSRAM",
       "address": "0x10000000",
       "size": "0x00020000",
-      "type": "area",
       "name": "Main SRAM"
     },
     {
       "id": "Flash",
       "address": "0x20000000",
       "size": "0x00100000",
-      "type": "area",
       "name": "Flash"
     },
     {
       "id": "Periph",
       "address": "0x40000000",
       "size": "0x00800000",
-      "type": "area",
       "name": "APB Peripherals"
     },
     {
       "id": "CryptoCtrl",
       "address": "0x41000000",
       "size": "0x00210000",
-      "type": "area",
       "name": "Main Peripherals"
     },
     {
       "id": "PLIC",
       "address": "0x48000000",
       "size": "0x08000000",
-      "type": "area",
       "name": "RV_PLIC"
     },
     {
@@ -434,7 +428,7 @@
       "name": "RV Debug Mod"
     }
   ],
-  "areas": [
+  "views": [
     {
       "id": "overview",
       "title": "Earl Grey",
@@ -444,7 +438,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "OvGap0",
             "OvGap1",
             "OvGap2",
@@ -456,7 +450,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "DbIF",
             "DbGap0",
             "ROM",
@@ -533,7 +527,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "CryptoCtrl"
           ],
           "flags": [
@@ -541,7 +535,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "CBreak0",
             "CRsvd0"
           ],
@@ -560,7 +554,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "ROM_Debug"
           ],
           "flags": [
@@ -568,7 +562,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "DbGap0",
             "DbEnd"
           ],
@@ -587,7 +581,7 @@
       ],
       "sections": [
         {
-          "names": [
+          "ids": [
             "Periph"
           ],
           "flags": [
@@ -595,7 +589,7 @@
           ]
         },
         {
-          "names": [
+          "ids": [
             "PBreak0",
             "PBreak1",
             "PBreak2",

@@ -21,7 +21,7 @@
       "size": "0x00001000"
     }
   ],
-  "areas": [
+  "views": [
     {
       "id": "labels-view",
       "title": "Address Link Example",
