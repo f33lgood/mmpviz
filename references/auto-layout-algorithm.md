@@ -112,10 +112,10 @@ After Phase 1 converges, any section exceeding `max_h` is capped and its
 surplus is redistributed proportionally to floored (min_h-locked) sections
 first, then to any remaining uncapped section.
 
-**Constants (from theme / plantuml.json defaults):**
+**Constants (from theme / default.json defaults):**
 
-| Theme key              | plantuml.json | Meaning                                         |
-|------------------------|---------------|-------------------------------------------------|
+| Theme key              | default.json | Meaning                                          |
+|------------------------|--------------|--------------------------------------------------|
 | `min_section_height`   | 20 px         | User-controlled section height floor            |
 | `max_section_height`   | 300 px        | Section height ceiling                          |
 | `break_size`           | 20 px         | Fixed height for break sections                 |
@@ -277,16 +277,16 @@ for col_idx, bin_cfgs in enumerate(final_cols):
 
 ## 8. Column Width and Inter-Column Spacing
 
-`col_width` is derived from the canvas width and column count, then capped:
+`col_width` is always `MAX_COL_WIDTH` (230 px). The initial canvas width from
+`diagram.json` is not used to derive column width — the SVG canvas is expanded
+after layout via `_auto_canvas_size()` (§9), so there is no need to fit columns
+within a pre-declared width:
 
 ```python
-col_width = min(MAX_COL_WIDTH,
-                max(50.0, (W - PADDING - INTER_COL_GAP * n_cols) / n_cols))
+col_width = MAX_COL_WIDTH   # 230 px — fixed regardless of canvas width
 ```
 
-The 230 px cap keeps box sizes consistent across chips regardless of the
-canvas width specified in `diagram.json`.  The `INTER_COL_GAP` of 120 px
-provides clearance for:
+The `INTER_COL_GAP` of 120 px provides clearance for:
 - 32-bit address labels: ≈ 82 px (`10 chars × 0.6 × 12 pt + 10 px offset`)
 - Link-band polygon: remaining 38 px breathing room
 
@@ -365,7 +365,7 @@ return to_pixels_relative(address)   # fallback
 | **Overflow: spill strategy** | Strategy A (split) for ≥ 3 areas, Strategy B (scale) for 1–2 | Spill when bin ≥ 2 areas; scale (accept, canvas expands) for 1-area bins | Implemented — threshold lowered to ≥ 2 |
 | **Overflow: scale strategy** | Scale H_area by fit_factor; re-run section algorithm | Not used — areas never scaled; canvas expands instead | Replaced by canvas expansion |
 | **Vertical nudge toward link source** | Shift area y toward link-band midpoint | Not implemented | Not implemented |
-| **Box width from label length** | `max(120, longest_name × font × 0.55)` | Fixed cap of 230 px (max) | Simplified |
+| **Box width from label length** | `max(120, longest_name × font × 0.55)` | Fixed 230 px (`MAX_COL_WIDTH`); canvas auto-expands so initial canvas width is not used | Simplified |
 | **Address clearance: formula** | `addr_chars × 0.6 × font_size + 10` (82 px for 32-bit) | INTER_COL_GAP = 120 px fixed constant | Approximated; fixed rather than computed |
 | **Inter-column gap: per-column** | `max_box_width[C] + addr_clearance[C] + LINK_BAND_MIN` | Uniform 120 px gap for all columns | Simplified |
 | **Canvas sizing: natural content size** | `content_W = rightmost_right + LEFT_PAD` | `_auto_canvas_size()` — identical intent | Implemented |

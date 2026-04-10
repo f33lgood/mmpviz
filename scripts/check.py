@@ -483,7 +483,10 @@ def parse_args():
     parser.add_argument('--diagram', '-d', required=True,
                         help='Path to diagram.json')
     parser.add_argument('--theme', '-t', default=None,
-                        help='Path to theme.json (uses built-in defaults if omitted)')
+                        help=('Visual styling. Three forms: '
+                              '(omit) = built-in default; '
+                              '-t <name> = built-in theme (default, light, monochrome, plantuml); '
+                              '-t <path> = custom theme.json file.'))
     parser.add_argument('--format', choices=['text', 'json'], default='text',
                         help='Output format (default: text)')
     parser.add_argument('--rules', default=None,

@@ -1,8 +1,9 @@
 {
-  "defaults": {
-    "background": "#FFFFFF",
+  "schema_version": 1,
+  "style": {
+    "background": "#ffffff",
     "fill": "#FEFECE",
-    "break_fill": "#FFFFFF",
+    "break_fill": "#ffffff",
     "stroke": "#A80036",
     "stroke_width": 1,
     "font_size": 12,
@@ -15,9 +16,6 @@
     "growth_arrow_size": 1,
     "growth_arrow_fill": "#FEFECE",
     "growth_arrow_stroke": "#A80036",
-    "hide_size": false,
-    "hide_name": "auto",
-    "hide_address": "auto",
     "min_section_height": 20,
     "max_section_height": 300,
     "weight": 2

@@ -21,23 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [Unreleased]
-
-### Changed
-
-- **Default theme is now `themes/plantuml.json`** — omitting `-t` automatically loads
-  `themes/plantuml.json` instead of hardcoded built-in values. Edit that file to change
-  the baseline style without touching code; it serves as the user-editable default.
-
-- **Section height inflation is conflict-driven** — the label-height floor
-  (`30 + font_size` px) is now applied only to sections where the size label (top-left,
-  12 px font) and name label (centred, `font_size` px) would overlap on the x-axis.
-  Sections with no x-axis conflict keep their proportional height, producing more
-  compact diagrams on dense chips.
-
----
-
-## [1.2.0] - 2026-04-09
+## [1.2.0] - 2026-04-10
 
 ### Added
 
@@ -46,6 +30,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Canvas auto-expansion** — the SVG canvas grows to fit all auto-placed areas;
   `diagram.json` `size` is now a floor, not a hard limit.
+
+- **`themes/default.json`** — new neutral black/white/gray built-in theme. Loaded
+  automatically when `-t` is omitted.
+
+- **Theme inheritance** — add `"extends": "light"` (or any built-in name, or a
+  relative path) to a custom theme to inherit all settings and override only what
+  changes. Circular and missing-file references raise an error at load time.
+
+- **`schema_version`** — integer field in theme files tracks format generation.
+  Absent = silently compatible. Older than current = warning. Future = error.
+
+- **`-t <name>` shorthand** — pass a built-in theme name directly without a file
+  path: `-t default`, `-t light`, `-t monochrome`, `-t plantuml`.
 
 - **`references/auto-layout-algorithm.md`** — implementation reference for the
   auto-layout algorithm with a planned-vs-implemented comparison table.
@@ -61,13 +58,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Address labels are no longer obscured by adjacent area boxes; inter-column
   spacing is now sized to accommodate them.
 
+- **Auto-layout column width** — columns were sized from the default document width
+  (400 px), making them too narrow in multi-column layouts. Column width is now
+  always 230 px; the canvas auto-expands via `_auto_canvas_size()`.
+
 ### Changed
+
+- **`"defaults"` renamed to `"style"`** — the top-level baseline block in
+  `theme.json` is now `"style"`. Update any custom theme files by renaming the key.
+  This is a breaking rename.
+
+- **Default theme is `themes/default.json`** — omitting `-t` loads
+  `themes/default.json` (neutral gray) instead of hardcoded built-in values.
+
+- **Section height inflation is conflict-driven** — the label-height floor
+  (`30 + font_size` px) is now applied only to sections where the size label
+  (top-left, 12 px) and name label (centred, `font_size` px) overlap on the x-axis.
+  Sections without overlap keep proportional height, producing more compact diagrams.
 
 - Auto-layout splits overflowing columns into sub-columns rather than compressing
   areas below `min_section_height`.
-
-- Area box width is capped at 230 px in auto-layout for consistent readability
-  across different canvas sizes.
 
 - All bundled chip examples now use auto-layout; explicit `pos`/`size` removed
   from `caliptra`, `stm32f103`, and `opentitan_earlgrey` diagram files.

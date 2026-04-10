@@ -1,4 +1,6 @@
 {
+  "schema_version": 1,
+  "extends": "default",
   "labels": {
     "stroke": "black",
     "stroke_dasharray": "4,2",

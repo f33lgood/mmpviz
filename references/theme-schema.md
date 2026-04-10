@@ -7,29 +7,23 @@ separate from `diagram.json` — themes are reusable across different diagrams.
 
 ## Built-in Themes
 
-Three ready-to-use themes live in the `themes/` directory at the repository root.
-Pass any of them with the `--theme` flag:
-
-```
-python scripts/mmpviz.py -d diagram.json -t themes/light.json -o map.svg
-```
-
-| File | Description |
-|------|-------------|
-| `themes/plantuml.json` | PlantUML-style color palette — pastel fills matching the PlantUML component diagram aesthetic. **Loaded automatically when `-t` is omitted.** |
-| `themes/light.json` | Professional light theme — white backgrounds, steel-blue fills, dark text. Suitable for printed documents and light-background slides. |
-| `themes/monochrome.json` | Grayscale theme — neutral fills, no color, high contrast. Suitable for black-and-white printing. |
-
-These themes set only `defaults` and `links`/`labels` blocks — no area- or section-specific
-overrides — so they work with any `diagram.json` without modification.
-
-To use `themes/plantuml.json` as an editable baseline, simply run without `-t`:
+Four ready-to-use themes live in the `themes/` directory at the repository root.
+Pass any of them by name or by path:
 
 ```bash
-python scripts/mmpviz.py -d diagram.json -o map.svg
+python scripts/mmpviz.py -d diagram.json -t light      -o map.svg   # by name
+python scripts/mmpviz.py -d diagram.json -t themes/light.json -o map.svg  # by path
 ```
 
-Edit `themes/plantuml.json` directly to change the global default style without writing a new file.
+| Name | File | Description |
+|------|------|-------------|
+| `default` | `themes/default.json` | Neutral black/white/gray palette. **Loaded automatically when `-t` is omitted.** |
+| `light` | `themes/light.json` | Steel-blue fills, white backgrounds, dark text. Suitable for printed documents and light-background slides. |
+| `monochrome` | `themes/monochrome.json` | Grayscale only, high contrast. Suitable for black-and-white printing. |
+| `plantuml` | `themes/plantuml.json` | PlantUML-style pastel fills with red outlines. |
+
+These themes set only `style` and `links`/`labels` blocks — no area- or section-specific
+overrides — so they work with any `diagram.json` without modification.
 
 ---
 
@@ -37,7 +31,10 @@ Edit `themes/plantuml.json` directly to change the global default style without 
 
 ```
 theme.json
-├── defaults          → global baseline (applies to everything)
+├── schema_version   → integer; theme file format generation (optional)
+├── extends          → built-in name or path to inherit from (optional)
+├── style            → global baseline (applies to everything)
+├── palette          → automatic section colors by address order
 ├── areas
 │   └── <area-id>    → overrides for a specific area (by id from diagram.json)
 │       └── sections
@@ -47,10 +44,57 @@ theme.json
 ```
 
 **Resolution order** (later overrides earlier):
-1. Built-in fallback defaults (`Theme.DEFAULT` in `theme.py`; active only when `themes/plantuml.json` is absent)
-2. `theme.defaults` (the default `themes/plantuml.json` supplies values here)
+1. Built-in fallback defaults (`Theme.DEFAULT` in `theme.py`)
+2. `theme.style` (global baseline from the loaded theme file, or its `extends` ancestor)
 3. `theme.areas[area_id]`
 4. `theme.areas[area_id].sections[section_id]`
+
+---
+
+## `schema_version` — Format Tracking
+
+An optional integer at the top level. Tracks theme file format generation,
+independent of mmpviz's semantic version.
+
+```json
+{ "schema_version": 1, "style": { ... } }
+```
+
+| Value | Behaviour |
+|-------|-----------|
+| Absent | Silent — treated as compatible |
+| Equal to current (`1`) | No-op |
+| Older than current | `logger.warning` — file may use a deprecated key |
+| Newer than current | `ThemeError` — mmpviz is too old to read this file |
+
+Official themes always declare `"schema_version": 1`.
+
+---
+
+## `extends` — Theme Inheritance
+
+Inherit all settings from another theme and override only what changes:
+
+```json
+{
+  "schema_version": 1,
+  "extends": "light",
+  "style": { "stroke": "#cc2200" }
+}
+```
+
+The `extends` value is resolved in order:
+1. A built-in name (`"default"`, `"light"`, `"monochrome"`, `"plantuml"`) → loaded from `themes/`
+2. A relative path → resolved relative to the inheriting file's directory
+3. An absolute path → used as-is
+
+**Merge semantics:**
+- `style`, `links`, `labels` — shallow merge; child values override parent
+- `palette` — child replaces parent entirely; absent in child → inherit parent's
+- `areas` — two-level merge (area properties, then section properties within each area)
+- `schema_version` and `extends` are stripped from the merged result
+
+**Circular or missing references** raise `ThemeError` at load time.
 
 ---
 
@@ -64,7 +108,7 @@ Break sections do not consume a palette slot.
 ```json
 {
   "palette": ["#b8d4e8", "#a8d5ba", "#c9b8d4", "#d4c4a8"],
-  "defaults": { ... }
+  "style": { ... }
 }
 ```
 
@@ -72,7 +116,7 @@ Break sections do not consume a palette slot.
 1. `theme.areas[area_id].sections[section_id].fill` — wins over palette
 2. `theme.areas[area_id].fill` — wins over palette
 3. `palette[index % len(palette)]` — applied when neither above is set
-4. `theme.defaults.fill` — used when no palette is defined
+4. `theme.style.fill` — used when no palette is defined
 
 This makes colorful themes fully **portable**: a theme with a palette assigns
 distinct colors to whatever sections it encounters, without knowing their IDs.
@@ -109,7 +153,7 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `break_size` | number | `20` | Height in pixels of a break section |
-| `break_fill` | color string | *(same as `fill`)* | Background fill of a break-section box. Useful for giving break sections a distinct muted color without changing the normal section fill. Falls back to `fill` when unset. |
+| `break_fill` | color string | *(same as `fill`)* | Background fill of a break-section box. Falls back to `fill` when unset. |
 
 ### Section Height Clamping
 
@@ -120,7 +164,7 @@ Controls how pixel height is distributed across subareas (regions between break 
 | `min_section_height` | number | `20` ¹ | Guarantees every visible section renders at least this many pixels tall. The renderer redistributes height so that the smallest visible section meets this threshold. |
 | `max_section_height` | number | `300` ¹ | Caps the pixel height of any single section so it cannot crowd out neighbors. |
 
-¹ Default values come from `themes/plantuml.json`. Without a theme file these properties are unset and height is purely proportional.
+¹ Default values come from `themes/default.json`.
 
 **How they interact:**
 - When neither is set, sections are sized strictly proportional to their byte range.
@@ -187,7 +231,9 @@ Any valid SVG color string is accepted:
 
 ```json
 {
-  "defaults": {
+  "schema_version": 1,
+  "extends": "default",
+  "style": {
     "background": "#1a1a2e",
     "fill": "#16213e",
     "stroke": "#0f3460",
@@ -200,7 +246,7 @@ Any valid SVG color string is accepted:
     "break_size": 24,
     "growth_arrow_size": 1,
     "growth_arrow_fill": "#e94560",
-    "growth_arrow_stroke": "#e94560",
+    "growth_arrow_stroke": "#e94560"
   },
   "areas": {
     "flash-view": {

@@ -1,5 +1,5 @@
 {
-  "defaults": {
+  "style": {
     "background": "white",
     "fill": "lightgrey",
     "stroke": "black"

@@ -29,8 +29,11 @@ def parse_arguments():
                         help='Path to the diagram.json file (memory sections + display layout)',
                         required=False)
     parser.add_argument('--theme', '-t',
-                        help='Path to the theme.json file (visual styling). '
-                             'Uses built-in defaults if omitted.',
+                        help=('Visual styling. Three forms accepted: '
+                              '(omit) = use the built-in default theme; '
+                              '-t <name> = use a built-in theme: default, light, monochrome, plantuml; '
+                              '-t <path> = use a custom theme.json file. '
+                              'Custom themes support "extends" to inherit from a built-in base.'),
                         default=None)
     parser.add_argument('--output', '-o',
                         help='Path for the generated SVG file (default: map.svg)',
@@ -167,8 +170,9 @@ def _auto_layout(area_configs: list, document_size: tuple,
 
     # Assign pixel positions
     n_cols = len(final_cols)
-    # Cap column width at MAX_COL_WIDTH so box sizes stay readable on wide canvases.
-    col_width = min(MAX_COL_WIDTH, max(50.0, (W - PADDING - INTER_COL_GAP * n_cols) / n_cols))
+    # Use MAX_COL_WIDTH directly — the SVG canvas auto-expands via _auto_canvas_size()
+    # so the initial document_size width does not constrain column width.
+    col_width = MAX_COL_WIDTH
 
     result_by_id: dict = {}
     for col_idx, bin_cfgs in enumerate(final_cols):

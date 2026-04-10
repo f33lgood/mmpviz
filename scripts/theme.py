@@ -1,8 +1,29 @@
 import json
 import os
 
+from logger import logger
+
 _HERE = os.path.dirname(os.path.abspath(__file__))
-_DEFAULT_THEME_PATH = os.path.normpath(os.path.join(_HERE, '..', 'themes', 'plantuml.json'))
+_DEFAULT_THEME_PATH = os.path.normpath(os.path.join(_HERE, '..', 'themes', 'default.json'))
+
+SUPPORTED_SCHEMA_VERSION = 1
+
+_BUILTIN_NAMES = {
+    "default": "default.json",
+    "light": "light.json",
+    "monochrome": "monochrome.json",
+    "plantuml": "plantuml.json",
+}
+_THEMES_DIR = os.path.normpath(os.path.join(_HERE, '..', 'themes'))
+_MAX_INHERITANCE_DEPTH = 10
+_KNOWN_TOP_LEVEL_KEYS = frozenset({
+    "schema_version", "extends",
+    "style", "palette", "areas", "links", "labels"
+})
+
+
+class ThemeError(Exception):
+    pass
 
 
 class Theme:
@@ -11,11 +32,14 @@ class Theme:
 
     Style resolution order (later overrides earlier):
       1. DEFAULT (built-in baseline)
-      2. theme["defaults"] (user global overrides)
+      2. theme["style"] (user global overrides)
       3. theme["areas"][area_id] (area-level overrides, minus the 'sections' subkey)
       4. theme["areas"][area_id]["sections"][section_id] (section-level overrides)
 
     Call resolve(area_id, section_id) to get a merged flat style dict.
+
+    Inheritance: theme files may declare "extends": "<name-or-path>" to inherit
+    from a base theme. Built-in names: default, light, monochrome, plantuml.
     """
 
     DEFAULT = {
@@ -48,17 +72,163 @@ class Theme:
 
     def __init__(self, path: str = None):
         self._data = {}
-        if path is None:
-            if os.path.isfile(_DEFAULT_THEME_PATH):
-                with open(_DEFAULT_THEME_PATH, 'r', encoding='utf-8') as f:
-                    self._data = json.load(f)
+        resolved = self._resolve_path_arg(path)
+        if resolved is not None:
+            self._data = self._load_and_merge(os.path.abspath(resolved), set())
+
+    # ------------------------------------------------------------------
+    # Path resolution
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _resolve_path_arg(path_arg):
+        """Convert the raw -t argument to a file path string, or None."""
+        if path_arg is None:
+            return _DEFAULT_THEME_PATH if os.path.isfile(_DEFAULT_THEME_PATH) else None
+        if path_arg in _BUILTIN_NAMES:
+            return os.path.join(_THEMES_DIR, _BUILTIN_NAMES[path_arg])
+        return path_arg
+
+    @staticmethod
+    def _resolve_extends_path(value, current_dir):
+        """Resolve an 'extends' value to an absolute file path."""
+        if value in _BUILTIN_NAMES:
+            return os.path.join(_THEMES_DIR, _BUILTIN_NAMES[value])
+        if os.path.isabs(value):
+            return value
+        return os.path.normpath(os.path.join(current_dir, value))
+
+    # ------------------------------------------------------------------
+    # Loading and inheritance
+    # ------------------------------------------------------------------
+
+    def _load_and_merge(self, abs_path, chain):
+        """Recursively load a theme file, resolving 'extends' inheritance."""
+        if abs_path in chain:
+            raise ThemeError(
+                f"Circular theme inheritance detected: {abs_path} "
+                f"already in chain {sorted(chain)}"
+            )
+        if len(chain) >= _MAX_INHERITANCE_DEPTH:
+            raise ThemeError(
+                f"Theme inheritance chain exceeds maximum depth of {_MAX_INHERITANCE_DEPTH}"
+            )
+
+        chain = chain | {abs_path}
+
+        try:
+            with open(abs_path, 'r', encoding='utf-8') as f:
+                raw = json.load(f)
+        except OSError as e:
+            raise ThemeError(f"Cannot open theme file '{abs_path}': {e}") from e
+
+        self._validate_schema_version(raw, abs_path)
+        self._validate_structure(raw, abs_path)
+
+        extends_value = raw.get("extends")
+        if extends_value is not None:
+            parent_path = self._resolve_extends_path(
+                extends_value, os.path.dirname(abs_path)
+            )
+            if not os.path.isfile(parent_path):
+                raise ThemeError(
+                    f"Theme '{abs_path}' extends '{extends_value}' "
+                    f"but '{parent_path}' does not exist"
+                )
+            parent = self._load_and_merge(parent_path, chain)
+            return self._merge(parent, raw)
+
+        # Strip meta-keys before returning
+        return {k: v for k, v in raw.items() if k not in ("schema_version", "extends")}
+
+    # ------------------------------------------------------------------
+    # Validation
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _validate_schema_version(raw, path):
+        sv = raw.get("schema_version")
+        if sv is None:
+            return
+        if sv == SUPPORTED_SCHEMA_VERSION:
+            return
+        if sv < SUPPORTED_SCHEMA_VERSION:
+            logger.warning(
+                f"Theme '{path}' declares schema_version {sv}; "
+                f"current is {SUPPORTED_SCHEMA_VERSION}. Some keys may be deprecated."
+            )
         else:
-            with open(path, 'r', encoding='utf-8') as f:
-                self._data = json.load(f)
+            raise ThemeError(
+                f"Theme '{path}' requires schema_version {sv} but this mmpviz build "
+                f"only supports up to {SUPPORTED_SCHEMA_VERSION}. Upgrade mmpviz."
+            )
+
+    @staticmethod
+    def _validate_structure(raw, path):
+        for key in raw:
+            if key not in _KNOWN_TOP_LEVEL_KEYS:
+                logger.warning(f"Theme '{path}': unrecognized top-level key '{key}' (ignored)")
+        for block in ("style", "areas", "links", "labels"):
+            val = raw.get(block)
+            if val is not None and not isinstance(val, dict):
+                raise ThemeError(
+                    f"Theme '{path}': '{block}' must be a dict, got {type(val).__name__}"
+                )
+
+    # ------------------------------------------------------------------
+    # Merge
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _merge(parent, child):
+        """Deep-merge child onto parent. Child values win. Returns a new dict."""
+        result = {}
+
+        # Shallow-merge flat blocks
+        for block in ("style", "links", "labels"):
+            merged = {**parent.get(block, {}), **child.get(block, {})}
+            if merged:
+                result[block] = merged
+
+        # Palette: child replaces entirely; if absent, inherit parent's
+        if "palette" in child:
+            result["palette"] = child["palette"]
+        elif "palette" in parent:
+            result["palette"] = parent["palette"]
+
+        # Areas: two-level merge
+        p_areas = parent.get("areas", {})
+        c_areas = child.get("areas", {})
+        if p_areas or c_areas:
+            result["areas"] = Theme._merge_areas(p_areas, c_areas)
+
+        return result
+
+    @staticmethod
+    def _merge_areas(p_areas, c_areas):
+        result = {}
+        for aid in set(p_areas) | set(c_areas):
+            p = p_areas.get(aid, {})
+            c = c_areas.get(aid, {})
+            p_secs = p.get("sections", {})
+            c_secs = c.get("sections", {})
+            merged_secs = {}
+            for sid in set(p_secs) | set(c_secs):
+                merged_secs[sid] = {**p_secs.get(sid, {}), **c_secs.get(sid, {})}
+            merged = {k: v for k, v in p.items() if k != "sections"}
+            merged.update({k: v for k, v in c.items() if k != "sections"})
+            if merged_secs:
+                merged["sections"] = merged_secs
+            result[aid] = merged
+        return result
+
+    # ------------------------------------------------------------------
+    # Style resolution (unchanged API)
+    # ------------------------------------------------------------------
 
     def _base(self) -> dict:
-        """Merge built-in defaults with theme-level defaults."""
-        return {**self.DEFAULT, **{k: v for k, v in self._data.get('defaults', {}).items()}}
+        """Merge built-in defaults with theme-level style."""
+        return {**self.DEFAULT, **{k: v for k, v in self._data.get('style', {}).items()}}
 
     def resolve(self, area_id: str, section_id: str = None,
                 palette_index: int = None) -> dict:
