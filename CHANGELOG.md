@@ -21,6 +21,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.3.0] - 2026-04-11
+
+### Added
+
+- **`links.sub_sections` explicit target** — entries now accept an optional third
+  element `[source_view_id, section_id, target_view_id]`. The band is drawn directly
+  to the named target view, bypassing first-match routing. Enables *fan-in* patterns
+  where multiple source views connect to the same detail panel (e.g., a CPU view and
+  a debugger view both linking to a shared "System Peripherals" detail).
+
+- **`examples/chips/arm_coresight_dual_view/`** — new annotated example showing a
+  dual CPU + CoreSight Debugger (DAP) memory map. Demonstrates how the same physical
+  address space is shared by the CPU's AXI master port and the debugger's AXI-AP, while
+  the Debug APB (`0x20000000`) is accessible only via the debugger's APB-AP.
+
+### Fixed
+
+- **`check.py` validates explicit target view IDs** — `unresolved-section` now also
+  reports when the `target_view_id` in a three-element `sub_sections` entry does not
+  match any view in the diagram.
+
+---
+
 ## [1.2.0] - 2026-04-11
 
 ### Added

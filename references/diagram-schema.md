@@ -114,11 +114,11 @@ Within a view, you can override the flags, address, or size for specific section
 |-------|------|-------------|
 | `addresses` | array | Hex strings or ints — draw horizontal connector lines at these addresses across views |
 | `sections` | array of strings | Section ids — draw a band from `views[0]` (the source/overview stack) to the first detail view whose address range covers the named section |
-| `sub_sections` | array of `[view_id, section_id]` pairs | Draw bands from a non-source view to the next view covering that section's address range. Enables multi-level zoom chains (e.g., bus view → peripheral detail). |
+| `sub_sections` | array of `[view_id, section_id]` or `[view_id, section_id, target_view_id]` | Draw bands from a named source view to a detail view. Two forms: **first-match** `[source, section]` routes to the first subsequent view covering the section's address range; **explicit target** `[source, section, target]` routes directly to the named target view, bypassing first-match routing. Enables multi-level zoom chains and fan-in (multiple sources → same target). |
 
 **Design convention:** The first entry in `views` is treated as the **source** (full/overview) stack and is always positioned on the left. All subsequent views are **expanded/detail** stacks and are positioned to the right. `links.sections` always originates from the source stack. `links.sub_sections` originates from any named view.
 
-**Band routing:** For both `sections` and `sub_sections`, the band connects to the **first** subsequent view (in `views[]` order) whose `lowest_memory` ≤ section start and `highest_memory` ≥ section end. Hidden sections still count toward `lowest_memory`/`highest_memory`, so a hidden terminator section can extend a detail view's effective range to accept a link.
+**Band routing:** For `sections` and first-match `sub_sections`, the band connects to the **first** subsequent view (in `views[]` order) whose `lowest_memory` ≤ section start and `highest_memory` ≥ section end. Hidden sections still count toward `lowest_memory`/`highest_memory`, so a hidden terminator section can extend a detail view's effective range to accept a link. Use the explicit-target form `[source, section, target]` when two source views both cover the section's address range and must fan-in to the same detail panel — this bypasses first-match routing entirely.
 
 Section band visual style is controlled in `theme.json` under `links`. See `theme-schema.md` for the full property list including `shape`, `fill`, `stroke`, and `stroke_dasharray`.
 

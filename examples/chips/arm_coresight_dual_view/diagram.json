@@ -1,0 +1,298 @@
+{
+  "title": "Arm CoreSight: CPU vs Debugger Memory Map Views",
+
+  "sections": [
+    {
+      "id": "BootROM",
+      "address": "0x00000000",
+      "size": "0x00010000",
+      "name": "Secure Boot ROM"
+    },
+    {
+      "id": "TrustedSRAM",
+      "address": "0x00010000",
+      "size": "0x00080000",
+      "name": "Trusted SRAM"
+    },
+    {
+      "id": "SysPeriph",
+      "address": "0x2C000000",
+      "size": "0x000B0000",
+      "name": "System Peripherals"
+    },
+    {
+      "id": "GIC_Dist",
+      "address": "0x2C000000",
+      "size": "0x00010000",
+      "name": "GIC-600 Distributor"
+    },
+    {
+      "id": "GIC_Rdist",
+      "address": "0x2C010000",
+      "size": "0x00040000",
+      "name": "GIC-600 Redistributors"
+    },
+    {
+      "id": "SysTimer",
+      "address": "0x2C050000",
+      "size": "0x00010000",
+      "name": "Generic Timer"
+    },
+    {
+      "id": "Watchdog",
+      "address": "0x2C060000",
+      "size": "0x00010000",
+      "name": "Watchdog"
+    },
+    {
+      "id": "UART0",
+      "address": "0x2C070000",
+      "size": "0x00010000",
+      "name": "UART0"
+    },
+    {
+      "id": "UART1",
+      "address": "0x2C080000",
+      "size": "0x00010000",
+      "name": "UART1"
+    },
+    {
+      "id": "SPI0",
+      "address": "0x2C090000",
+      "size": "0x00010000",
+      "name": "SPI0"
+    },
+    {
+      "id": "I2C0",
+      "address": "0x2C0A0000",
+      "size": "0x00010000",
+      "name": "I2C0"
+    },
+    {
+      "id": "DRAM",
+      "address": "0x80000000",
+      "size": "0x40000000",
+      "name": "DRAM (1 GiB)"
+    },
+
+    {
+      "id": "DebugAPB",
+      "address": "0x20000000",
+      "size": "0x00110000",
+      "name": "Debug APB"
+    },
+    {
+      "id": "ROMTable",
+      "address": "0x20000000",
+      "size": "0x00010000",
+      "name": "ROM Table"
+    },
+    {
+      "id": "CPU0_Dbg",
+      "address": "0x20010000",
+      "size": "0x00010000",
+      "name": "CPU0 CoreDebug"
+    },
+    {
+      "id": "CPU0_CTI",
+      "address": "0x20020000",
+      "size": "0x00010000",
+      "name": "CPU0 CTI"
+    },
+    {
+      "id": "CPU0_ETM",
+      "address": "0x20030000",
+      "size": "0x00010000",
+      "name": "CPU0 ETM"
+    },
+    {
+      "id": "CPU1_Dbg",
+      "address": "0x20040000",
+      "size": "0x00010000",
+      "name": "CPU1 CoreDebug"
+    },
+    {
+      "id": "CPU1_CTI",
+      "address": "0x20050000",
+      "size": "0x00010000",
+      "name": "CPU1 CTI"
+    },
+    {
+      "id": "CPU1_ETM",
+      "address": "0x20060000",
+      "size": "0x00010000",
+      "name": "CPU1 ETM"
+    },
+    {
+      "id": "CPU2_Dbg",
+      "address": "0x20070000",
+      "size": "0x00010000",
+      "name": "CPU2 CoreDebug"
+    },
+    {
+      "id": "CPU2_CTI",
+      "address": "0x20080000",
+      "size": "0x00010000",
+      "name": "CPU2 CTI"
+    },
+    {
+      "id": "CPU2_ETM",
+      "address": "0x20090000",
+      "size": "0x00010000",
+      "name": "CPU2 ETM"
+    },
+    {
+      "id": "CPU3_Dbg",
+      "address": "0x200A0000",
+      "size": "0x00010000",
+      "name": "CPU3 CoreDebug"
+    },
+    {
+      "id": "CPU3_CTI",
+      "address": "0x200B0000",
+      "size": "0x00010000",
+      "name": "CPU3 CTI"
+    },
+    {
+      "id": "CPU3_ETM",
+      "address": "0x200C0000",
+      "size": "0x00010000",
+      "name": "CPU3 ETM"
+    },
+    {
+      "id": "CTM",
+      "address": "0x200D0000",
+      "size": "0x00010000",
+      "name": "Cross Trigger Matrix"
+    },
+    {
+      "id": "STM",
+      "address": "0x200E0000",
+      "size": "0x00010000",
+      "name": "STM"
+    },
+    {
+      "id": "ETF",
+      "address": "0x200F0000",
+      "size": "0x00010000",
+      "name": "ETF / Funnel"
+    },
+    {
+      "id": "TPIU",
+      "address": "0x20100000",
+      "size": "0x00010000",
+      "name": "TPIU"
+    },
+
+    {
+      "id": "Brk_PreAPB",
+      "address": "0x00090000",
+      "size": "0x1FF70000",
+      "name": "···"
+    },
+    {
+      "id": "Brk_CPU_APBHole",
+      "address": "0x20000000",
+      "size": "0x00110000",
+      "name": "No CPU access"
+    },
+    {
+      "id": "Brk_PostAPB",
+      "address": "0x20110000",
+      "size": "0x0BEF0000",
+      "name": "···"
+    },
+    {
+      "id": "Brk_PostPeriph",
+      "address": "0x2C0B0000",
+      "size": "0x53F50000",
+      "name": "···"
+    }
+  ],
+
+  "views": [
+    {
+      "id": "cpu-view",
+      "title": "CPU (AXI Master)",
+      "range": ["0x00000000", "0xC0000000"],
+      "sections": [
+        {
+          "ids": ["Brk_PreAPB", "Brk_CPU_APBHole", "Brk_PostAPB", "Brk_PostPeriph"],
+          "flags": ["break"]
+        },
+        {
+          "ids": [
+            "DebugAPB",
+            "ROMTable",
+            "CPU0_Dbg", "CPU0_CTI", "CPU0_ETM",
+            "CPU1_Dbg", "CPU1_CTI", "CPU1_ETM",
+            "CPU2_Dbg", "CPU2_CTI", "CPU2_ETM",
+            "CPU3_Dbg", "CPU3_CTI", "CPU3_ETM",
+            "CTM", "STM", "ETF", "TPIU",
+            "GIC_Dist", "GIC_Rdist", "SysTimer",
+            "Watchdog", "UART0", "UART1", "SPI0", "I2C0"
+          ],
+          "flags": ["hidden"]
+        }
+      ]
+    },
+
+    {
+      "id": "debugger-view",
+      "title": "Debugger (DAP)",
+      "range": ["0x00000000", "0xC0000000"],
+      "sections": [
+        {
+          "ids": ["Brk_PreAPB", "Brk_PostAPB", "Brk_PostPeriph"],
+          "flags": ["break"]
+        },
+        {
+          "ids": [
+            "Brk_CPU_APBHole",
+            "ROMTable",
+            "CPU0_Dbg", "CPU0_CTI", "CPU0_ETM",
+            "CPU1_Dbg", "CPU1_CTI", "CPU1_ETM",
+            "CPU2_Dbg", "CPU2_CTI", "CPU2_ETM",
+            "CPU3_Dbg", "CPU3_CTI", "CPU3_ETM",
+            "CTM", "STM", "ETF", "TPIU",
+            "GIC_Dist", "GIC_Rdist", "SysTimer",
+            "Watchdog", "UART0", "UART1", "SPI0", "I2C0"
+          ],
+          "flags": ["hidden"]
+        }
+      ]
+    },
+
+    {
+      "id": "shared-periph-detail",
+      "title": "System Peripherals",
+      "range": ["0x2C000000", "0x2C0B0000"],
+      "sections": [
+        {
+          "ids": ["SysPeriph"],
+          "flags": ["hidden"]
+        }
+      ]
+    },
+
+    {
+      "id": "debug-apb-detail",
+      "title": "Debug APB (DAP only)",
+      "range": ["0x20000000", "0x20110000"],
+      "sections": [
+        {
+          "ids": ["DebugAPB", "Brk_CPU_APBHole"],
+          "flags": ["hidden"]
+        }
+      ]
+    }
+  ],
+
+  "links": {
+    "sub_sections": [
+      ["cpu-view",      "SysPeriph", "shared-periph-detail"],
+      ["debugger-view", "SysPeriph", "shared-periph-detail"],
+      ["debugger-view", "DebugAPB",  "debug-apb-detail"]
+    ]
+  }
+}

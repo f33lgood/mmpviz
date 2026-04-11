@@ -404,16 +404,20 @@ def _check_addr_64bit_column_width(area_views: list) -> list[Issue]:
 
 def _check_unresolved_link_sections(area_views: list, raw_sections: list,
                                     links_config: dict) -> list[Issue]:
-    """Section listed in links.sections does not appear in any view's filtered sections."""
-    # Collect all section IDs that appear in any view after filtering/flag application
+    """Section listed in links.sections/sub_sections does not appear in any view's filtered
+    sections, or an explicit target view ID in sub_sections does not exist."""
+    # Collect all section IDs and view IDs that appear after filtering/flag application
     area_section_ids = set()
+    area_view_ids = set()
     for area in area_views:
+        area_view_ids.add(area.view_id)
         for sub in area.get_split_area_views():
             for s in sub.sections.get_sections():
                 area_section_ids.add(s.id)
 
-    linked = links_config.get('sections', [])
     issues = []
+
+    linked = links_config.get('sections', [])
     for entry in linked:
         section_id = entry if isinstance(entry, str) else entry[0]
         if section_id not in area_section_ids:
@@ -421,6 +425,24 @@ def _check_unresolved_link_sections(area_views: list, raw_sections: list,
                 'unresolved-section', 'links', section_id,
                 f"'{section_id}' not found in any view after filtering",
             ))
+
+    for entry in links_config.get('sub_sections', []):
+        if not isinstance(entry, list) or len(entry) < 2:
+            continue
+        section_id = entry[1]
+        if section_id not in area_section_ids:
+            issues.append(Issue(
+                'unresolved-section', 'links.sub_sections', section_id,
+                f"'{section_id}' not found in any view after filtering",
+            ))
+        if len(entry) > 2:
+            target_id = entry[2]
+            if target_id not in area_view_ids:
+                issues.append(Issue(
+                    'unresolved-section', 'links.sub_sections', target_id,
+                    f"explicit target view '{target_id}' not found",
+                ))
+
     return issues
 
 

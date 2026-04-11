@@ -402,14 +402,23 @@ class MapRenderer:
     def _draw_sub_section_links(self) -> ET.Element:
         """
         Draw link bands that originate from a named detail view rather than views[0].
-        Configured via links.sub_sections: [[source_view_id, section_id], ...].
-        The band connects from the source view's section to the first subsequent view
-        whose sections span the section's address range.
+        Configured via links.sub_sections entries, each of which is either:
+          [source_view_id, section_id]                  — first-match routing
+          [source_view_id, section_id, target_view_id]  — explicit target
+
+        The band connects from the source view's section to the target view.
+        With first-match routing the target is the first subsequent view whose
+        sections span the section's address range.  With an explicit target the
+        named view is used directly, bypassing first-match routing.
         """
         group = self.svg.g()
         link_style = self.links.style if self.links else {}
 
-        for source_view_id, section_id in self.links.sub_sections:
+        for entry in self.links.sub_sections:
+            source_view_id = entry[0]
+            section_id = entry[1]
+            explicit_target_id = entry[2] if len(entry) > 2 else None
+
             source_area = next(
                 (a for a in self.area_views if a.view_id == source_view_id), None)
             if source_area is None:
@@ -432,17 +441,31 @@ class MapRenderer:
                     f"Sub-section link: section '{section_id}' not found")
                 continue
 
-            # Find target: first area after source_area that covers the range
-            source_idx = self.area_views.index(source_area)
             drawn = False
-            for area_view in self.area_views[source_idx + 1:]:
-                if (link_range[0] >= area_view.sections.lowest_memory and
-                        link_range[1] <= area_view.sections.highest_memory):
+            if explicit_target_id is not None:
+                # Explicit target: use the named view directly
+                target_area = next(
+                    (a for a in self.area_views if a.view_id == explicit_target_id), None)
+                if target_area is None:
+                    logger.warning(
+                        f"Sub-section link '{section_id}' from '{source_view_id}': "
+                        f"explicit target view '{explicit_target_id}' not found")
+                else:
                     group.append(self._make_poly(
-                        area_view, link_range[0], link_range[1],
+                        target_area, link_range[0], link_range[1],
                         link_style, source_area=source_area))
                     drawn = True
-                    break
+            else:
+                # First-match routing: first area after source_area that covers the range
+                source_idx = self.area_views.index(source_area)
+                for area_view in self.area_views[source_idx + 1:]:
+                    if (link_range[0] >= area_view.sections.lowest_memory and
+                            link_range[1] <= area_view.sections.highest_memory):
+                        group.append(self._make_poly(
+                            area_view, link_range[0], link_range[1],
+                            link_style, source_area=source_area))
+                        drawn = True
+                        break
 
             if not drawn:
                 logger.warning(

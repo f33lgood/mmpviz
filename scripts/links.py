@@ -54,10 +54,11 @@ class Links:
         """Remove malformed sub-section link entries with warnings."""
         valid = []
         for entry in self.sub_sections:
-            if (isinstance(entry, list) and len(entry) == 2
+            if (isinstance(entry, list) and len(entry) in (2, 3)
                     and all(isinstance(e, str) for e in entry)):
                 valid.append(entry)
             else:
                 logger.warning(
-                    f"Sub-section link must be [source_view_id, section_id], skipping: {entry}")
+                    f"Sub-section link must be [source_view_id, section_id] or "
+                    f"[source_view_id, section_id, target_view_id], skipping: {entry}")
         self.sub_sections = valid
