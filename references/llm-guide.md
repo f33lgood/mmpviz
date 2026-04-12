@@ -97,31 +97,50 @@ Using breaks on functional sections hides them visually; use height clamping ins
 
 ## 4. Link Bands — How Section Links Work
 
-`links.sections` draws a trapezoid band from `views[0]` (the overview / source view)
-to the **first** detail view whose `lowest_memory ≤ link_start` AND `highest_memory ≥ link_end`.
+`links` is an array of entry objects.  Each entry draws a trapezoid (or curve) band
+from a source view to an explicit destination view.
+
+```json
+"links": [
+  {"from": {"view": "overview",  "sections": ["Flash"]},       "to": {"view": "flash-view"}},
+  {"from": {"view": "overview",  "sections": ["Peripherals"]}, "to": {"view": "apb-view"}},
+  {"from": {"view": "apb-view",  "sections": ["DMA"]},         "to": {"view": "dma-view"}}
+]
+```
 
 ### Rules
 
-- **Order matters.** The view in `views` that should receive a specific link must come
-  *before* any other view that also covers the same address range.
-- **Hidden sections still count** toward `lowest_memory` / `highest_memory`. A detail
-  view can have all its sections hidden but still accept a link if its sections span
-  the target address range.
-- **One link per entry.** Each string in `links.sections` creates at most one band
-  (to the first matching detail view). To link a section to multiple views, use
-  `links.addresses` for horizontal line annotations instead.
-- **Source view must contain the address.** If the overview doesn't cover the link
-  section's address range, you get a warning and no band is drawn.
+- **`from.view` and `to.view` are always required.** There are no implicit defaults.
+- **`from.sections` is optional.** Omit it to span the source view's full address range.
+- **Section IDs resolve globally.** Sections filtered out of the source view by
+  `section_size` or marked `hidden` are still valid — their address range is looked up
+  from the global `sections[]` table.
+- **Multiple entries → same destination.** To fan-in from two source views to the same
+  detail panel, add two entries with the same `to.view`.
 
-### Multi-level zoom pattern
+### Multi-section span
 
+To draw a single band spanning several non-contiguous sections, list all their IDs in
+`from.sections`:
+
+```json
+{"from": {"view": "full-view", "sections": ["Bit band region", "Bit band alias"]}, "to": {"view": "bit-view"}}
 ```
-views: [overview, detail-level-1, detail-level-2, ...]
-links.sections: ["RegionA", "RegionB", ...]
+
+The band spans from the lowest start address to the highest end address across all
+named sections.
+
+### Address-range form
+
+Use hex strings when you want to anchor the band to a raw address range that may not
+have a named section:
+
+```json
+{"from": {"view": "overview", "sections": ["0x40000000", "0x40010000"]}, "to": {"view": "detail"}}
 ```
 
-`RegionA` links to `detail-level-1` if that view covers it. `RegionB` links to
-`detail-level-2` if `detail-level-1` does NOT cover `RegionB`'s range.
+Detection rule: if the first element of `sections` matches `/^0x[0-9a-fA-F]+$/` exactly,
+the pair is treated as an address range — not section IDs.
 
 ---
 
@@ -243,31 +262,32 @@ Open the SVG in a browser and verify:
 
 ---
 
-## 9. Multi-Level Zoom: Sub-Section Links
+## 9. Multi-Level Zoom
 
-`links.sections` always links from `views[0]` (the overview). To create a second-level
-zoom — e.g., an APB detail view that itself links to a µDMA channel view — use
-`links.sub_sections`:
+Because every link entry specifies both `from.view` and `to.view` explicitly, multi-level
+zoom is just a natural extension of the flat link array — no special field needed.
 
 ```json
-"links": {
-  "sections": ["RegionA", "RegionB"],
-  "sub_sections": [
-    ["apb-view", "uDMA"]
-  ]
-}
+"links": [
+  {"from": {"view": "overview",  "sections": ["APB Bus"]},   "to": {"view": "apb-view"}},
+  {"from": {"view": "apb-view",  "sections": ["uDMA"]},      "to": {"view": "udma-view"}},
+  {"from": {"view": "apb-view",  "sections": ["Chip Ctrl"]}, "to": {"view": "chip-ctrl-view"}}
+]
 ```
 
-Each entry is `[source_view_id, section_id]`. The renderer draws a band from
-`source_view_id`'s right edge to the next view that covers `section_id`'s address range.
+The renderer processes every entry independently; the source and destination can be any
+two views in the diagram, at any depth of zoom.
 
-**Rules:**
-- The source view must be listed in `views[]` by that exact `id`.
-- The section must exist somewhere in `sections[]`.
-- The target view is the first view (after the source in `views[]` order) whose
-  `lowest_memory` ≤ section start AND `highest_memory` ≥ section end.
-- Hidden sections extend `highest_memory`/`lowest_memory`, so a hidden terminator
-  section can be used to extend the target view's effective range.
+**Fan-in** (two source views → same detail panel):
+
+```json
+"links": [
+  {"from": {"view": "cpu-view",      "sections": ["SysPeriph"]}, "to": {"view": "periph-detail"}},
+  {"from": {"view": "debugger-view", "sections": ["SysPeriph"]}, "to": {"view": "periph-detail"}}
+]
+```
+
+Two separate bands are drawn, one per entry.
 
 ---
 
@@ -356,9 +376,9 @@ even at small heights (e.g., tooltips, exported metadata).
 | Overview panel looks blank or all sections are invisible | No breaks; huge address range compresses everything to sub-pixel | Add break sections for large gaps |
 | Title first character clipped | Title too long for panel width | Shorten title or widen panel |
 | Title not visible at all | `panel_pos_y` = 0 in manual layout | Set `panel_pos_y` ≥ 50, or switch to auto-layout |
-| Link band connects to the wrong detail panel | View order wrong; wrong view comes first and its `lowest_memory`/`highest_memory` covers the linked section | Reorder views so the intended target comes first |
-| Link band visible but band origin is at wrong vertical position in overview | Bug in older renderer: now fixed; source position is computed from compressed subarea | Upgrade to v1.1+ |
-| "Section link ... is outside the shown views" warning | Link address range not covered by any detail view's sections | Extend the detail view `range`, or add a hidden section that reaches the end address |
+| Link band missing (warning in logs) | Section ID not found in source view or global sections | Check spelling; confirm section exists in `sections[]` |
+| Link band connects to the wrong detail panel | Wrong `to.view` specified | Set `to.view` to the exact `id` of the intended target view |
+| Link band visible but band origin is at wrong vertical position | Source view has breaks; anchor is computed from compressed subarea — this is correct behaviour | No fix needed; the renderer handles compressed coordinates automatically |
 | Unexpected colored section at bottom of overview or intermediate view | Sub-sections of an expanded region not fully hidden — at least one sub-section is missing from the hidden list | Add all sub-sections of the expanded region to the hidden list in every parent view |
 | Blank/empty stripe inside a panel | Gap section starts at wrong address, leaving an unmapped range | Recompute gap address as `previous.address + previous.size` |
 | Address labels appear to belong to wrong panel | Panels too close horizontally | Increase horizontal gap to ≥ 150 px between right edge of one panel and left edge of next |
@@ -374,10 +394,9 @@ Before submitting a new example:
 - [ ] Every view's `pos` + `size` fits within the diagram `size` canvas
 - [ ] Panel titles are ≤ `floor((panel_width − 40) / 13)` characters
 - [ ] All important sections are ≥ 20 px tall in their display panel (use breaks if not)
-- [ ] `links.sections` entries reference section IDs that exist in `sections[]`
-- [ ] The source view (views[0]) covers every address in `links.sections`
-- [ ] Detail views are ordered so each `links.sections` target comes before any other
-  view that happens to cover the same address range
+- [ ] Each `links` entry has both `from.view` and `to.view` referencing valid view IDs
+- [ ] Section IDs in `from.sections` exist in the global `sections[]` table
+- [ ] The source view's address range covers every section listed in `from.sections`
 - [ ] Gap sections are contiguous: `gap.address == previous.address + previous.size`
 - [ ] Hidden lists are exhaustive: every sub-section of an expanded region is hidden
   in ALL parent views (not just the immediate parent)

@@ -368,19 +368,9 @@
       ]
     }
   ],
-  "links": {
-    "sections": [
-      "APB Bus"
-    ],
-    "sub_sections": [
-      [
-        "apb-view",
-        "Chip Ctrl"
-      ],
-      [
-        "apb-view",
-        "uDMA"
-      ]
-    ]
-  }
+  "links": [
+    {"from": {"view": "overview",  "sections": ["APB Bus"]},   "to": {"view": "apb-view"}},
+    {"from": {"view": "apb-view",  "sections": ["Chip Ctrl"]}, "to": {"view": "chip-ctrl-view"}},
+    {"from": {"view": "apb-view",  "sections": ["uDMA"]},      "to": {"view": "udma-view"}}
+  ]
 }

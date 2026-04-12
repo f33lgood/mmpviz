@@ -11,7 +11,7 @@ import copy
 import sys
 
 from area_view import AreaView
-from auto_layout import build_link_graph, assign_columns
+from auto_layout import build_link_graph, build_link_graph_from_links, assign_columns
 from helpers import safe_element_list_get, safe_element_dict_get, DefaultAppValues
 from links import Links
 from loader import load, validate, parse_int
@@ -285,7 +285,8 @@ def _estimate_area_height(sections: list, style: dict, area_config: dict = None)
     return max(200.0, estimated)
 
 
-def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: Theme) -> list:
+def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: Theme,
+                   links=None) -> list:
     """
     Build AreaView objects from diagram config.
 
@@ -316,7 +317,10 @@ def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: T
     area_heights = None
     if needs_auto:
         view_ids = [c['id'] for c in area_configurations if 'id' in c]
-        graph = build_link_graph(area_configurations, raw_sections)
+        if links is not None and links.entries:
+            graph = build_link_graph_from_links(links.entries, view_ids)
+        else:
+            graph = build_link_graph(area_configurations, raw_sections)
         columns = assign_columns(graph, view_ids)
 
         # Pre-filter sections per view to estimate heights
@@ -380,10 +384,18 @@ def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: T
 
         area_style = theme.resolve(view_id)
 
+        # Pass the declared range as 'start'/'end' so AreaView uses the full
+        # declared coordinate space, not just the filtered sections' range.
+        effective_config = dict(area_config)
+        if range_min is not None:
+            effective_config['start'] = range_min
+        if range_max is not None:
+            effective_config['end'] = range_max
+
         area_views.append(AreaView(
             sections=filtered_sections,
             style=area_style,
-            area_config=area_config,
+            area_config=effective_config,
             theme=theme,
         ))
 
@@ -433,14 +445,14 @@ def main():
         document_size = DefaultAppValues.DOCUMENT_SIZE
 
     # Links
-    links_config = diagram.get('links', {})
+    links_config = diagram.get('links', [])
     links_style = theme.resolve_links()
     links = Links(links_config=links_config, style=links_style)
 
     # Build area views
     area_configs = diagram.get('views', []) or []
     needs_auto = any('pos' not in c or 'size' not in c for c in area_configs)
-    area_views = get_area_views(raw_sections, base_style, diagram, theme)
+    area_views = get_area_views(raw_sections, base_style, diagram, theme, links=links)
     if not area_views:
         print("Error: no area views could be created. Check diagram.json configuration.")
         sys.exit(1)
@@ -457,6 +469,7 @@ def main():
         links=links,
         style=base_style,
         size=document_size,
+        raw_sections=raw_sections,
     ).draw()
 
     # Write output

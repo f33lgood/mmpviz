@@ -428,12 +428,10 @@
       ]
     }
   ],
-  "links": {
-    "sections": [
-      "Peripherals",
-      "M3 Cortex Internal Peripherals",
-      "Flash Memory",
-      "System Memory"
-    ]
-  }
+  "links": [
+    {"from": {"view": "overview-view", "sections": ["Flash Memory"]},                   "to": {"view": "flash-zoom-view"}},
+    {"from": {"view": "overview-view", "sections": ["System Memory"]},                  "to": {"view": "sysmem-zoom-view"}},
+    {"from": {"view": "overview-view", "sections": ["Peripherals"]},                    "to": {"view": "apb-view"}},
+    {"from": {"view": "overview-view", "sections": ["M3 Cortex Internal Peripherals"]}, "to": {"view": "m3-periph-view"}}
+  ]
 }

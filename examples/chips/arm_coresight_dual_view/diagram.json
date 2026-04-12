@@ -288,11 +288,9 @@
     }
   ],
 
-  "links": {
-    "sub_sections": [
-      ["cpu-view",      "SysPeriph", "shared-periph-detail"],
-      ["debugger-view", "SysPeriph", "shared-periph-detail"],
-      ["debugger-view", "DebugAPB",  "debug-apb-detail"]
-    ]
-  }
+  "links": [
+    {"from": {"view": "cpu-view",      "sections": ["SysPeriph"]}, "to": {"view": "shared-periph-detail"}},
+    {"from": {"view": "debugger-view", "sections": ["SysPeriph"]}, "to": {"view": "shared-periph-detail"}},
+    {"from": {"view": "debugger-view", "sections": ["DebugAPB"]},  "to": {"view": "debug-apb-detail"}}
+  ]
 }

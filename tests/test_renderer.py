@@ -151,7 +151,7 @@ class TestRendererFromFixtures(unittest.TestCase):
             ))
 
         links = Links(
-            links_config=diagram.get('links', {}),
+            links_config=diagram.get('links', []),
             style=theme.resolve_links()
         )
 
@@ -188,7 +188,10 @@ class TestRendererSectionBandStyles(unittest.TestCase):
             area_config={'id': 'detail', 'title': 'Zoomed', 'pos': [320, 155], 'size': [130, 200]},
         )
         links = Links(
-            links_config={'sections': ['Region B']},
+            links_config=[{
+                'from': {'view': 'source', 'sections': ['Region B']},
+                'to': {'view': 'detail'},
+            }],
             style=link_style,
         )
         return MapRenderer(
@@ -262,7 +265,10 @@ class TestRendererSectionBandStyles(unittest.TestCase):
             area_config={'id': 'detail', 'title': 'Zoomed', 'pos': [320, 155], 'size': [130, 200]},
         )
         links = Links(
-            links_config={'sections': ['Region B']},
+            links_config=[{
+                'from': {'view': 'source', 'sections': ['Region B']},
+                'to': {'view': 'detail'},
+            }],
             style={'shape': 'polygon', 'fill': 'gray', 'stroke': 'none'},
         )
         result = MapRenderer(

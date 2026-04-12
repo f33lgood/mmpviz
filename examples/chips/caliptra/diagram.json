@@ -369,11 +369,9 @@
       ]
     }
   ],
-  "links": {
-    "sections": [
-      "Crypto",
-      "Peripherals",
-      "SoC Interface"
-    ]
-  }
+  "links": [
+    {"from": {"view": "overview", "sections": ["Crypto"]},        "to": {"view": "crypto-view"}},
+    {"from": {"view": "overview", "sections": ["Peripherals"]},   "to": {"view": "periph-view"}},
+    {"from": {"view": "overview", "sections": ["SoC Interface"]}, "to": {"view": "soc-ifc-view"}}
+  ]
 }

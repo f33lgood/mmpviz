@@ -14,7 +14,7 @@ It contains the raw memory data (`sections`) and the display layout (`views`, `l
 | `size` | `[width, height]` | No | **auto** | SVG canvas floor in pixels. When auto-layout is active (any view omits `pos`/`size`), the canvas expands to fit all views and this value is only a minimum. Omit it entirely to let auto-layout size the canvas. Set it only when you need a fixed coordinate space for manual view placement. |
 | `sections` | array | Yes | — | Memory section definitions |
 | `views` | array | No | Auto | Display viewport definitions |
-| `links` | object | No | — | Cross-view connections |
+| `links` | array | No | `[]` | Cross-view connections |
 
 ### Choosing a Canvas Size (manual layout only)
 
@@ -69,9 +69,10 @@ Each entry in `views` defines one memory view panel in the SVG diagram.
 When any view omits `pos` or `size`, the auto-layout engine activates for the
 whole diagram:
 
-1. **Link graph** — a DAG is derived from address containment: an edge A → B is
-   added when view B's full address range is contained within a section that
-   belongs to view A.
+1. **Link graph** — a DAG is built from the `links` array (one directed edge per
+   entry, `from.view → to.view`). When `links` is absent or empty, the DAG falls
+   back to address containment: an edge A → B is added when view B's full address
+   range is contained within a section that belongs to view A.
 2. **Column assignment** — BFS from roots (views with no incoming edges) assigns
    each view to a layout column (`column = max depth from any root`).
 3. **Bin-packing** — within each DAG column, views are greedily stacked until
@@ -110,17 +111,67 @@ Within a view, you can override the flags, address, or size for specific section
 
 ## `links` — Cross-View Connections
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `addresses` | array | Hex strings or ints — draw horizontal connector lines at these addresses across views |
-| `sections` | array of strings | Section ids — draw a band from `views[0]` (the source/overview stack) to the first detail view whose address range covers the named section |
-| `sub_sections` | array of `[view_id, section_id]` or `[view_id, section_id, target_view_id]` | Draw bands from a named source view to a detail view. Two forms: **first-match** `[source, section]` routes to the first subsequent view covering the section's address range; **explicit target** `[source, section, target]` routes directly to the named target view, bypassing first-match routing. Enables multi-level zoom chains and fan-in (multiple sources → same target). |
+`links` is an **array** of link entry objects.  Each entry connects a source view
+to a destination view with a rendered band (trapezoid or curve).
 
-**Design convention:** The first entry in `views` is treated as the **source** (full/overview) stack and is always positioned on the left. All subsequent views are **expanded/detail** stacks and are positioned to the right. `links.sections` always originates from the source stack. `links.sub_sections` originates from any named view.
+```json
+"links": [
+  {"from": {"view": "overview",  "sections": ["Flash"]},          "to": {"view": "flash-view"}},
+  {"from": {"view": "overview",  "sections": ["Peripherals"]},    "to": {"view": "apb-view"}},
+  {"from": {"view": "apb-view",  "sections": ["DMA"]},            "to": {"view": "dma-view"}},
+  {"from": {"view": "overview",  "sections": ["0x4000", "0x5000"]}, "to": {"view": "detail-view"}}
+]
+```
 
-**Band routing:** For `sections` and first-match `sub_sections`, the band connects to the **first** subsequent view (in `views[]` order) whose `lowest_memory` ≤ section start and `highest_memory` ≥ section end. Hidden sections still count toward `lowest_memory`/`highest_memory`, so a hidden terminator section can extend a detail view's effective range to accept a link. Use the explicit-target form `[source, section, target]` when two source views both cover the section's address range and must fan-in to the same detail panel — this bypasses first-match routing entirely.
+### Link Entry Object
 
-Section band visual style is controlled in `theme.json` under `links`. See `theme-schema.md` for the full property list including `shape`, `fill`, `stroke`, and `stroke_dasharray`.
+Each entry has two required fields:
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `from` | Yes | Source endpoint (see below) |
+| `to` | Yes | Destination endpoint (see below) |
+
+`from` and `to` endpoint fields:
+
+| Field | Endpoint | Required | Description |
+|-------|----------|----------|-------------|
+| `view` | both | Yes | View id. Always required — no implicit defaults. |
+| `sections` | `from` only | No | Determines which address range on the source view the band anchors to (see below). Omit to use the source view's full address range. The band always spans the full destination view regardless of any `sections` value on `to`. |
+
+### `sections` Specifier
+
+Controls the **vertical span of the band on the source view** — i.e., which address range the band connects to on `from.view`. Three forms:
+
+| Form | Example | Meaning |
+|------|---------|---------|
+| Omitted | _(absent)_ | Full address range of the source view |
+| Single section ID | `["SysPeriph"]` | The named section's own `[address, address + size]` range |
+| Multiple section IDs | `["Flash", "SRAM"]` | Span from the lowest `address` to the highest `address + size` across all named sections |
+| Address range | `["0x08000000", "0x08020000"]` | Explicit hex start and end (detected when both elements match `^0x[0-9a-fA-F]+$`) |
+
+The section ID list can include sections that are hidden or filtered by
+`section_size` in the source view — the address range is resolved from the
+global section table.
+
+### Multiple Sources → Same Destination (fan-in)
+
+To map two source views to the same detail view, add two entries with the same
+`to.view`:
+
+```json
+"links": [
+  {"from": {"view": "cpu-view",      "sections": ["SysPeriph"]}, "to": {"view": "periph-detail"}},
+  {"from": {"view": "debugger-view", "sections": ["SysPeriph"]}, "to": {"view": "periph-detail"}}
+]
+```
+
+Two separate bands are rendered, one per entry.
+
+### Visual Style
+
+Band style (shape, fill, stroke, dash pattern) is controlled in `theme.json`
+under `links`. See `theme-schema.md` for the full property list.
 
 ---
 
@@ -159,9 +210,8 @@ Section band visual style is controlled in `theme.json` under `links`. See `them
     }
   ],
 
-  "links": {
-    "addresses": ["0x20000000"],
-    "sections": [["Flash", "SRAM"]]
-  }
+  "links": [
+    {"from": {"view": "flash-view", "sections": ["Flash"]}, "to": {"view": "sram-view"}}
+  ]
 }
 ```

@@ -153,16 +153,17 @@ def render_example(example_dir):
     doc_size = diagram.get('size', [400, 700])
     doc_size = tuple(doc_size) if isinstance(doc_size, list) else doc_size
 
-    links_config = diagram.get('links', {})
+    links_config = diagram.get('links', [])
     links = Links(links_config=links_config, style=theme.resolve_links())
 
-    area_views = get_area_views(raw_sections, base_style, diagram, theme)
+    area_views = get_area_views(raw_sections, base_style, diagram, theme, links=links)
 
     return MapRenderer(
         area_views=area_views,
         links=links,
         style=base_style,
         size=doc_size,
+        raw_sections=raw_sections,
     ).draw()
 
 

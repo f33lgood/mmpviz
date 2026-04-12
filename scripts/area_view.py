@@ -397,6 +397,46 @@ class AreaView:
         breaks_section_size_y_px = self.style.get('break_height', 20)
 
         if not area_has_breaks:
+            # Apply min/max section-height clamping even when there are no breaks.
+            # Without this, sections whose byte size is small relative to the
+            # view's address range render at sub-20-px heights and text overlaps.
+            max_section_h = self.style.get('max_section_height', None)
+            font_size = float(self.style.get('font_size', 16))
+            user_min_h = self.style.get('min_section_height', None)
+            user_min_h_val = float(user_min_h) if user_min_h is not None else 0.0
+
+            all_visible = [
+                s for s in self.sections.get_sections()
+                if not s.is_hidden() and not s.is_break() and s.size > 0
+            ]
+
+            if all_visible and (user_min_h_val > 0.0 or max_section_h is not None):
+                total_range = max(self.end_address - self.start_address, 1)
+                section_bytes = sum(s.size for s in all_visible)
+                available_for_sections = section_bytes / total_range * self.size_y
+
+                # Use user_min_h only (not label-conflict inflation) so that
+                # very long section names in a small panel don't push the total
+                # minimum above available_px and trigger the proportional fallback.
+                per_section_min_h = {id(s): user_min_h_val for s in all_visible}
+
+                section_px = self._compute_per_section_heights(
+                    all_visible, available_for_sections, per_section_min_h, max_section_h)
+
+                if section_px:
+                    # Stack sections high-address-first within the section block.
+                    # The block is anchored at the address-proportional top of the
+                    # highest section; gaps between the block and panel edges are preserved.
+                    sorted_vis = sorted(all_visible,
+                                       key=lambda s: s.address + s.size, reverse=True)
+                    highest_top = max(s.address + s.size for s in all_visible)
+                    block_top_px = self.to_pixels_relative(highest_top)
+                    y = block_top_px
+                    for s in sorted_vis:
+                        s.size_y_override = section_px.get(id(s), 0.0)
+                        s.pos_y_in_subarea = y
+                        y += s.size_y_override
+
             self.processed_section_views.append(self)
             return
 

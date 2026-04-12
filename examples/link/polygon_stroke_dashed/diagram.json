@@ -34,9 +34,7 @@
       ]
     }
   ],
-  "links": {
-    "sections": [
-      "Region B"
-    ]
-  }
+  "links": [
+    {"from": {"view": "source", "sections": ["Region B"]}, "to": {"view": "detail"}}
+  ]
 }

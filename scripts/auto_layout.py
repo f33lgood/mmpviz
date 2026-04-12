@@ -1,13 +1,15 @@
 """
 auto_layout.py — Link graph construction and column assignment for mmpviz.
 
-These utilities derive a directed acyclic graph (DAG) from area address ranges,
-then assign each area to a layout column based on topological depth.
+These utilities derive a directed acyclic graph (DAG) from either explicit
+link entries or area address containment, then assign each area to a layout
+column based on topological depth.
 
 Public API
 ----------
-build_link_graph(area_configs, sections) → {src_id: [tgt_id, ...]}
-assign_columns(graph, view_ids)          → {view_id: column_int}
+build_link_graph_from_links(entries, view_ids) → {src_id: [tgt_id, ...]}
+build_link_graph(area_configs, sections)        → {src_id: [tgt_id, ...]}
+assign_columns(graph, view_ids)                 → {view_id: column_int}
 order_within_column(graph, columns, area_views) → {col: [view_id, ...]}
 """
 from collections import defaultdict, deque
@@ -16,7 +18,41 @@ from loader import parse_int
 
 
 # ---------------------------------------------------------------------------
-# Link graph construction
+# Link graph construction — explicit links
+# ---------------------------------------------------------------------------
+
+def build_link_graph_from_links(entries: list, view_ids: list) -> dict:
+    """
+    Build a directed link graph from explicit link entries.
+
+    Each entry is a dict with ``from_view`` and ``to_view`` keys (as produced
+    by ``Links._validate_entries``).  An edge from_view → to_view is added for
+    every entry.  Views that appear only as sources (never as targets) become
+    layout roots (column 0).
+
+    Parameters
+    ----------
+    entries : list of dict
+        Validated link entry dicts from ``Links.entries``.
+    view_ids : list of str
+        All view IDs in the diagram.
+
+    Returns
+    -------
+    dict  {source_id: [target_id, ...]}
+        Adjacency list.  Every view id appears as a key.
+    """
+    graph = {vid: [] for vid in view_ids}
+    for entry in entries:
+        src = entry.get('from_view')
+        tgt = entry.get('to_view')
+        if src in graph and tgt in graph and tgt not in graph[src]:
+            graph[src].append(tgt)
+    return graph
+
+
+# ---------------------------------------------------------------------------
+# Link graph construction — address containment (fallback)
 # ---------------------------------------------------------------------------
 
 def build_link_graph(area_configs: list, sections: list) -> dict:

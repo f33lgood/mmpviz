@@ -603,11 +603,9 @@
       ]
     }
   ],
-  "links": {
-    "sections": [
-      "ROM_Debug",
-      "CryptoCtrl",
-      "Periph"
-    ]
-  }
+  "links": [
+    {"from": {"view": "overview", "sections": ["ROM_Debug"]},    "to": {"view": "debug-rom-view"}},
+    {"from": {"view": "overview", "sections": ["CryptoCtrl"]},   "to": {"view": "main-view"}},
+    {"from": {"view": "overview", "sections": ["Periph"]},       "to": {"view": "apb-view"}}
+  ]
 }
