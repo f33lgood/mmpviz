@@ -1,43 +1,16 @@
 {
   "title": "Cortex-M SRAM Layout",
-  "sections": [
-    {
-      "id": "data",
-      "address": "0x20000000",
-      "size": "0x1000",
-      "name": ".data"
-    },
-    {
-      "id": "bss",
-      "address": "0x20001000",
-      "size": "0x1000",
-      "name": ".bss"
-    },
-    {
-      "id": "heap",
-      "address": "0x20002000",
-      "size": "0x1800",
-      "name": "Heap",
-      "flags": ["grows-up"]
-    },
-    {
-      "id": "free",
-      "address": "0x20003800",
-      "size": "0x3000",
-      "name": "free"
-    },
-    {
-      "id": "stack",
-      "address": "0x20006800",
-      "size": "0x1800",
-      "name": "Stack",
-      "flags": ["grows-down"]
-    }
-  ],
   "views": [
     {
       "id": "sram",
-      "title": "Memory Layout"
+      "title": "Memory Layout",
+      "sections": [
+        { "id": "data",  "address": "0x20000000", "size": "0x1000", "name": ".data" },
+        { "id": "bss",   "address": "0x20001000", "size": "0x1000", "name": ".bss"  },
+        { "id": "heap",  "address": "0x20002000", "size": "0x1800", "name": "Heap",  "flags": ["grows-up"] },
+        { "id": "free",  "address": "0x20003800", "size": "0x3000", "name": "free"  },
+        { "id": "stack", "address": "0x20006800", "size": "0x1800", "name": "Stack", "flags": ["grows-down"] }
+      ]
     }
   ]
 }

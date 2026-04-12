@@ -31,8 +31,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from area_view import AreaView
 from helpers import DefaultAppValues
-from loader import load, parse_int
-from sections import Sections
+from loader import load
 from theme import Theme
 
 # Re-use the get_area_views helper from mmpviz without importing main().
@@ -82,11 +81,7 @@ def _populate_section_heights(area_views: list) -> list:
             for section in sub.sections.get_sections():
                 if section.is_hidden():
                     continue
-                section.size_x = sub.size_x
-                section.size_y = sub.to_pixels(section.size)
-                section.pos_y = sub.to_pixels(
-                    sub.end_address - section.size - section.address)
-                section.pos_x = 0
+                sub.apply_section_geometry(section)
                 result.append((area.view_id, section, sub))
     return result
 
@@ -142,8 +137,7 @@ def _check_out_of_canvas(area_views: list, canvas_w: float, canvas_h: float) -> 
     return issues
 
 
-def _check_band_too_wide(area_views: list, raw_sections: list,
-                         links_config: dict) -> list[Issue]:
+def _check_band_too_wide(area_views: list, links_config: list) -> list[Issue]:
     """
     Horizontal span of a link band exceeds the readability guideline.
 
@@ -151,43 +145,38 @@ def _check_band_too_wide(area_views: list, raw_sections: list,
       - ≤ 200 px  for the band connecting to the nearest detail panel
       - ≤ 600 px  for secondary bands; beyond this, use opacity ≤ 0.4
     """
-    if not area_views:
+    if not area_views or not isinstance(links_config, list):
         return []
 
-    source = area_views[0]
-    source_right = source.pos_x + source.size_x
-
-    # Build section-id → (start, end) map from raw sections
-    sec_map = {s.id: (s.address, s.address + s.size) for s in raw_sections}
-
-    linked = links_config.get('sections', [])
+    av_by_id = {av.view_id: av for av in area_views}
     issues = []
-    for entry in linked:
-        section_id = entry if isinstance(entry, str) else entry[0]
-        if section_id not in sec_map:
-            continue  # reported separately by _check_unresolved_link_sections
 
-        start_addr, end_addr = sec_map[section_id]
-        for area in area_views[1:]:
-            lo = area.sections.lowest_memory
-            hi = area.sections.highest_memory
-            if start_addr >= lo and end_addr <= hi:
-                span = area.pos_x - source_right
-                if span > 600:
-                    issues.append(Issue(
-                        'band-too-wide', area.view_id, section_id,
-                        f"link band span {span:.0f} px > 600 px guideline "
-                        f"— consider increasing link opacity to 0.3–0.4",
-                    ))
-                elif span > 200:
-                    # Only warn for nearest-column violations (first non-source area)
-                    if area is area_views[1]:
-                        issues.append(Issue(
-                            'band-too-wide', area.view_id, section_id,
-                            f"nearest-column link band span {span:.0f} px > 200 px "
-                            f"— ideal is ≤ 200 px for the closest panel",
-                        ))
-                break
+    for entry in links_config:
+        if not isinstance(entry, dict):
+            continue
+        from_view_id = entry.get('from', {}).get('view')
+        to_view_id = entry.get('to', {}).get('view')
+        if not from_view_id or not to_view_id:
+            continue
+        from_area = av_by_id.get(from_view_id)
+        to_area = av_by_id.get(to_view_id)
+        if from_area is None or to_area is None:
+            continue
+
+        span = to_area.pos_x - (from_area.pos_x + from_area.size_x)
+        label = f"{from_view_id} → {to_view_id}"
+        if span > 600:
+            issues.append(Issue(
+                'band-too-wide', to_area.view_id, label,
+                f"link band span {span:.0f} px > 600 px guideline "
+                f"— consider increasing link opacity to 0.3–0.4",
+            ))
+        elif span > 200:
+            issues.append(Issue(
+                'band-too-wide', to_area.view_id, label,
+                f"link band span {span:.0f} px > 200 px "
+                f"— ideal is ≤ 200 px for the closest panel",
+            ))
 
     return issues
 
@@ -402,46 +391,138 @@ def _check_addr_64bit_column_width(area_views: list) -> list[Issue]:
     return issues
 
 
-def _check_unresolved_link_sections(area_views: list, raw_sections: list,
-                                    links_config: dict) -> list[Issue]:
-    """Section listed in links.sections/sub_sections does not appear in any view's filtered
-    sections, or an explicit target view ID in sub_sections does not exist."""
-    # Collect all section IDs and view IDs that appear after filtering/flag application
-    area_section_ids = set()
+def _check_section_overlap(area_views: list) -> list[Issue]:
+    """
+    Two visible (non-hidden, non-break) sections in the same view have
+    overlapping address ranges.
+
+    A common mistake is including a parent section (e.g. ``APB1``) and its
+    named children (e.g. ``UART0``, ``SPI0``) in the same view.  The parent's
+    visual box covers all children, making labels unreadable.  Fix: remove
+    whichever layer should not be rendered from this view's ``sections[]``.
+    """
+    issues = []
+    for av in area_views:
+        visible = sorted(
+            (s for s in av.sections.get_sections()
+             if 'hidden' not in s.flags and 'break' not in s.flags),
+            key=lambda s: s.address,
+        )
+        for i, s1 in enumerate(visible):
+            s1_end = s1.address + s1.size
+            for s2 in visible[i + 1:]:
+                if s2.address >= s1_end:
+                    break  # sorted — no more overlaps with s1
+                issues.append(Issue(
+                    'section-overlap', av.view_id, s1.id,
+                    f"'{s1.id}' [{hex(s1.address)}, +{hex(s1.size)}] overlaps "
+                    f"'{s2.id}' [{hex(s2.address)}, +{hex(s2.size)}]; "
+                    f"remove one layer from this view's sections[]",
+                ))
+    return issues
+
+
+def _check_uncovered_gap(area_views: list) -> list[Issue]:
+    """
+    A large address gap between two consecutive visible sections in a view is
+    not compressed by a break section.
+
+    When a view contains, say, ``Flash`` at 0x0000_0000 (512 KB) and ``SRAM``
+    at 0x2000_0000 (128 KB), the ~504 MB gap between them makes both sections
+    render as sub-pixel slivers unless a break section is added to compress the
+    gap.  This check fires when the uncovered gap exceeds five times the total
+    visible (non-break) content in the view.
+
+    Fix: add a break section spanning the gap, e.g.
+    ``{"id": "Brk", "address": "0x00080000", "size": "0x1FF80000"}``,
+    then reference it in the view with ``flags: ["break"]``.
+    """
+    issues = []
+    for av in area_views:
+        secs = av.sections.get_sections()
+        break_ranges = [
+            (s.address, s.address + s.size)
+            for s in secs if 'break' in s.flags
+        ]
+        visible = sorted(
+            (s for s in secs
+             if 'hidden' not in s.flags and 'break' not in s.flags),
+            key=lambda s: s.address,
+        )
+        if len(visible) < 2:
+            continue
+        total_visible = sum(s.size for s in visible) or 1
+        for i in range(len(visible) - 1):
+            s1, s2 = visible[i], visible[i + 1]
+            gap_lo = s1.address + s1.size
+            gap_hi = s2.address
+            if gap_hi <= gap_lo:
+                continue  # no gap (overlap handled by section-overlap)
+            gap_size = gap_hi - gap_lo
+            # Skip if any break section fully covers the gap.
+            if any(blo <= gap_lo and bhi >= gap_hi for blo, bhi in break_ranges):
+                continue
+            if gap_size > 5 * total_visible:
+                issues.append(Issue(
+                    'uncovered-gap', av.view_id, s1.id,
+                    f"uncovered gap of {hex(gap_size)} between '{s1.id}' and "
+                    f"'{s2.id}' is {gap_size // total_visible}× the total visible "
+                    f"content — sections will appear very small; "
+                    f"add a break section spanning the gap",
+                ))
+    return issues
+
+
+def _check_unresolved_link_sections(area_views: list,
+                                    links_config: list) -> list[Issue]:
+    """Section or view IDs referenced in link entries do not exist."""
+    if not isinstance(links_config, list):
+        return []
+
+    # Collect section IDs per view and all view IDs.
+    sections_by_view: dict = {}
     area_view_ids = set()
     for area in area_views:
         area_view_ids.add(area.view_id)
+        sids = set()
         for sub in area.get_split_area_views():
             for s in sub.sections.get_sections():
-                area_section_ids.add(s.id)
+                sids.add(s.id)
+        sections_by_view[area.view_id] = sids
 
     issues = []
 
-    linked = links_config.get('sections', [])
-    for entry in linked:
-        section_id = entry if isinstance(entry, str) else entry[0]
-        if section_id not in area_section_ids:
-            issues.append(Issue(
-                'unresolved-section', 'links', section_id,
-                f"'{section_id}' not found in any view after filtering",
-            ))
-
-    for entry in links_config.get('sub_sections', []):
-        if not isinstance(entry, list) or len(entry) < 2:
+    for entry in links_config:
+        if not isinstance(entry, dict):
             continue
-        section_id = entry[1]
-        if section_id not in area_section_ids:
-            issues.append(Issue(
-                'unresolved-section', 'links.sub_sections', section_id,
-                f"'{section_id}' not found in any view after filtering",
-            ))
-        if len(entry) > 2:
-            target_id = entry[2]
-            if target_id not in area_view_ids:
+        for side in ('from', 'to'):
+            endpoint = entry.get(side, {})
+            if not isinstance(endpoint, dict):
+                continue
+            view_id = endpoint.get('view')
+            if view_id and view_id not in area_view_ids:
                 issues.append(Issue(
-                    'unresolved-section', 'links.sub_sections', target_id,
-                    f"explicit target view '{target_id}' not found",
+                    'unresolved-section', f'links.{side}', view_id,
+                    f"view '{view_id}' not found",
                 ))
+                continue
+            sections = endpoint.get('sections')
+            if not sections or not isinstance(sections, list):
+                continue
+            # Address-range form: ["0x...", "0x..."] — no section IDs to validate.
+            if (len(sections) == 2
+                    and isinstance(sections[0], str)
+                    and isinstance(sections[1], str)
+                    and sections[0].startswith('0x')
+                    and sections[1].startswith('0x')):
+                continue
+            view_sids = sections_by_view.get(view_id, set())
+            for sid in sections:
+                if sid not in view_sids:
+                    issues.append(Issue(
+                        'unresolved-section', f'links.{side}.sections', sid,
+                        f"'{sid}' not found in view '{view_id}'",
+                    ))
 
     return issues
 
@@ -455,6 +536,8 @@ ALL_RULES = {
     'out-of-canvas',
     'band-too-wide',
     'unresolved-section',
+    'section-overlap',
+    'uncovered-gap',
     'panel-overlap',
     'title-overlap',
     'label-overlap',
@@ -466,7 +549,7 @@ PER_SECTION_RULES = [
 ]
 
 
-def run_checks(diagram: dict, raw_sections: list, area_views: list,
+def run_checks(diagram: dict, area_views: list,
                enabled_rules: set) -> list[Issue]:
     canvas = diagram.get('size', list(DefaultAppValues.DOCUMENT_SIZE))
     canvas_w, canvas_h = float(canvas[0]), float(canvas[1])
@@ -474,7 +557,7 @@ def run_checks(diagram: dict, raw_sections: list, area_views: list,
     if area_views:
         canvas_w = max(canvas_w, max(av.pos_x + av.size_x for av in area_views) + 110)
         canvas_h = max(canvas_h, max(av.pos_y + av.size_y for av in area_views) + 30)
-    links_config = diagram.get('links', {})
+    links_config = diagram.get('links', [])
 
     issues = []
 
@@ -491,9 +574,13 @@ def run_checks(diagram: dict, raw_sections: list, area_views: list,
     issues.extend(_check_label_overlap(area_views))
     issues.extend(_check_addr_64bit_column_width(area_views))
 
+    # Section geometry rules
+    issues.extend(_check_section_overlap(area_views))
+    issues.extend(_check_uncovered_gap(area_views))
+
     # Link rules
-    issues.extend(_check_band_too_wide(area_views, raw_sections, links_config))
-    issues.extend(_check_unresolved_link_sections(area_views, raw_sections, links_config))
+    issues.extend(_check_band_too_wide(area_views, links_config))
+    issues.extend(_check_unresolved_link_sections(area_views, links_config))
 
     # Filter to only enabled rules
     return [i for i in issues if i.rule in enabled_rules]
@@ -535,7 +622,7 @@ def main():
         enabled_rules = requested
 
     try:
-        raw_sections, diagram = load(args.diagram)
+        diagram = load(args.diagram)
     except (ValueError, OSError) as e:
         print(f"Error loading diagram: {e}", file=sys.stderr)
         sys.exit(1)
@@ -547,12 +634,12 @@ def main():
         sys.exit(1)
 
     base_style = theme.resolve('')
-    area_views = get_area_views(raw_sections, base_style, diagram, theme)
+    area_views = get_area_views(base_style, diagram, theme)
     if not area_views:
         print("Error: no views could be created.", file=sys.stderr)
         sys.exit(1)
 
-    issues = run_checks(diagram, raw_sections, area_views, enabled_rules)
+    issues = run_checks(diagram, area_views, enabled_rules)
 
     if args.format == 'json':
         print(json.dumps([i.to_dict() for i in issues], indent=2))

@@ -126,25 +126,19 @@ class TestRendererGrowthArrows(unittest.TestCase):
 class TestRendererFromFixtures(unittest.TestCase):
 
     def test_full_render_from_fixtures(self):
-        from loader import load
-        sections, diagram = load(os.path.join(FIXTURES, 'sample_diagram.json'))
+        from loader import load, resolve_view_sections
+        import copy
+        diagram = load(os.path.join(FIXTURES, 'sample_diagram.json'))
         theme = Theme(os.path.join(FIXTURES, 'sample_theme.json'))
 
-        import copy
-        from loader import parse_int
         area_views = []
         for area_config in diagram.get('views', []):
             view_id = area_config.get('id', '')
-            memory_range = area_config.get('range', [])
-            rmin = parse_int(memory_range[0]) if len(memory_range) > 0 else None
-            rmax = parse_int(memory_range[1]) if len(memory_range) > 1 else None
-            filtered = (Sections(sections=copy.deepcopy(sections))
-                        .filter_address_min(rmin)
-                        .filter_address_max(rmax))
-            if not filtered.get_sections():
+            view_sections = copy.deepcopy(resolve_view_sections(area_config))
+            if not view_sections:
                 continue
             area_views.append(AreaView(
-                sections=filtered,
+                sections=Sections(sections=view_sections),
                 style=theme.resolve(view_id),
                 area_config=area_config,
                 theme=theme,

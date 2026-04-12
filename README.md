@@ -96,18 +96,23 @@ Create `diagram.json` with your memory regions:
 
 ```json
 {
-  "sections": [
-    { "id": "Flash", "address": "0x08000000", "size": "0x20000", "type": "area" },
-    { "id": "code",  "address": "0x08000000", "size": "0x09000", "name": "Code",  "flags": ["grows-up"] },
-    { "id": "data",  "address": "0x08009000", "size": "0x02000", "name": "Const Data" },
-
-    { "id": "SRAM",  "address": "0x20000000", "size": "0x05000", "type": "area" },
-    { "id": "bss",   "address": "0x20000000", "size": "0x00800", "name": ".bss" },
-    { "id": "stack", "address": "0x20004000", "size": "0x01000", "name": "Stack", "flags": ["grows-down"] }
-  ],
   "views": [
-    { "id": "Flash", "title": "Flash Memory", "range": ["0x08000000", "0x08020000"] },
-    { "id": "SRAM",  "title": "SRAM",         "range": ["0x20000000", "0x20005000"] }
+    {
+      "id": "flash-view",
+      "title": "Flash Memory",
+      "sections": [
+        { "id": "code",   "address": "0x08000000", "size": "0x09000", "name": "Code",       "flags": ["grows-up"] },
+        { "id": "consts", "address": "0x08009000", "size": "0x02000", "name": "Const Data"  }
+      ]
+    },
+    {
+      "id": "sram-view",
+      "title": "SRAM",
+      "sections": [
+        { "id": "bss",   "address": "0x20000000", "size": "0x00800", "name": ".bss"                     },
+        { "id": "stack", "address": "0x20004000", "size": "0x01000", "name": "Stack", "flags": ["grows-down"] }
+      ]
+    }
   ]
 }
 ```

@@ -24,80 +24,71 @@ SRAM:   0x20000000, 20KB total
 
 ---
 
-## Step 2: Write the `sections` array
+## Step 2: Define views with their sections
 
-Each memory region becomes one entry. Mark growth direction with
-`"flags": ["grows-up"]` or `"flags": ["grows-down"]`.
-
-```json
-"sections": [
-  { "id": "Flash",  "address": "0x08000000", "size": "0x20000" },
-  { "id": "code",   "address": "0x08000000", "size": "0x09000", "name": "Code",       "flags": ["grows-up"] },
-  { "id": "consts", "address": "0x08009000", "size": "0x02000", "name": "Const Data" },
-
-  { "id": "SRAM",  "address": "0x20000000", "size": "0x05000" },
-  { "id": "bss",   "address": "0x20000000", "size": "0x00800", "name": ".bss" },
-  { "id": "stack", "address": "0x20004000", "size": "0x01000", "name": "Stack",  "flags": ["grows-down"] }
-]
-```
-
----
-
-## Step 3: Define the display views
-
-Each entry in the `views` array is one panel in the diagram. The only required
-field is `id`. Everything else is optional — `pos` and `size` are auto-computed
-when absent.
-
-**Auto-layout (default):** omit `pos` and `size`. The tool builds a link graph
-from address containment, assigns views to columns by topological depth, and
-sizes each view so every section is at least `min_section_height` pixels tall:
-
-```json
-"views": [
-  { "id": "flash-view", "title": "Flash Memory", "range": ["0x08000000", "0x08020000"] },
-  { "id": "sram-view",  "title": "SRAM",         "range": ["0x20000000", "0x20005000"] }
-]
-```
-
-The SVG canvas grows automatically to fit all views — no manual sizing required.
-
-**Manual override:** supply `pos` and `size` on any view where you need precise
-control. You can mix: some views explicit, others auto:
+Each entry in the `views` array is one panel in the diagram. Each view declares
+its `sections` — the ordered list of memory regions to display. Sections are
+defined inline directly inside the view. Every section requires `id`, `address`,
+`size`, and `name`. Mark growth direction with `"flags": ["grows-up"]` or
+`"flags": ["grows-down"]`.
 
 ```json
 "views": [
   {
     "id": "flash-view",
     "title": "Flash Memory",
-    "range": ["0x08000000", "0x08020000"],
-    "pos": [50, 80],
-    "size": [180, 700]
+    "sections": [
+      { "id": "code",   "address": "0x08000000", "size": "0x09000", "name": "Code",       "flags": ["grows-up"] },
+      { "id": "consts", "address": "0x08009000", "size": "0x02000", "name": "Const Data"  }
+    ]
   },
   {
     "id": "sram-view",
     "title": "SRAM",
-    "range": ["0x20000000", "0x20005000"]
+    "sections": [
+      { "id": "bss",   "address": "0x20000000", "size": "0x00800", "name": ".bss"                     },
+      { "id": "stack", "address": "0x20004000", "size": "0x01000", "name": "Stack", "flags": ["grows-down"] }
+    ]
   }
 ]
 ```
 
+The SVG canvas and panel positions are computed automatically — `pos` and `size`
+are optional and rarely needed.
+
+**When the same region appears in multiple views:** declare the section inline in
+each view. Duplication is intentional and makes each view self-contained:
+
+```json
+"views": [
+  { "id": "overview",   "sections": [{ "id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash" }] },
+  { "id": "flash-zoom", "sections": [{ "id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash" }] }
+]
+```
+
+**Manual placement:** supply `pos` and `size` on any view where you need precise
+control (auto-layout is used for views without them):
+
+```json
+{
+  "id": "flash-view",
+  "title": "Flash Memory",
+  "pos": [50, 80],
+  "size": [180, 700],
+  "sections": [...]
+}
+```
+
 ---
 
-## Step 4: Add optional features
+## Step 3: Add optional features
 
 ### Break sections (compressed regions)
 
 Mark a section as a break to compress a large empty or unimportant region:
 
 ```json
-{ "id": "unused", "address": "0x0800B000", "size": "0x00005000", "flags": ["break"] }
-```
-
-Or add the break flag only for a specific view (without changing the section globally):
-
-```json
-"sections": [{ "ids": ["unused"], "flags": ["break"] }]
+{ "id": "unused", "address": "0x0800B000", "size": "0x00005000", "name": "···", "flags": ["break"] }
 ```
 
 ### Labels
@@ -112,17 +103,19 @@ Annotate a specific address with a label line:
 
 ### Links
 
-Connect matching regions across two views:
+Connect regions across two views with a zoom band:
 
 ```json
-"links": {
-  "sections": [["Flash", "SRAM"]]
-}
+"links": [
+  { "from": { "view": "flash-view", "sections": ["code"] }, "to": { "view": "code-detail-view" } }
+]
 ```
+
+Each entry draws one band. `from.sections` specifies which sections define the vertical anchor on the source side; omit it to span the full source view. `to.sections` optionally pins the destination anchor to a different address range (useful for virtual→physical mappings).
 
 ---
 
-## Step 5: Generate the SVG
+## Step 4: Generate the SVG
 
 ```bash
 python scripts/mmpviz.py -d diagram.json -o output.svg
@@ -140,17 +133,16 @@ python scripts/mmpviz.py --validate diagram.json
 
 ---
 
-## Step 6: Iterate
+## Step 5: Iterate
 
 Auto-layout handles placement by default — you rarely need to touch `pos` or
-`size`.  Typical iteration focuses on:
+`size`. Typical iteration focuses on:
 
 - **Section label overflow**: if a section is shorter than `font_size` px, its name
-  label overflows the box.  Increase `min_section_height` in `theme.json`, add a
-  `section_size` filter on the view to exclude very small sections, or flag the
+  label overflows the box. Increase `min_section_height` in `theme.json`, or flag the
   section as `"break"` to compress it.
-- **Column arrangement**: the auto-layout assigns columns from the link graph.
-  If a view lands in the wrong column, check that its `range` correctly
-  contains the linking sections, or use `pos`/`size` to override placement.
+- **Column arrangement**: the auto-layout derives columns from the `links[]` graph.
+  If a view lands in the wrong column, check that its `links` entries correctly
+  reference it, or use `pos`/`size` to override placement.
 - **Styling**: move colors, fonts, and link styles to `theme.json`.
   See `references/theme-schema.md` for all available style properties.

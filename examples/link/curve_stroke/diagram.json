@@ -1,40 +1,23 @@
 {
-  "sections": [
-    {
-      "id": "Region A",
-      "address": "0x0",
-      "size": "0x10000"
-    },
-    {
-      "id": "Region B",
-      "address": "0x10000",
-      "size": "0x10000"
-    },
-    {
-      "id": "Region C",
-      "address": "0x20000",
-      "size": "0x10000"
-    }
-  ],
   "views": [
     {
       "id": "source",
       "title": "Full View",
-      "range": [
-        "0x0",
-        "0x30000"
+      "sections": [
+        { "id": "region_a", "address": "0x0",     "size": "0x10000", "name": "Region A" },
+        { "id": "region_b", "address": "0x10000", "size": "0x10000", "name": "Region B" },
+        { "id": "region_c", "address": "0x20000", "size": "0x10000", "name": "Region C" }
       ]
     },
     {
       "id": "detail",
       "title": "Region B (zoomed)",
-      "range": [
-        "0x10000",
-        "0x20000"
+      "sections": [
+        { "id": "region_b", "address": "0x10000", "size": "0x10000", "name": "Region B" }
       ]
     }
   ],
   "links": [
-    {"from": {"view": "source", "sections": ["Region B"]}, "to": {"view": "detail"}}
+    { "from": { "view": "source", "sections": ["region_b"] }, "to": { "view": "detail" } }
   ]
 }

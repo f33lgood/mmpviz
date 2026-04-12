@@ -107,13 +107,16 @@ class AreaView:
 
     def _overwrite_sections_info(self):
         """
-        Apply style and flag overrides to each section.
+        Apply theme styles to each section.
 
         Style comes from the theme (area-level + section-level resolution).
-        Flags and structural overrides (address, size) come from diagram.json view config.
+        Structural overrides (address, size, flags) are already applied during
+        section resolution in loader.resolve_view_sections() — no per-view
+        override logic is needed here.
 
-        Palette indices are assigned in address order, counting only non-break sections
-        (break sections are visual separators and do not consume a palette slot).
+        Palette indices are assigned in address order, counting only non-break
+        sections (break sections are visual separators and do not consume a
+        palette slot).
         """
         # Pre-pass: assign a palette index to each non-break section.
         palette_index = 0
@@ -133,19 +136,6 @@ class AreaView:
             else:
                 section.style = copy.deepcopy(self.style)
                 section.addr_label_style = copy.deepcopy(self.style)
-
-            # Apply diagram config overrides (flags, address, size) — no style here
-            inner_sections = safe_element_dict_get(self.area, 'sections', []) or []
-            for element in inner_sections:
-                section_ids = safe_element_dict_get(element, 'ids', []) or []
-                for item in section_ids:
-                    if item == section.id:
-                        section.address = element.get('address', section.address)
-                        section.size = element.get('size', section.size)
-                        # APPEND new flags (config adds to map-file flags)
-                        for flag in element.get('flags', []):
-                            if flag not in section.flags:
-                                section.flags.append(flag)
 
     def _compute_per_section_heights(self, sections, available_px, min_h, max_h):
         """
@@ -535,6 +525,23 @@ class AreaView:
                 theme=self.theme,
                 is_subarea=True,
             ))
+
+    def apply_section_geometry(self, section) -> None:
+        """Set size_x/size_y/pos_x/pos_y on *section* from this subarea's geometry.
+
+        Uses size_y_override / pos_y_in_subarea when the per-section height
+        algorithm has run; falls back to proportional pixel mapping otherwise.
+        Called by both the renderer and check.py so they share one code path.
+        """
+        section.size_x = self.size_x
+        section.pos_x = 0
+        if section.size_y_override is not None:
+            section.size_y = section.size_y_override
+            section.pos_y = section.pos_y_in_subarea
+        else:
+            section.size_y = self.to_pixels(section.size)
+            section.pos_y = self.to_pixels(
+                self.end_address - section.size - section.address)
 
     def _get_break_total_size_before_transform_px(self) -> float:
         total = 0.0

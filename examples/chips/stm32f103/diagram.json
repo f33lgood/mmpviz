@@ -1,437 +1,103 @@
 {
-  "sections": [
-    {
-      "id": "Aliased",
-      "address": "0x00000000",
-      "size": "0x08000000"
-    },
-    {
-      "id": "Flash Memory",
-      "address": "0x08000000",
-      "size": "0x00020000"
-    },
-    {
-      "id": "Reserved0",
-      "address": "0x08020000",
-      "size": "0x17FDF000"
-    },
-    {
-      "id": "System Memory",
-      "address": "0x1FFFF000",
-      "size": "0x00000800"
-    },
-    {
-      "id": "Option Bytes",
-      "address": "0x1FFFF800",
-      "size": "0x00000010"
-    },
-    {
-      "id": "Reserved00",
-      "address": "0x1FFFF810",
-      "size": "0x000007F0"
-    },
-    {
-      "id": "none",
-      "address": "0x00000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "none",
-      "address": "0x20000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "none",
-      "address": "0x40000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "none",
-      "address": "0x60000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "none",
-      "address": "0x80000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "none",
-      "address": "0xA0000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "none",
-      "address": "0xC0000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "none",
-      "address": "0xE0100000",
-      "size": "0x0FE00000"
-    },
-    {
-      "id": "SRAM",
-      "address": "0x20000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "Peripherals",
-      "address": "0x40000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "M3 Cortex Internal Peripherals",
-      "address": "0xE0000000",
-      "size": "0x01000000"
-    },
-    {
-      "id": "OvBreakCode",
-      "address": "0x08000000",
-      "size": "0x18000000",
-      "name": "···"
-    },
-    {
-      "id": "OvBreakExternal",
-      "address": "0x60000000",
-      "size": "0x80000000",
-      "name": "···"
-    },
-    {
-      "id": "OvBreakVendor",
-      "address": "0xE1000000",
-      "size": "0x1F000000",
-      "name": "···"
-    },
-    {
-      "id": "ApbEndBus",
-      "address": "0x40023400",
-      "size": "0x1FFDCC00",
-      "name": "···"
-    },
-    {
-      "id": "TIM2",
-      "address": "0x40000000",
-      "size": "0x00000400"
-    },
-    {
-      "id": "TIM3",
-      "address": "0x40000400",
-      "size": "0x00000400"
-    },
-    {
-      "id": "TIM4",
-      "address": "0x40000800",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved1",
-      "address": "0x40000C00",
-      "size": "0x00001C00"
-    },
-    {
-      "id": "RTC",
-      "address": "0x40002800",
-      "size": "0x00000400"
-    },
-    {
-      "id": "WWDG",
-      "address": "0x40002C00",
-      "size": "0x00000400"
-    },
-    {
-      "id": "IWDG",
-      "address": "0x40003000",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved2",
-      "address": "0x40003400",
-      "size": "0x00000400"
-    },
-    {
-      "id": "SPI2",
-      "address": "0x40003800",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved3",
-      "address": "0x40003C00",
-      "size": "0x00000800"
-    },
-    {
-      "id": "USART2",
-      "address": "0x40004400",
-      "size": "0x00000400"
-    },
-    {
-      "id": "USART3",
-      "address": "0x40004800",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved4",
-      "address": "0x40004C00",
-      "size": "0x00000800"
-    },
-    {
-      "id": "I2C1",
-      "address": "0x40005400",
-      "size": "0x00000400"
-    },
-    {
-      "id": "I2C2",
-      "address": "0x40005800",
-      "size": "0x00000400"
-    },
-    {
-      "id": "USB Registers",
-      "address": "0x40005C00",
-      "size": "0x00000400"
-    },
-    {
-      "id": "USB/CAN SRAM",
-      "address": "0x40006000",
-      "size": "0x00000400"
-    },
-    {
-      "id": "BXCAN",
-      "address": "0x40006400",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved5",
-      "address": "0x40006800",
-      "size": "0x00000400"
-    },
-    {
-      "id": "BKP",
-      "address": "0x40006C00",
-      "size": "0x00000400"
-    },
-    {
-      "id": "PWR",
-      "address": "0x40007000",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved6",
-      "address": "0x40007400",
-      "size": "0x00008C00"
-    },
-    {
-      "id": "AFIO",
-      "address": "0x40010000",
-      "size": "0x00000400"
-    },
-    {
-      "id": "EXTI",
-      "address": "0x40010400",
-      "size": "0x00000400"
-    },
-    {
-      "id": "PORT A",
-      "address": "0x40010800",
-      "size": "0x00000400"
-    },
-    {
-      "id": "PORT B",
-      "address": "0x40010C00",
-      "size": "0x00000400"
-    },
-    {
-      "id": "PORT C",
-      "address": "0x40011000",
-      "size": "0x00000400"
-    },
-    {
-      "id": "PORT D",
-      "address": "0x40011400",
-      "size": "0x00000400"
-    },
-    {
-      "id": "PORT E",
-      "address": "0x40011800",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved7",
-      "address": "0x40011C00",
-      "size": "0x00000800"
-    },
-    {
-      "id": "ADC1",
-      "address": "0x40012400",
-      "size": "0x00000400"
-    },
-    {
-      "id": "ADC2",
-      "address": "0x40012800",
-      "size": "0x00000400"
-    },
-    {
-      "id": "TIM1",
-      "address": "0x40012C00",
-      "size": "0x00000400"
-    },
-    {
-      "id": "SPI1",
-      "address": "0x40013000",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved7B",
-      "address": "0x40013400",
-      "size": "0x00000400"
-    },
-    {
-      "id": "USART1",
-      "address": "0x40013800",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved8",
-      "address": "0x40013C00",
-      "size": "0x0000C400"
-    },
-    {
-      "id": "DMA",
-      "address": "0x40020000",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved9",
-      "address": "0x40020400",
-      "size": "0x00000C00"
-    },
-    {
-      "id": "RCC",
-      "address": "0x40021000",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved10",
-      "address": "0x40021400",
-      "size": "0x00000C00"
-    },
-    {
-      "id": "Flash Interface",
-      "address": "0x40022000",
-      "size": "0x00000400"
-    },
-    {
-      "id": "Reserved11",
-      "address": "0x40022400",
-      "size": "0x00000C00"
-    },
-    {
-      "id": "CRC",
-      "address": "0x40023000",
-      "size": "0x00000400"
-    }
-  ],
   "views": [
     {
       "id": "overview-view",
       "title": "STM32F103 Memory Space",
-      "range": [
-        "0x0",
-        "0x100000000"
-      ],
-      "section_size": [
-        1048576,
-        null
-      ],
       "sections": [
-        {
-          "ids": [
-            "OvBreakCode",
-            "OvBreakExternal",
-            "OvBreakVendor"
-          ],
-          "flags": [
-            "break"
-          ]
-        },
-        {
-          "ids": [
-            "none",
-            "ApbEndBus"
-          ],
-          "flags": [
-            "hidden"
-          ]
-        }
+        { "id": "aliased",                        "address": "0x00000000", "size": "0x08000000", "name": "Aliased"                        },
+        { "id": "flash_memory",                   "address": "0x08000000", "size": "0x00020000", "name": "Flash Memory"                   },
+        { "id": "ovbreakcode",                    "address": "0x08020000", "size": "0x17FDF000", "name": "···",                            "flags": ["break"] },
+        { "id": "system_memory",                  "address": "0x1FFFF000", "size": "0x00000800", "name": "System Memory"                  },
+        { "id": "ovbreakcode2",                   "address": "0x1FFFF800", "size": "0x00000800", "name": "···",                            "flags": ["break"] },
+        { "id": "sram",                           "address": "0x20000000", "size": "0x20000000", "name": "SRAM"                           },
+        { "id": "peripherals",                    "address": "0x40000000", "size": "0x20000000", "name": "Peripherals"                    },
+        { "id": "ovbreakexternal",                "address": "0x60000000", "size": "0x80000000", "name": "···",                            "flags": ["break"] },
+        { "id": "m3_cortex_internal_peripherals", "address": "0xE0000000", "size": "0x01000000", "name": "M3 Cortex Internal Peripherals" },
+        { "id": "ovbreakvendor",                  "address": "0xE1000000", "size": "0x1F000000", "name": "···",                            "flags": ["break"] }
       ]
     },
     {
       "id": "m3-periph-view",
       "title": "M3 Internal Peripherals",
-      "range": [
-        "0xE0000000",
-        "0xE1000000"
+      "sections": [
+        { "id": "itm",         "address": "0xE0000000", "size": "0x00010000", "name": "ITM"      },
+        { "id": "dwt",         "address": "0xE0010000", "size": "0x00010000", "name": "DWT"      },
+        { "id": "fpb",         "address": "0xE0020000", "size": "0x00010000", "name": "FPB"      },
+        { "id": "m3_reserved", "address": "0xE0030000", "size": "0x000B0000", "name": "Reserved" },
+        { "id": "nvic",        "address": "0xE00E0000", "size": "0x00010000", "name": "NVIC"     },
+        { "id": "nvic_1",      "address": "0xE00F0000", "size": "0x00010000", "name": "NVIC"     }
       ]
     },
     {
       "id": "sysmem-zoom-view",
       "title": "System Memory Area",
-      "range": [
-        "0x1FFFF000",
-        "0x1FFFF800"
+      "sections": [
+        { "id": "system_memory", "address": "0x1FFFF000", "size": "0x00000800", "name": "System Memory" }
       ]
     },
     {
       "id": "flash-zoom-view",
       "title": "Flash Memory",
-      "range": [
-        "0x08000000",
-        "0x08020000"
+      "sections": [
+        { "id": "flash_memory", "address": "0x08000000", "size": "0x00020000", "name": "Flash Memory" }
       ]
     },
     {
       "id": "apb-view",
       "title": "APB Memory Space",
-      "range": [
-        "0x40000000",
-        "0x60000000"
-      ],
       "sections": [
-        {
-          "ids": [
-            "Reserved1",
-            "Reserved2",
-            "Reserved3",
-            "Reserved4",
-            "Reserved5",
-            "Reserved6",
-            "Reserved7",
-            "Reserved7B",
-            "Reserved8",
-            "Reserved9",
-            "Reserved10",
-            "Reserved11",
-            "ApbEndBus"
-          ],
-          "flags": [
-            "break"
-          ]
-        },
-        {
-          "ids": [
-            "Peripherals",
-            "none"
-          ],
-          "flags": [
-            "hidden"
-          ]
-        }
+        { "id": "tim2",            "address": "0x40000000", "size": "0x00000400", "name": "TIM2"            },
+        { "id": "tim3",            "address": "0x40000400", "size": "0x00000400", "name": "TIM3"            },
+        { "id": "tim4",            "address": "0x40000800", "size": "0x00000400", "name": "TIM4"            },
+        { "id": "reserved1",       "address": "0x40000C00", "size": "0x00001C00", "name": "···",             "flags": ["break"] },
+        { "id": "rtc",             "address": "0x40002800", "size": "0x00000400", "name": "RTC"             },
+        { "id": "wwdg",            "address": "0x40002C00", "size": "0x00000400", "name": "WWDG"            },
+        { "id": "iwdg",            "address": "0x40003000", "size": "0x00000400", "name": "IWDG"            },
+        { "id": "reserved2",       "address": "0x40003400", "size": "0x00000400", "name": "···",             "flags": ["break"] },
+        { "id": "spi2",            "address": "0x40003800", "size": "0x00000400", "name": "SPI2"            },
+        { "id": "reserved3",       "address": "0x40003C00", "size": "0x00000800", "name": "···",             "flags": ["break"] },
+        { "id": "usart2",          "address": "0x40004400", "size": "0x00000400", "name": "USART2"          },
+        { "id": "usart3",          "address": "0x40004800", "size": "0x00000400", "name": "USART3"          },
+        { "id": "reserved4",       "address": "0x40004C00", "size": "0x00000800", "name": "···",             "flags": ["break"] },
+        { "id": "i2c1",            "address": "0x40005400", "size": "0x00000400", "name": "I2C1"            },
+        { "id": "i2c2",            "address": "0x40005800", "size": "0x00000400", "name": "I2C2"            },
+        { "id": "usb_registers",   "address": "0x40005C00", "size": "0x00000400", "name": "USB Registers"   },
+        { "id": "usb_can_sram",    "address": "0x40006000", "size": "0x00000400", "name": "USB/CAN SRAM"    },
+        { "id": "bxcan",           "address": "0x40006400", "size": "0x00000400", "name": "BXCAN"           },
+        { "id": "reserved5",       "address": "0x40006800", "size": "0x00000400", "name": "···",             "flags": ["break"] },
+        { "id": "bkp",             "address": "0x40006C00", "size": "0x00000400", "name": "BKP"             },
+        { "id": "pwr",             "address": "0x40007000", "size": "0x00000400", "name": "PWR"             },
+        { "id": "reserved6",       "address": "0x40007400", "size": "0x00008C00", "name": "···",             "flags": ["break"] },
+        { "id": "afio",            "address": "0x40010000", "size": "0x00000400", "name": "AFIO"            },
+        { "id": "exti",            "address": "0x40010400", "size": "0x00000400", "name": "EXTI"            },
+        { "id": "port_a",          "address": "0x40010800", "size": "0x00000400", "name": "PORT A"          },
+        { "id": "port_b",          "address": "0x40010C00", "size": "0x00000400", "name": "PORT B"          },
+        { "id": "port_c",          "address": "0x40011000", "size": "0x00000400", "name": "PORT C"          },
+        { "id": "port_d",          "address": "0x40011400", "size": "0x00000400", "name": "PORT D"          },
+        { "id": "port_e",          "address": "0x40011800", "size": "0x00000400", "name": "PORT E"          },
+        { "id": "reserved7",       "address": "0x40011C00", "size": "0x00000800", "name": "···",             "flags": ["break"] },
+        { "id": "adc1",            "address": "0x40012400", "size": "0x00000400", "name": "ADC1"            },
+        { "id": "adc2",            "address": "0x40012800", "size": "0x00000400", "name": "ADC2"            },
+        { "id": "tim1",            "address": "0x40012C00", "size": "0x00000400", "name": "TIM1"            },
+        { "id": "spi1",            "address": "0x40013000", "size": "0x00000400", "name": "SPI1"            },
+        { "id": "reserved7b",      "address": "0x40013400", "size": "0x00000400", "name": "···",             "flags": ["break"] },
+        { "id": "usart1",          "address": "0x40013800", "size": "0x00000400", "name": "USART1"          },
+        { "id": "reserved8",       "address": "0x40013C00", "size": "0x0000C400", "name": "···",             "flags": ["break"] },
+        { "id": "dma",             "address": "0x40020000", "size": "0x00000400", "name": "DMA"             },
+        { "id": "reserved9",       "address": "0x40020400", "size": "0x00000C00", "name": "···",             "flags": ["break"] },
+        { "id": "rcc",             "address": "0x40021000", "size": "0x00000400", "name": "RCC"             },
+        { "id": "reserved10",      "address": "0x40021400", "size": "0x00000C00", "name": "···",             "flags": ["break"] },
+        { "id": "flash_interface", "address": "0x40022000", "size": "0x00000400", "name": "Flash Interface" },
+        { "id": "reserved11",      "address": "0x40022400", "size": "0x00000C00", "name": "···",             "flags": ["break"] },
+        { "id": "crc",             "address": "0x40023000", "size": "0x00000400", "name": "CRC"             },
+        { "id": "apbendbus",       "address": "0x40023400", "size": "0x1FFDCC00", "name": "···",             "flags": ["break"] }
       ]
     }
   ],
   "links": [
-    {"from": {"view": "overview-view", "sections": ["Flash Memory"]},                   "to": {"view": "flash-zoom-view"}},
-    {"from": {"view": "overview-view", "sections": ["System Memory"]},                  "to": {"view": "sysmem-zoom-view"}},
-    {"from": {"view": "overview-view", "sections": ["Peripherals"]},                    "to": {"view": "apb-view"}},
-    {"from": {"view": "overview-view", "sections": ["M3 Cortex Internal Peripherals"]}, "to": {"view": "m3-periph-view"}}
+    { "from": { "view": "overview-view", "sections": ["flash_memory"]                }, "to": { "view": "flash-zoom-view",  "sections": ["flash_memory"]  } },
+    { "from": { "view": "overview-view", "sections": ["system_memory"]               }, "to": { "view": "sysmem-zoom-view", "sections": ["system_memory"] } },
+    { "from": { "view": "overview-view", "sections": ["peripherals"]                 }, "to": { "view": "apb-view" } },
+    { "from": { "view": "overview-view", "sections": ["m3_cortex_internal_peripherals"] }, "to": { "view": "m3-periph-view" } }
   ]
 }

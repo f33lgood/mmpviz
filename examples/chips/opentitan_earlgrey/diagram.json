@@ -1,611 +1,105 @@
 {
   "title": "OpenTitan Earl Grey Memory Map",
-  "sections": [
-    {
-      "id": "ROM_Debug",
-      "address": "0x00000000",
-      "size": "0x00020000",
-      "name": "Debug / ROM"
-    },
-    {
-      "id": "MainSRAM",
-      "address": "0x10000000",
-      "size": "0x00020000",
-      "name": "Main SRAM"
-    },
-    {
-      "id": "Flash",
-      "address": "0x20000000",
-      "size": "0x00100000",
-      "name": "Flash"
-    },
-    {
-      "id": "Periph",
-      "address": "0x40000000",
-      "size": "0x00800000",
-      "name": "APB Peripherals"
-    },
-    {
-      "id": "CryptoCtrl",
-      "address": "0x41000000",
-      "size": "0x00210000",
-      "name": "Main Peripherals"
-    },
-    {
-      "id": "PLIC",
-      "address": "0x48000000",
-      "size": "0x08000000",
-      "name": "RV_PLIC"
-    },
-    {
-      "id": "OvGap0",
-      "address": "0x00020000",
-      "size": "0x0FFE0000",
-      "name": "···"
-    },
-    {
-      "id": "OvGap1",
-      "address": "0x10020000",
-      "size": "0x0FFE0000",
-      "name": "···"
-    },
-    {
-      "id": "OvGap2",
-      "address": "0x20100000",
-      "size": "0x1FF00000",
-      "name": "···"
-    },
-    {
-      "id": "OvGap3",
-      "address": "0x40800000",
-      "size": "0x00800000",
-      "name": "···"
-    },
-    {
-      "id": "OvGap4",
-      "address": "0x41210000",
-      "size": "0x06DF0000",
-      "name": "···"
-    },
-    {
-      "id": "DbIF",
-      "address": "0x00000000",
-      "size": "0x00001200",
-      "name": "Debug Interfaces"
-    },
-    {
-      "id": "DbGap0",
-      "address": "0x00001200",
-      "size": "0x00006E00",
-      "name": "···"
-    },
-    {
-      "id": "ROM",
-      "address": "0x00008000",
-      "size": "0x00008000",
-      "name": "ROM"
-    },
-    {
-      "id": "RVDMSram",
-      "address": "0x00010000",
-      "size": "0x00001000",
-      "name": "RV_DM SRAM"
-    },
-    {
-      "id": "DbEnd",
-      "address": "0x00011000",
-      "size": "0x0000F000",
-      "name": "···"
-    },
-    {
-      "id": "UART0",
-      "address": "0x40000000",
-      "size": "0x00010000",
-      "name": "UART0"
-    },
-    {
-      "id": "UART1",
-      "address": "0x40010000",
-      "size": "0x00010000",
-      "name": "UART1"
-    },
-    {
-      "id": "UART2",
-      "address": "0x40020000",
-      "size": "0x00010000",
-      "name": "UART2"
-    },
-    {
-      "id": "UART3",
-      "address": "0x40030000",
-      "size": "0x00010000",
-      "name": "UART3"
-    },
-    {
-      "id": "GPIO",
-      "address": "0x40040000",
-      "size": "0x00010000",
-      "name": "GPIO"
-    },
-    {
-      "id": "SPIDevice",
-      "address": "0x40050000",
-      "size": "0x00010000",
-      "name": "SPI Device"
-    },
-    {
-      "id": "PRsvd0",
-      "address": "0x40060000",
-      "size": "0x00020000",
-      "name": "···"
-    },
-    {
-      "id": "I2C0",
-      "address": "0x40080000",
-      "size": "0x00010000",
-      "name": "I2C0"
-    },
-    {
-      "id": "I2C1",
-      "address": "0x40090000",
-      "size": "0x00010000",
-      "name": "I2C1"
-    },
-    {
-      "id": "I2C2",
-      "address": "0x400A0000",
-      "size": "0x00010000",
-      "name": "I2C2"
-    },
-    {
-      "id": "PRsvd1",
-      "address": "0x400B0000",
-      "size": "0x00030000",
-      "name": "···"
-    },
-    {
-      "id": "PATTGEN",
-      "address": "0x400E0000",
-      "size": "0x00010000",
-      "name": "PATTGEN"
-    },
-    {
-      "id": "PRsvd2",
-      "address": "0x400F0000",
-      "size": "0x00010000",
-      "name": "···"
-    },
-    {
-      "id": "RVTimer",
-      "address": "0x40100000",
-      "size": "0x00010000",
-      "name": "RV Timer"
-    },
-    {
-      "id": "PRsvd3",
-      "address": "0x40110000",
-      "size": "0x00020000",
-      "name": "···"
-    },
-    {
-      "id": "OTPCtrl",
-      "address": "0x40130000",
-      "size": "0x00010000",
-      "name": "OTP Ctrl"
-    },
-    {
-      "id": "LCCtrl",
-      "address": "0x40140000",
-      "size": "0x00010000",
-      "name": "LC Ctrl"
-    },
-    {
-      "id": "AlertHdlr",
-      "address": "0x40150000",
-      "size": "0x00010000",
-      "name": "Alert Handler"
-    },
-    {
-      "id": "PBreak0",
-      "address": "0x40160000",
-      "size": "0x001A0000",
-      "name": "···"
-    },
-    {
-      "id": "SPIHost0",
-      "address": "0x40300000",
-      "size": "0x00010000",
-      "name": "SPI Host 0"
-    },
-    {
-      "id": "SPIHost1",
-      "address": "0x40310000",
-      "size": "0x00010000",
-      "name": "SPI Host 1"
-    },
-    {
-      "id": "USBDev",
-      "address": "0x40320000",
-      "size": "0x00010000",
-      "name": "USB Device"
-    },
-    {
-      "id": "PBreak1",
-      "address": "0x40330000",
-      "size": "0x000D0000",
-      "name": "···"
-    },
-    {
-      "id": "PwrMgr",
-      "address": "0x40400000",
-      "size": "0x00010000",
-      "name": "Power Mgr (AON)"
-    },
-    {
-      "id": "RstMgr",
-      "address": "0x40410000",
-      "size": "0x00010000",
-      "name": "Reset Mgr (AON)"
-    },
-    {
-      "id": "ClkMgr",
-      "address": "0x40420000",
-      "size": "0x00010000",
-      "name": "Clock Mgr (AON)"
-    },
-    {
-      "id": "SysRstCtrl",
-      "address": "0x40430000",
-      "size": "0x00010000",
-      "name": "Sys Reset (AON)"
-    },
-    {
-      "id": "ADCCtrl",
-      "address": "0x40440000",
-      "size": "0x00010000",
-      "name": "ADC Ctrl (AON)"
-    },
-    {
-      "id": "PWM",
-      "address": "0x40450000",
-      "size": "0x00010000",
-      "name": "PWM (AON)"
-    },
-    {
-      "id": "Pinmux",
-      "address": "0x40460000",
-      "size": "0x00010000",
-      "name": "Pinmux (AON)"
-    },
-    {
-      "id": "AONTimer",
-      "address": "0x40470000",
-      "size": "0x00010000",
-      "name": "AON Timer"
-    },
-    {
-      "id": "AST",
-      "address": "0x40480000",
-      "size": "0x00010000",
-      "name": "AST (AON)"
-    },
-    {
-      "id": "SensorCtrl",
-      "address": "0x40490000",
-      "size": "0x00010000",
-      "name": "Sensor Ctrl (AON)"
-    },
-    {
-      "id": "PBreak2",
-      "address": "0x404A0000",
-      "size": "0x00060000",
-      "name": "···"
-    },
-    {
-      "id": "SRAMCtrlRet",
-      "address": "0x40500000",
-      "size": "0x00010000",
-      "name": "SRAM Ctrl (Ret)"
-    },
-    {
-      "id": "PBreak3",
-      "address": "0x40510000",
-      "size": "0x000F0000",
-      "name": "···"
-    },
-    {
-      "id": "RetSRAM",
-      "address": "0x40600000",
-      "size": "0x00010000",
-      "name": "Ret. SRAM"
-    },
-    {
-      "id": "PBreak4",
-      "address": "0x40610000",
-      "size": "0x001F0000",
-      "name": "···"
-    },
-    {
-      "id": "FlashCtrl",
-      "address": "0x41000000",
-      "size": "0x00010000",
-      "name": "Flash Ctrl"
-    },
-    {
-      "id": "CBreak0",
-      "address": "0x41010000",
-      "size": "0x000F0000",
-      "name": "···"
-    },
-    {
-      "id": "AES",
-      "address": "0x41100000",
-      "size": "0x00010000",
-      "name": "AES"
-    },
-    {
-      "id": "HMAC",
-      "address": "0x41110000",
-      "size": "0x00010000",
-      "name": "HMAC"
-    },
-    {
-      "id": "KMAC",
-      "address": "0x41120000",
-      "size": "0x00010000",
-      "name": "KMAC"
-    },
-    {
-      "id": "OTBN",
-      "address": "0x41130000",
-      "size": "0x00010000",
-      "name": "OTBN"
-    },
-    {
-      "id": "KeyMgr",
-      "address": "0x41140000",
-      "size": "0x00010000",
-      "name": "Key Manager"
-    },
-    {
-      "id": "CSRNG",
-      "address": "0x41150000",
-      "size": "0x00010000",
-      "name": "CSRNG"
-    },
-    {
-      "id": "EntropySrc",
-      "address": "0x41160000",
-      "size": "0x00010000",
-      "name": "Entropy Src"
-    },
-    {
-      "id": "EDN0",
-      "address": "0x41170000",
-      "size": "0x00010000",
-      "name": "EDN0"
-    },
-    {
-      "id": "EDN1",
-      "address": "0x41180000",
-      "size": "0x00010000",
-      "name": "EDN1"
-    },
-    {
-      "id": "CRsvd0",
-      "address": "0x41190000",
-      "size": "0x00030000",
-      "name": "···"
-    },
-    {
-      "id": "SRAMCtrlMain",
-      "address": "0x411C0000",
-      "size": "0x00010000",
-      "name": "SRAM Ctrl (Main)"
-    },
-    {
-      "id": "CRsvd1",
-      "address": "0x411D0000",
-      "size": "0x00010000",
-      "name": "···"
-    },
-    {
-      "id": "ROMCtrl",
-      "address": "0x411E0000",
-      "size": "0x00010000",
-      "name": "ROM Ctrl"
-    },
-    {
-      "id": "RVCoreIbex",
-      "address": "0x411F0000",
-      "size": "0x00010000",
-      "name": "RV Core Ibex"
-    },
-    {
-      "id": "RVDMRegs",
-      "address": "0x41200000",
-      "size": "0x00010000",
-      "name": "RV Debug Mod"
-    }
-  ],
   "views": [
     {
       "id": "overview",
       "title": "Earl Grey",
-      "range": [
-        "0x00000000",
-        "0x50000000"
-      ],
       "sections": [
-        {
-          "ids": [
-            "OvGap0",
-            "OvGap1",
-            "OvGap2",
-            "OvGap3",
-            "OvGap4"
-          ],
-          "flags": [
-            "break"
-          ]
-        },
-        {
-          "ids": [
-            "DbIF",
-            "DbGap0",
-            "ROM",
-            "RVDMSram",
-            "DbEnd",
-            "UART0",
-            "UART1",
-            "UART2",
-            "UART3",
-            "GPIO",
-            "SPIDevice",
-            "PRsvd0",
-            "I2C0",
-            "I2C1",
-            "I2C2",
-            "PRsvd1",
-            "PATTGEN",
-            "PRsvd2",
-            "RVTimer",
-            "PRsvd3",
-            "OTPCtrl",
-            "LCCtrl",
-            "AlertHdlr",
-            "PBreak0",
-            "SPIHost0",
-            "SPIHost1",
-            "USBDev",
-            "PBreak1",
-            "PwrMgr",
-            "RstMgr",
-            "ClkMgr",
-            "SysRstCtrl",
-            "ADCCtrl",
-            "PWM",
-            "Pinmux",
-            "AONTimer",
-            "AST",
-            "SensorCtrl",
-            "PBreak2",
-            "SRAMCtrlRet",
-            "PBreak3",
-            "RetSRAM",
-            "PBreak4",
-            "FlashCtrl",
-            "CBreak0",
-            "AES",
-            "HMAC",
-            "KMAC",
-            "OTBN",
-            "KeyMgr",
-            "CSRNG",
-            "EntropySrc",
-            "EDN0",
-            "EDN1",
-            "CRsvd0",
-            "SRAMCtrlMain",
-            "CRsvd1",
-            "ROMCtrl",
-            "RVCoreIbex",
-            "RVDMRegs"
-          ],
-          "flags": [
-            "hidden"
-          ]
-        }
+        { "id": "rom_debug",  "address": "0x00000000", "size": "0x00020000", "name": "Debug / ROM"      },
+        { "id": "ovgap0",     "address": "0x00020000", "size": "0x0FFE0000", "name": "···",              "flags": ["break"] },
+        { "id": "mainsram",   "address": "0x10000000", "size": "0x00020000", "name": "Main SRAM"        },
+        { "id": "ovgap1",     "address": "0x10020000", "size": "0x0FFE0000", "name": "···",              "flags": ["break"] },
+        { "id": "flash",      "address": "0x20000000", "size": "0x00100000", "name": "Flash"            },
+        { "id": "ovgap2",     "address": "0x20100000", "size": "0x1FF00000", "name": "···",              "flags": ["break"] },
+        { "id": "periph",     "address": "0x40000000", "size": "0x00800000", "name": "APB Peripherals"  },
+        { "id": "ovgap3",     "address": "0x40800000", "size": "0x00800000", "name": "···",              "flags": ["break"] },
+        { "id": "cryptoctrl", "address": "0x41000000", "size": "0x00210000", "name": "Main Peripherals" },
+        { "id": "ovgap4",     "address": "0x41210000", "size": "0x06DF0000", "name": "···",              "flags": ["break"] },
+        { "id": "plic",       "address": "0x48000000", "size": "0x08000000", "name": "RV_PLIC"          }
       ]
     },
     {
       "id": "main-view",
       "title": "Main Peripherals",
-      "range": [
-        "0x41000000",
-        "0x41210000"
-      ],
       "sections": [
-        {
-          "ids": [
-            "CryptoCtrl"
-          ],
-          "flags": [
-            "hidden"
-          ]
-        },
-        {
-          "ids": [
-            "CBreak0",
-            "CRsvd0"
-          ],
-          "flags": [
-            "break"
-          ]
-        }
+        { "id": "flashctrl",    "address": "0x41000000", "size": "0x00010000", "name": "Flash Ctrl"       },
+        { "id": "cbreak0",      "address": "0x41010000", "size": "0x000F0000", "name": "···",              "flags": ["break"] },
+        { "id": "aes",          "address": "0x41100000", "size": "0x00010000", "name": "AES"              },
+        { "id": "hmac",         "address": "0x41110000", "size": "0x00010000", "name": "HMAC"             },
+        { "id": "kmac",         "address": "0x41120000", "size": "0x00010000", "name": "KMAC"             },
+        { "id": "otbn",         "address": "0x41130000", "size": "0x00010000", "name": "OTBN"             },
+        { "id": "keymgr",       "address": "0x41140000", "size": "0x00010000", "name": "Key Manager"      },
+        { "id": "csrng",        "address": "0x41150000", "size": "0x00010000", "name": "CSRNG"            },
+        { "id": "entropysrc",   "address": "0x41160000", "size": "0x00010000", "name": "Entropy Src"      },
+        { "id": "edn0",         "address": "0x41170000", "size": "0x00010000", "name": "EDN0"             },
+        { "id": "edn1",         "address": "0x41180000", "size": "0x00010000", "name": "EDN1"             },
+        { "id": "crsvd0",       "address": "0x41190000", "size": "0x00030000", "name": "···",              "flags": ["break"] },
+        { "id": "sramctrlmain", "address": "0x411C0000", "size": "0x00010000", "name": "SRAM Ctrl (Main)" },
+        { "id": "crsvd1",       "address": "0x411D0000", "size": "0x00010000", "name": "···"              },
+        { "id": "romctrl",      "address": "0x411E0000", "size": "0x00010000", "name": "ROM Ctrl"         },
+        { "id": "rvcoreibex",   "address": "0x411F0000", "size": "0x00010000", "name": "RV Core Ibex"     },
+        { "id": "rvdmregs",     "address": "0x41200000", "size": "0x00010000", "name": "RV Debug Mod"     }
       ]
     },
     {
       "id": "debug-rom-view",
       "title": "Debug / ROM",
-      "range": [
-        "0x00000000",
-        "0x00020000"
-      ],
       "sections": [
-        {
-          "ids": [
-            "ROM_Debug"
-          ],
-          "flags": [
-            "hidden"
-          ]
-        },
-        {
-          "ids": [
-            "DbGap0",
-            "DbEnd"
-          ],
-          "flags": [
-            "break"
-          ]
-        }
+        { "id": "dbif",     "address": "0x00000000", "size": "0x00001200", "name": "Debug Interfaces" },
+        { "id": "dbgap0",   "address": "0x00001200", "size": "0x00006E00", "name": "···",              "flags": ["break"] },
+        { "id": "rom",      "address": "0x00008000", "size": "0x00008000", "name": "ROM"              },
+        { "id": "rvdmsram", "address": "0x00010000", "size": "0x00001000", "name": "RV_DM SRAM"       },
+        { "id": "dbend",    "address": "0x00011000", "size": "0x0000F000", "name": "···",              "flags": ["break"] }
       ]
     },
     {
       "id": "apb-view",
       "title": "APB Peripherals",
-      "range": [
-        "0x40000000",
-        "0x40800000"
-      ],
       "sections": [
-        {
-          "ids": [
-            "Periph"
-          ],
-          "flags": [
-            "hidden"
-          ]
-        },
-        {
-          "ids": [
-            "PBreak0",
-            "PBreak1",
-            "PBreak2",
-            "PBreak3",
-            "PBreak4"
-          ],
-          "flags": [
-            "break"
-          ]
-        }
+        { "id": "uart0",       "address": "0x40000000", "size": "0x00010000", "name": "UART0"             },
+        { "id": "uart1",       "address": "0x40010000", "size": "0x00010000", "name": "UART1"             },
+        { "id": "uart2",       "address": "0x40020000", "size": "0x00010000", "name": "UART2"             },
+        { "id": "uart3",       "address": "0x40030000", "size": "0x00010000", "name": "UART3"             },
+        { "id": "gpio",        "address": "0x40040000", "size": "0x00010000", "name": "GPIO"              },
+        { "id": "spidevice",   "address": "0x40050000", "size": "0x00010000", "name": "SPI Device"        },
+        { "id": "prsvd0",      "address": "0x40060000", "size": "0x00020000", "name": "···"               },
+        { "id": "i2c0",        "address": "0x40080000", "size": "0x00010000", "name": "I2C0"              },
+        { "id": "i2c1",        "address": "0x40090000", "size": "0x00010000", "name": "I2C1"              },
+        { "id": "i2c2",        "address": "0x400A0000", "size": "0x00010000", "name": "I2C2"              },
+        { "id": "prsvd1",      "address": "0x400B0000", "size": "0x00030000", "name": "···"               },
+        { "id": "pattgen",     "address": "0x400E0000", "size": "0x00010000", "name": "PATTGEN"           },
+        { "id": "prsvd2",      "address": "0x400F0000", "size": "0x00010000", "name": "···"               },
+        { "id": "rvtimer",     "address": "0x40100000", "size": "0x00010000", "name": "RV Timer"          },
+        { "id": "prsvd3",      "address": "0x40110000", "size": "0x00020000", "name": "···"               },
+        { "id": "otpctrl",     "address": "0x40130000", "size": "0x00010000", "name": "OTP Ctrl"          },
+        { "id": "lcctrl",      "address": "0x40140000", "size": "0x00010000", "name": "LC Ctrl"           },
+        { "id": "alerthdlr",   "address": "0x40150000", "size": "0x00010000", "name": "Alert Handler"     },
+        { "id": "pbreak0",     "address": "0x40160000", "size": "0x001A0000", "name": "···",               "flags": ["break"] },
+        { "id": "spihost0",    "address": "0x40300000", "size": "0x00010000", "name": "SPI Host 0"        },
+        { "id": "spihost1",    "address": "0x40310000", "size": "0x00010000", "name": "SPI Host 1"        },
+        { "id": "usbdev",      "address": "0x40320000", "size": "0x00010000", "name": "USB Device"        },
+        { "id": "pbreak1",     "address": "0x40330000", "size": "0x000D0000", "name": "···",               "flags": ["break"] },
+        { "id": "pwrmgr",      "address": "0x40400000", "size": "0x00010000", "name": "Power Mgr (AON)"   },
+        { "id": "rstmgr",      "address": "0x40410000", "size": "0x00010000", "name": "Reset Mgr (AON)"   },
+        { "id": "clkmgr",      "address": "0x40420000", "size": "0x00010000", "name": "Clock Mgr (AON)"   },
+        { "id": "sysrstctrl",  "address": "0x40430000", "size": "0x00010000", "name": "Sys Reset (AON)"   },
+        { "id": "adcctrl",     "address": "0x40440000", "size": "0x00010000", "name": "ADC Ctrl (AON)"    },
+        { "id": "pwm",         "address": "0x40450000", "size": "0x00010000", "name": "PWM (AON)"         },
+        { "id": "pinmux",      "address": "0x40460000", "size": "0x00010000", "name": "Pinmux (AON)"      },
+        { "id": "aontimer",    "address": "0x40470000", "size": "0x00010000", "name": "AON Timer"         },
+        { "id": "ast",         "address": "0x40480000", "size": "0x00010000", "name": "AST (AON)"         },
+        { "id": "sensorctrl",  "address": "0x40490000", "size": "0x00010000", "name": "Sensor Ctrl (AON)" },
+        { "id": "pbreak2",     "address": "0x404A0000", "size": "0x00060000", "name": "···",               "flags": ["break"] },
+        { "id": "sramctrlret", "address": "0x40500000", "size": "0x00010000", "name": "SRAM Ctrl (Ret)"   },
+        { "id": "pbreak3",     "address": "0x40510000", "size": "0x000F0000", "name": "···",               "flags": ["break"] },
+        { "id": "retsram",     "address": "0x40600000", "size": "0x00010000", "name": "Ret. SRAM"         },
+        { "id": "pbreak4",     "address": "0x40610000", "size": "0x001F0000", "name": "···",               "flags": ["break"] }
       ]
     }
   ],
   "links": [
-    {"from": {"view": "overview", "sections": ["ROM_Debug"]},    "to": {"view": "debug-rom-view"}},
-    {"from": {"view": "overview", "sections": ["CryptoCtrl"]},   "to": {"view": "main-view"}},
-    {"from": {"view": "overview", "sections": ["Periph"]},       "to": {"view": "apb-view"}}
+    { "from": { "view": "overview", "sections": ["rom_debug"] },  "to": { "view": "debug-rom-view" } },
+    { "from": { "view": "overview", "sections": ["cryptoctrl"] }, "to": { "view": "main-view" } },
+    { "from": { "view": "overview", "sections": ["periph"] },     "to": { "view": "apb-view" } }
   ]
 }

@@ -86,18 +86,16 @@ class TestAreaViewProcess(unittest.TestCase):
 
 class TestAreaViewStyleOverride(unittest.TestCase):
 
-    def test_section_flag_override_appended(self):
-        s = make_section(0x0, 0x400, 's1')
-        area_config = {
-            'id': 'av', 'title': 'T', 'pos': [0, 500], 'size': [200, 500],
-            'sections': [{'ids': ['s1'], 'flags': ['break']}]
-        }
+    def test_section_flag_applied_before_area_view_created(self):
+        # Flags are applied during resolve_view_sections(), before AreaView is created.
+        # AreaView receives sections with flags already set.
+        s = make_section(0x0, 0x400, 's1', flags=['break'])
         av = AreaView(
             sections=Sections([s]),
             style=default_style(),
-            area_config=area_config,
+            area_config={'id': 'av', 'title': 'T', 'pos': [0, 500], 'size': [200, 500]},
         )
-        # s1 should now have the 'break' flag appended
+        # s1 already has the 'break' flag from pre-resolution
         section = av.sections.get_sections()[0]
         self.assertIn('break', section.flags)
 

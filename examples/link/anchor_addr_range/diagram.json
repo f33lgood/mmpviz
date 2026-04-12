@@ -1,0 +1,28 @@
+{
+  "title": "address-range endpoints — explicit hex ranges on both from and to",
+  "views": [
+    {
+      "id": "overview",
+      "title": "Peripheral Bus",
+      "sections": [
+        { "id": "apb1", "address": "0x40000000", "size": "0x00008000", "name": "APB1" },
+        { "id": "apb2", "address": "0x40008000", "size": "0x00008000", "name": "APB2" },
+        { "id": "ahb1", "address": "0x40010000", "size": "0x00008000", "name": "AHB1" },
+        { "id": "dma1", "address": "0x40018000", "size": "0x00004000", "name": "DMA1" },
+        { "id": "dma2", "address": "0x4001C000", "size": "0x00004000", "name": "DMA2" }
+      ]
+    },
+    {
+      "id": "dma-detail",
+      "title": "DMA Region",
+      "sections": [
+        { "id": "dma1", "address": "0x40018000", "size": "0x00004000", "name": "DMA1" },
+        { "id": "dma2", "address": "0x4001C000", "size": "0x00004000", "name": "DMA2" }
+      ]
+    }
+  ],
+  "links": [
+    { "from": { "view": "overview",   "sections": ["0x40018000", "0x40020000"] }, "to": { "view": "dma-detail", "sections": ["0x4001C000", "0x40020000"] } },
+    { "from": { "view": "overview",   "sections": ["apb2"] },                     "to": { "view": "dma-detail", "sections": ["0x40018000", "0x4001C000"] } }
+  ]
+}

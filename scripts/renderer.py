@@ -21,12 +21,11 @@ class MapRenderer:
     """
 
     def __init__(self, area_views: list, links, style: dict,
-                 size=DefaultAppValues.DOCUMENT_SIZE, raw_sections: list = None):
+                 size=DefaultAppValues.DOCUMENT_SIZE):
         self.area_views = area_views
         self.links = links
         self.style = style
         self.size = size
-        self.raw_sections = raw_sections or []
         self.svg = SVGBuilder(size[0], size[1])
 
     def draw(self) -> str:
@@ -86,15 +85,7 @@ class MapRenderer:
     # ------------------------------------------------------------------
 
     def _make_section(self, group: ET.Element, section: Section, area_view) -> ET.Element:
-        section.size_x = area_view.size_x
-        if section.size_y_override is not None:
-            section.size_y = section.size_y_override
-            section.pos_y = section.pos_y_in_subarea
-        else:
-            section.size_y = area_view.to_pixels(section.size)
-            section.pos_y = area_view.to_pixels(
-                area_view.end_address - section.size - section.address)
-        section.pos_x = 0
+        area_view.apply_section_geometry(section)
 
         group.append(self._make_box(section))
         group.append(self._make_name(section))
@@ -157,7 +148,7 @@ class MapRenderer:
         )
 
     def _make_name(self, section: Section) -> ET.Element:
-        name = section.name if section.name is not None else section.id
+        name = section.name
         return self._make_text(
             name,
             section.name_label_pos_x, section.name_label_pos_y,
@@ -343,22 +334,18 @@ class MapRenderer:
     # Links (section zoom bands)
     # ------------------------------------------------------------------
 
-    def _resolve_from_range(self, from_sections, from_area, to_area=None) -> list | None:
+    def _resolve_endpoint_range(self, sections, view) -> list | None:
         """
-        Resolve the address range for the source side of a link band.
+        Resolve a ``sections`` specifier to an ``[start_addr, end_addr]`` pair.
 
         Parameters
         ----------
-        from_sections : list[str] | None
-            The validated ``from.sections`` specifier from a link entry.
-            ``None`` means the view's full address range.
-        from_area : AreaView
-            The source view.
-        to_area : AreaView | None
-            The destination view.  When provided, used as a hint to prefer
-            sections that overlap with the destination's address range when
-            multiple raw sections share the same id (e.g. Cortex-M bit band
-            regions appear at both 0x2000_0000 and 0x4000_0000).
+        sections : list[str] | None
+            A validated sections specifier from a link entry's ``from`` or ``to``
+            endpoint.  ``None`` means the view's full address range.
+        view : AreaView
+            The view that owns this endpoint (source for ``from``, destination
+            for ``to``).
 
         Returns
         -------
@@ -367,6 +354,8 @@ class MapRenderer:
         from loader import parse_int as _parse_int
         import re as _re
         _HEX_RE = _re.compile(r'^0x[0-9a-fA-F]+$')
+        from_sections = sections
+        from_area = view
 
         if from_sections is None:
             return [from_area.start_address, from_area.end_address]
@@ -380,15 +369,6 @@ class MapRenderer:
                 return None
 
         # Section-ID list: compute min-start to max-end across all named sections.
-        # Search in-view sections first; fall back to global raw_sections so that
-        # sections filtered by section_size or hidden flags can still anchor a band.
-        # When the fallback finds multiple sections with the same id, prefer the one
-        # whose address range overlaps the destination view's range (handles diagrams
-        # where the same conceptual section appears at multiple addresses, e.g. the
-        # Cortex-M bit band region at both SRAM and Peripheral addresses).
-        to_lo = to_area.start_address if to_area is not None else None
-        to_hi = to_area.end_address   if to_area is not None else None
-
         starts = []
         ends = []
         for sid in from_sections:
@@ -399,23 +379,6 @@ class MapRenderer:
                     ends.append(section.address + section.size)
                     found = True
                     break
-            if not found:
-                # Collect all raw candidates with this id, then pick the best one.
-                candidates = [s for s in self.raw_sections if s.id == sid]
-                if candidates:
-                    # Prefer candidate whose range overlaps the destination view.
-                    best = None
-                    if to_lo is not None:
-                        for c in candidates:
-                            c_lo, c_hi = c.address, c.address + c.size
-                            if c_lo < to_hi and c_hi > to_lo:
-                                best = c
-                                break
-                    if best is None:
-                        best = candidates[0]
-                    starts.append(best.address)
-                    ends.append(best.address + best.size)
-                    found = True
             if not found:
                 logger.warning(
                     f"Link: section '{sid}' not found in view '{from_area.view_id}'")
@@ -428,9 +391,11 @@ class MapRenderer:
         """
         Draw all link bands from ``self.links.entries``.
 
-        Each entry specifies a source view + optional section range and an
-        explicit destination view.  The band is rendered as a trapezoid
-        connecting the source address range to the full destination view.
+        Each entry specifies a source view + optional section range and a
+        destination view + optional section range.  The band is rendered as a
+        trapezoid whose source-side height corresponds to ``from.sections`` and
+        whose destination-side height corresponds to ``to.sections`` (or the
+        full destination view when ``to.sections`` is absent).
         """
         group = self.svg.g()
         link_style = self.links.style if self.links else {}
@@ -452,16 +417,29 @@ class MapRenderer:
                     f"Link: target view '{to_view_id}' not found, skipping")
                 continue
 
-            link_range = self._resolve_from_range(entry['from_sections'], from_area, to_area)
-            if link_range is None:
+            from_range = self._resolve_endpoint_range(
+                entry['from_sections'], from_area)
+            if from_range is None:
                 logger.warning(
                     f"Link from '{from_view_id}' to '{to_view_id}': "
                     f"could not resolve source range, skipping")
                 continue
 
+            to_range = None
+            if entry['to_sections']:
+                to_range = self._resolve_endpoint_range(
+                    entry['to_sections'], to_area)
+                if to_range is None:
+                    logger.warning(
+                        f"Link from '{from_view_id}' to '{to_view_id}': "
+                        f"could not resolve destination range, skipping")
+                    continue
+
             group.append(self._make_poly(
-                to_area, link_range[0], link_range[1],
-                link_style, source_area=from_area))
+                to_area, from_range[0], from_range[1],
+                link_style, source_area=from_area,
+                to_start=to_range[0] if to_range else None,
+                to_end=to_range[1] if to_range else None))
 
         return group
 
@@ -521,21 +499,22 @@ class MapRenderer:
         return pts_start, pts_end
 
     def _make_poly(self, area_view, start_address, end_address, style: dict,
-                   source_area=None) -> ET.Element:
+                   source_area=None, to_start=None, to_end=None) -> ET.Element:
         def find_subarea(address, area):
             for sub in area.get_split_area_views():
                 if sub.start_address <= address <= sub.end_address:
                     return sub
             return area
 
-        # Clamp destination-side addresses to the destination view's address range.
-        # When the source range exceeds the destination view (e.g. linking from a
-        # large parent section to a zoomed detail view), the raw addresses would map
-        # to coordinates far outside the destination panel.  Clamping ensures the
-        # destination endpoints stay within the view — typically making the band span
-        # the full destination panel height.
-        dest_lo = max(start_address, area_view.start_address)
-        dest_hi = min(end_address, area_view.end_address)
+        # Destination-side addresses: use the explicitly resolved to.sections range when
+        # provided; otherwise clamp the source range to the destination view's address range
+        # so the band never extends off-screen.
+        if to_start is not None and to_end is not None:
+            dest_lo = max(to_start, area_view.start_address)
+            dest_hi = min(to_end, area_view.end_address)
+        else:
+            dest_lo = max(start_address, area_view.start_address)
+            dest_hi = min(end_address, area_view.end_address)
 
         end_sub = find_subarea(dest_hi, area_view)
         start_sub = find_subarea(dest_lo, area_view)

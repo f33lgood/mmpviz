@@ -1,6 +1,6 @@
 # mmpviz check.py — Rule Reference
 
-`scripts/check.py` validates a `diagram.json` + `theme.json` pair against nine
+`scripts/check.py` validates a `diagram.json` + `theme.json` pair against eleven
 layout and display rules without generating SVG output.
 
 ## Quick Usage
@@ -21,11 +21,14 @@ Exit codes: **0** = no issues, **1** = one or more ERRORs, **2** = warnings only
 |------|-------|----------------|
 | `min-height-violated` | WARN | Section height fell below `min_section_height` |
 | `out-of-canvas` | ERROR | Panel extends beyond the canvas boundary |
+| `section-overlap` | WARN | Two visible sections in the same view have overlapping address ranges |
+| `uncovered-gap` | WARN | Large address gap between sections has no break section to compress it |
 | `panel-overlap` | ERROR | Two panels' bounding rectangles physically intersect |
 | `band-too-wide` | WARN | Link band horizontal span exceeds readability guideline |
-| `unresolved-section` | ERROR | `links.sections` entry not found in any view |
+| `unresolved-section` | ERROR | A view or section ID in a link entry does not exist |
 | `title-overlap` | WARN | Panel title intrudes into the panel above it |
 | `label-overlap` | WARN | Address labels of one panel overlap the next panel |
+| `addr-64bit-column-width` | WARN | Panel too narrow for 64-bit address labels |
 
 ---
 
@@ -33,10 +36,10 @@ Exit codes: **0** = no issues, **1** = one or more ERRORs, **2** = warnings only
 
 ### `min-height-violated` — WARN
 
-**What it detects:** A section's rendered height is below `min_section_height`. This
-means the proportional-fallback algorithm was triggered: `_compute_clamped_heights`
-could not satisfy all minimum-height constraints simultaneously within the available
-panel space, so it fell back to pure proportional rendering. All minimums are then
+**What it detects:** A section's actual rendered height is below `min_section_height`.
+This fires when `_compute_per_section_heights` cannot satisfy all minimum-height
+constraints simultaneously within the available panel space and falls back to pure
+proportional rendering — all sections then render proportionally and minimums are
 violated equally.
 
 **Threshold:** `section.size_y < min_section_height` (with 1e-6 tolerance)
@@ -62,6 +65,68 @@ top-level `"size": [width, height]`.
 - Increase the canvas `"size"` in `diagram.json`.
 - Move the panel left/up by reducing `pos_x` or `pos_y`.
 - Reduce the panel `size_x` or `size_y`.
+
+---
+
+### `section-overlap` — WARN
+
+**What it detects:** Two visible (non-break) sections within the same view have
+overlapping address ranges.  A common mistake is including a parent section
+(e.g. `apb1` spanning 0x40000000–0x40010000) and its named children
+(e.g. `uart0`, `spi0`) in the same view.  The parent's visual box then covers
+all children, making labels unreadable and producing unexpected section heights.
+
+**How to fix:** Each view's `sections[]` is a complete declaration of what to
+display. Include either the parent or its children in a given view — not both:
+
+```json
+"views": [
+  {
+    "id": "overview",
+    "sections": [
+      { "id": "apb1", "address": "0x40000000", "size": "0x10000", "name": "APB1" }
+    ]
+  },
+  {
+    "id": "detail",
+    "sections": [
+      { "id": "uart0", "address": "0x40000000", "size": "0x400", "name": "UART0" },
+      { "id": "uart1", "address": "0x40000400", "size": "0x400", "name": "UART1" },
+      { "id": "spi0",  "address": "0x40000800", "size": "0x400", "name": "SPI0"  }
+    ]
+  }
+]
+```
+
+---
+
+### `uncovered-gap` — WARN
+
+**What it detects:** A large address gap between two consecutive visible sections in
+a view is not compressed by a break section.
+
+When a view's address range contains, for example, `Flash` at 0x0000_0000 (512 KB)
+and `SRAM` at 0x2000_0000 (128 KB) with a ~500 MB gap between them, the gap
+consumes proportional view height and shrinks `Flash` and `SRAM` to sub-pixel
+slivers — even if `min_section_height` rescues them from being invisible, the visual
+proportion is badly distorted.
+
+**Threshold:** gap exceeds **5×** the total visible (non-break) section size in that
+view.
+
+**How to fix:** Add a break section spanning the gap in the view's `sections[]`:
+
+```json
+"views": [
+  {
+    "id": "my-view",
+    "sections": [
+      { "id": "Brk", "address": "0x00080000", "size": "0x1FF80000", "name": "···", "flags": ["break"] }
+    ]
+  }
+]
+```
+
 
 ---
 
@@ -158,24 +223,19 @@ edge to the target detail panel's left edge) exceeds the readability guideline.
 
 ### `unresolved-section` — ERROR
 
-**What it detects:** A section ID listed in `links.sections` (or `links.sub_sections`)
-does not appear in any view's filtered section set after all range, size, and flag
-filters are applied. The renderer silently skips unresolved links, so this check catches
-the resulting missing band before visual inspection.
+**What it detects:** A view ID or section ID in a `links[]` entry does not exist.
+The renderer silently skips unresolved links, so this check catches the resulting
+missing band before visual inspection.
 
 **Common causes:**
-- Typo in the section ID.
-- The section exists in `sections[]` but is excluded by the view's `range` or
-  `section_size` filter.
-- The section has the `hidden` flag applied in all views that cover it.
-- The section was deleted from `sections[]` but the link entry was not updated.
+- Typo in a section ID or view ID.
+- The section was removed from the view's `sections[]` list.
+- The link references a section that exists in a different view, not the one specified in `from.view`.
 
 **How to fix:**
-- Correct the section ID spelling in `links.sections`.
-- Extend the relevant detail view's `range` so the section falls within it.
-- Remove the hidden flag, or add a separate (non-hidden) copy of the section in a
-  detail view that covers its address range.
-- Remove the stale entry from `links.sections`.
+- Correct the section or view ID spelling.
+- Ensure the section is declared in the correct view's `sections[]` list.
+- Remove stale entries from `links[]`.
 
 ---
 

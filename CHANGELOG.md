@@ -13,21 +13,42 @@ Version rules:
 
 Sections: **Added** · **Changed** · **Removed**
 
+Writing guide:
+- One bullet per user-facing change. Format: **`key` or feature name** — one sentence.
+- Record: schema additions/removals/renames, new capabilities, breaking behavior changes.
+- Skip: which file implements it, error message wording, edge-case fallbacks, internal maintenance (example updates, golden regen).
+- No sub-bullets — details belong in the schema reference docs.
+- For renames use `old → new`; for removals say what supersedes it.
+
 ---
 
 ## [2026-04-12]
 
 ### Added
-- **`links` array format** — `links` is now a flat array of `{from: {view, sections?}, to: {view}}` entries. Each endpoint names its view explicitly. Multi-section spans, address-range anchors, multi-level zoom, and fan-in (multiple sources → same detail view) all work without special syntax. Replaces the previous `{sections, sub_sections, addresses}` object form.
+- **Flat, self-contained view schema** — each view fully declares its own `sections[]` inline; no global section pool, no references. Each section requires `id`, `address`, `size`, `name`; `flags` is optional. Section `id`s are unique within a view.
+- **`links` array format** — flat array of `{"from": {"view", "sections?"}, "to": {"view", "sections?"}}` entries; supports multi-section spans, address-range anchors, multi-level zoom, and fan-in.
+- **`to.sections`** — link destination can specify its own address anchor independently of the source, enabling cross-address mappings (aliases, virtual→physical, DMA).
+- **`sections[].name` required** — use `""` to suppress the label.
+- **ID format and uniqueness enforced** — section ids must match `[a-z0-9_-]`; duplicates within a view are rejected at load time.
+- **`section-overlap` / `uncovered-gap` checks** — warns on overlapping visible sections and large uncompressed address gaps.
+- **New link examples** — `anchor_to_section`, `anchor_cross_addr`, `anchor_addr_range`.
 
 ### Changed
-- View coordinate system now uses the declared `range` as the pixel basis; previously it fell back to the filtered sections' actual extent, misaligning sections and link-band anchors.
-- `min_section_height` now applies to all views; previously it was silently skipped for views with no break sections.
-- Link band destination endpoints are clamped to the destination view's address range; previously they could map thousands of pixels off-screen when the source range exceeded the destination view.
-- Sections hidden by `section_size` can now be referenced in `from.sections`; the renderer falls back to the global section table.
+- View coordinate space is derived solely from the view's own `sections[]`; no implicit filtering.
+- Link destination bands clamp to the destination view's extent when `to.sections` is absent.
+- `min_section_height` now applies to all views, not only those with break sections.
 
 ### Removed
-- `links.sub_sections`, `links.addresses` — superseded by the new array format.
+- **Top-level `sections[]` array** — superseded by inline sections per view. Each view is self-contained.
+- **`ref_id`** — reference to a global section; no longer exists. Declare sections inline in each view.
+- **`views[].range`**, **`views[].section_size`** — implicit section filters; superseded by the explicit `sections[]` list.
+- **`sections[].flags: ["hidden"]`** — hide a section without removing it; simply omit the section from the view instead.
+- **`links.sub_sections`**, **`links.addresses`** — superseded by the new `links` array format.
+- **Address-containment auto-layout** — views are no longer placed by implicit address containment; explicit `links[]` is required for column placement of related views.
+
+### Fixed
+- **`min-height-violated` false positives** — `check.py` was measuring raw proportional section height instead of actual rendered height; sections correctly raised to the `min_section_height` floor by the layout algorithm were incorrectly flagged.
+- **`AreaView.apply_section_geometry()`** — section geometry assignment (size/position fields) is now a single shared method called by both the renderer and `check.py`, eliminating the duplicated code that caused the above bug.
 
 ---
 

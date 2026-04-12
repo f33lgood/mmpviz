@@ -1,20 +1,16 @@
 """
 auto_layout.py — Link graph construction and column assignment for mmpviz.
 
-These utilities derive a directed acyclic graph (DAG) from either explicit
-link entries or area address containment, then assign each area to a layout
-column based on topological depth.
+These utilities derive a directed acyclic graph (DAG) from explicit link
+entries, then assign each area to a layout column based on topological depth.
 
 Public API
 ----------
 build_link_graph_from_links(entries, view_ids) → {src_id: [tgt_id, ...]}
-build_link_graph(area_configs, sections)        → {src_id: [tgt_id, ...]}
 assign_columns(graph, view_ids)                 → {view_id: column_int}
 order_within_column(graph, columns, area_views) → {col: [view_id, ...]}
 """
 from collections import defaultdict, deque
-
-from loader import parse_int
 
 
 # ---------------------------------------------------------------------------
@@ -48,96 +44,6 @@ def build_link_graph_from_links(entries: list, view_ids: list) -> dict:
         tgt = entry.get('to_view')
         if src in graph and tgt in graph and tgt not in graph[src]:
             graph[src].append(tgt)
-    return graph
-
-
-# ---------------------------------------------------------------------------
-# Link graph construction — address containment (fallback)
-# ---------------------------------------------------------------------------
-
-def build_link_graph(area_configs: list, sections: list) -> dict:
-    """
-    Build a directed link graph from area configs and global sections.
-
-    An edge A → B is added when there exists a section L such that:
-    - L's address range is entirely within area A's range, AND
-    - Area B's full range is contained within L's address range.
-
-    This recovers the implicit DAG from address containment alone — no
-    explicit `links` configuration is required.
-
-    Parameters
-    ----------
-    area_configs : list of dict
-        Each dict has 'id' and optionally 'range': [min_str, max_str].
-    sections : list of Section
-        Global Section objects (address + size attributes).
-
-    Returns
-    -------
-    dict  {source_id: [target_id, ...]}
-        Adjacency list.  Every area id appears as a key (possibly with
-        an empty target list).
-    """
-    def _parse_range(cfg):
-        r = cfg.get('range')
-        if r and len(r) >= 2:
-            try:
-                return parse_int(r[0]), parse_int(r[1])
-            except (TypeError, ValueError):
-                pass
-        return None, None
-
-    # Build range lookup  {view_id: (lo, hi)}
-    area_ranges = {}
-    for cfg in area_configs:
-        vid = cfg.get('id', '')
-        lo, hi = _parse_range(cfg)
-        if lo is not None and hi is not None:
-            area_ranges[vid] = (lo, hi)
-
-    # For views without an explicit range, derive from the global section extents.
-    # This allows rangeless overview views to act as link-graph sources.
-    live = [s for s in sections if s.size > 0]
-    if live:
-        global_lo = min(s.address for s in live)
-        global_hi = max(s.address + s.size for s in live)
-        for cfg in area_configs:
-            vid = cfg.get('id', '')
-            if vid not in area_ranges:
-                area_ranges[vid] = (global_lo, global_hi)
-
-    graph = {cfg.get('id', ''): [] for cfg in area_configs}
-
-    for src_cfg in area_configs:
-        src_id = src_cfg.get('id', '')
-        src_range = area_ranges.get(src_id)
-        if src_range is None:
-            continue
-        src_lo, src_hi = src_range
-
-        for sec in sections:
-            sec_lo = sec.address
-            sec_hi = sec.address + sec.size
-            if sec.size == 0:
-                continue
-            # Section must be within the source area's range
-            if sec_lo < src_lo or sec_hi > src_hi:
-                continue
-
-            # Find target areas whose full range fits inside this section
-            for tgt_cfg in area_configs:
-                tgt_id = tgt_cfg.get('id', '')
-                if tgt_id == src_id:
-                    continue
-                tgt_range = area_ranges.get(tgt_id)
-                if tgt_range is None:
-                    continue
-                tgt_lo, tgt_hi = tgt_range
-                if tgt_lo >= sec_lo and tgt_hi <= sec_hi:
-                    if tgt_id not in graph[src_id]:
-                        graph[src_id].append(tgt_id)
-
     return graph
 
 

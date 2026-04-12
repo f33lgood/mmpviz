@@ -3,8 +3,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 import unittest
 from mmpviz import _auto_layout
-from auto_layout import build_link_graph, assign_columns
-from section import Section
+from auto_layout import build_link_graph_from_links, assign_columns
 
 
 class TestAutoLayout(unittest.TestCase):
@@ -86,106 +85,6 @@ class TestAutoLayout(unittest.TestCase):
             self.assertGreaterEqual(r['size'][0], 50.0)
 
 
-def _sec(address, size, sid='s'):
-    return Section(size=size, address=address, id=sid)
-
-
-class TestBuildLinkGraph(unittest.TestCase):
-
-    def test_empty_areas_returns_empty_graph(self):
-        g = build_link_graph([], [])
-        self.assertEqual(g, {})
-
-    def test_no_sections_no_edges(self):
-        areas = [
-            {'id': 'a', 'range': ['0x0', '0x1000']},
-            {'id': 'b', 'range': ['0x0', '0x800']},
-        ]
-        g = build_link_graph(areas, [])
-        self.assertEqual(g['a'], [])
-        self.assertEqual(g['b'], [])
-
-    def test_section_in_a_contains_b_adds_edge(self):
-        # Section L covers 0x0–0x1000, area B's range is 0x0–0x1000 (same)
-        areas = [
-            {'id': 'a', 'range': ['0x0', '0x2000']},
-            {'id': 'b', 'range': ['0x0', '0x1000']},
-        ]
-        secs = [_sec(0x0, 0x1000)]
-        g = build_link_graph(areas, secs)
-        self.assertIn('b', g['a'])
-        self.assertEqual(g['b'], [])
-
-    def test_no_self_loop(self):
-        areas = [{'id': 'a', 'range': ['0x0', '0x1000']}]
-        secs = [_sec(0x0, 0x1000)]
-        g = build_link_graph(areas, secs)
-        self.assertNotIn('a', g['a'])
-
-    def test_section_too_small_for_area_b_no_edge(self):
-        # Section L covers 0x100–0x200, area B's range 0x0–0x1000 is NOT ⊆ L
-        areas = [
-            {'id': 'a', 'range': ['0x0', '0x2000']},
-            {'id': 'b', 'range': ['0x0', '0x1000']},
-        ]
-        secs = [_sec(0x100, 0x100)]
-        g = build_link_graph(areas, secs)
-        self.assertEqual(g['a'], [])
-
-    def test_area_without_range_derives_from_global_sections(self):
-        # A rangeless view acts as an overview spanning all sections.
-        # Edge a→b should be created because a's derived range covers the
-        # section, which in turn contains b's explicit range.
-        areas = [
-            {'id': 'a'},   # no range — derives [0x0, 0x2000) from sections
-            {'id': 'b', 'range': ['0x0', '0x1000']},
-        ]
-        secs = [_sec(0x0, 0x2000)]
-        g = build_link_graph(areas, secs)
-        self.assertIn('b', g.get('a', []))
-
-    def test_no_duplicate_edges(self):
-        # Two sections both containing area B → still only one edge A→B
-        areas = [
-            {'id': 'a', 'range': ['0x0', '0x4000']},
-            {'id': 'b', 'range': ['0x0', '0x1000']},
-        ]
-        secs = [_sec(0x0, 0x2000), _sec(0x0, 0x3000)]
-        g = build_link_graph(areas, secs)
-        self.assertEqual(g['a'].count('b'), 1)
-
-    def test_stm32f103_like_graph(self):
-        # Simplified stm32f103: overview contains all; detail areas zoom in
-        areas = [
-            {'id': 'overview',  'range': ['0x00000000', '0x100000000']},
-            {'id': 'm3-periph', 'range': ['0xE0000000', '0xE1000000']},
-            {'id': 'apb',       'range': ['0x40000000', '0x60000000']},
-            {'id': 'flash',     'range': ['0x08000000', '0x08020000']},
-        ]
-        secs = [
-            _sec(0xE0000000, 0x01000000, 'M3'),          # M3 → m3-periph
-            _sec(0x40000000, 0x20000000, 'Peripherals'),  # Peripherals → apb
-            _sec(0x08000000, 0x00020000, 'Flash'),        # Flash → flash
-        ]
-        g = build_link_graph(areas, secs)
-        self.assertIn('m3-periph', g['overview'])
-        self.assertIn('apb',       g['overview'])
-        self.assertIn('flash',     g['overview'])
-        # Detail areas have no outgoing edges (no section contains another area)
-        self.assertEqual(g['m3-periph'], [])
-        self.assertEqual(g['apb'],       [])
-        self.assertEqual(g['flash'],     [])
-
-    def test_all_area_ids_present_in_result(self):
-        areas = [
-            {'id': 'x', 'range': ['0x0', '0x1000']},
-            {'id': 'y', 'range': ['0x2000', '0x3000']},
-        ]
-        g = build_link_graph(areas, [])
-        self.assertIn('x', g)
-        self.assertIn('y', g)
-
-
 class TestAssignColumns(unittest.TestCase):
 
     def test_single_node_is_column_zero(self):
@@ -260,53 +159,56 @@ class TestBuildLinkGraphChipExamples(unittest.TestCase):
     REPO = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
     def _load_chip(self, chip_name):
-        """Load raw sections and area configs from a chip example."""
-        # Import here to avoid circular import issues at module level
+        """Load area configs and diagram from a chip example."""
         from loader import load
         chip_dir = os.path.join(self.REPO, 'examples', 'chips', chip_name)
         diagram_path = os.path.join(chip_dir, 'diagram.json')
         if not os.path.isfile(diagram_path):
             return None, None
-        raw_sections, diagram = load(diagram_path)
+        diagram = load(diagram_path)
         area_configs = diagram.get('views', []) or []
-        return raw_sections, area_configs
+        return area_configs, diagram
 
     def test_stm32f103_overview_is_root(self):
-        raw_sections, area_configs = self._load_chip('stm32f103')
+        from links import Links
+        area_configs, diagram = self._load_chip('stm32f103')
         if area_configs is None:
             self.skipTest('stm32f103 example not found')
-        g = build_link_graph(area_configs, raw_sections)
-        cols = assign_columns(g, [c['id'] for c in area_configs])
-        # overview-view has no incoming edges → column 0
+        view_ids = [c['id'] for c in area_configs]
+        links = Links(links_config=diagram.get('links', []))
+        g = build_link_graph_from_links(links.entries, view_ids)
+        cols = assign_columns(g, view_ids)
         self.assertEqual(cols.get('overview-view'), 0)
-        # detail areas are in column 1 (or deeper)
         for detail in ('m3-periph-view', 'flash-zoom-view', 'sysmem-zoom-view', 'apb-view'):
             self.assertGreaterEqual(cols.get(detail, 0), 1,
                                     f"{detail} should be in column >= 1")
 
     def test_stm32f103_overview_has_outgoing_edges(self):
-        raw_sections, area_configs = self._load_chip('stm32f103')
+        from links import Links
+        area_configs, diagram = self._load_chip('stm32f103')
         if area_configs is None:
             self.skipTest('stm32f103 example not found')
-        g = build_link_graph(area_configs, raw_sections)
+        view_ids = [c['id'] for c in area_configs]
+        links = Links(links_config=diagram.get('links', []))
+        g = build_link_graph_from_links(links.entries, view_ids)
         self.assertGreater(len(g.get('overview-view', [])), 0)
 
     def test_all_chips_produce_valid_graphs(self):
         """For each chip, the graph must contain all area ids exactly once."""
+        from links import Links
         chips_dir = os.path.join(self.REPO, 'examples', 'chips')
         for chip_name in os.listdir(chips_dir):
             chip_path = os.path.join(chips_dir, chip_name)
             if not os.path.isdir(chip_path):
                 continue
-            raw_sections, area_configs = self._load_chip(chip_name)
+            area_configs, diagram = self._load_chip(chip_name)
             if not area_configs:
                 continue
             view_ids = [c['id'] for c in area_configs if 'id' in c]
-            g = build_link_graph(area_configs, raw_sections)
-            # Every view id should be a key in the graph
+            links = Links(links_config=diagram.get('links', []))
+            g = build_link_graph_from_links(links.entries, view_ids)
             for vid in view_ids:
                 self.assertIn(vid, g, f"[{chip_name}] {vid!r} missing from graph")
-            # No self-loops
             for src, targets in g.items():
                 self.assertNotIn(src, targets, f"[{chip_name}] self-loop on {src!r}")
 

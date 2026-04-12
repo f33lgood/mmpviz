@@ -30,12 +30,14 @@ field.  The main orchestrator is `get_area_views()` in `scripts/mmpviz.py`.
 ```
 get_area_views()
     │
-    ├─ build_link_graph()      # auto_layout.py — DAG from address containment
-    ├─ assign_columns()        # auto_layout.py — BFS depth → column index
-    ├─ _estimate_area_height() # mmpviz.py — quick height estimate per area
-    ├─ _auto_layout()          # mmpviz.py — bin-packing, assigns pos + size
-    └─ AreaView(...)           # area_view.py — section height algorithm per area
+    ├─ build_link_graph_from_links()  # auto_layout.py — DAG from explicit links[]
+    ├─ assign_columns()               # auto_layout.py — BFS depth → column index
+    ├─ _estimate_area_height()        # mmpviz.py — quick height estimate per area
+    ├─ _auto_layout()                 # mmpviz.py — bin-packing, assigns pos + size
+    └─ AreaView(...)                  # area_view.py — section height algorithm per area
 ```
+
+When `links` is absent or empty, all views get an empty adjacency list (all column 0), and auto-layout stacks them side-by-side in a single column.
 
 After `get_area_views()` returns, the caller uses `_auto_canvas_size()` to
 expand the SVG canvas to fit all placed areas:
@@ -126,25 +128,43 @@ Break sections use a separate code path (`break_height` fixed height) and do
 The label-conflict floor (`30 + font_size` px) is derived automatically from
 the section geometry — it is not a user-visible theme property.
 
+### Section geometry assignment
+
+After `_process()` runs, the computed heights live in `section.size_y_override`
+and `section.pos_y_in_subarea`.  Both the renderer and the checker need to
+resolve these into the canonical `size_x / size_y / pos_x / pos_y` fields that
+all downstream code reads.  This step is centralised in:
+
+```python
+AreaView.apply_section_geometry(section)
+    # sets section.size_x, size_y, pos_x, pos_y
+    # uses size_y_override / pos_y_in_subarea when set;
+    # falls back to proportional mapping otherwise
+```
+
+`scripts/renderer.py` (`_make_section`) and `scripts/check.py`
+(`_populate_section_heights`) both call this method, ensuring they share one
+code path and cannot drift apart.
+
 ---
 
 ## 3. Link Graph Construction
 
-**Location:** `build_link_graph()` in `scripts/auto_layout.py`
+**Location:** `build_link_graph_from_links()` in `scripts/auto_layout.py`
 
-Derives the DAG from address containment — no explicit `links` configuration
-is required for column assignment.
+The DAG is built directly from the diagram's `links[]` array.
+Each `{"from": {"view": A}, "to": {"view": B}}` entry adds edge A → B:
 
 ```
-for each source area A:
-    for each global section L (L.size > 0, L within A.range):
-        for each other area B:
-            if B.range ⊆ [L.address, L.address + L.size):
-                add edge A → B
+for each link entry:
+    add edge entry.from_view → entry.to_view   (deduplicated)
 ```
 
-Returns an adjacency list `{source_id: [target_id, ...]}` where every area ID
+Returns an adjacency list `{source_id: [target_id, ...]}` where every view ID
 appears as a key.  Duplicate edges are suppressed.
+
+When `links` is absent or empty, every view maps to an empty adjacency list
+(all column 0 — stacked in a single column).
 
 ---
 
@@ -209,8 +229,8 @@ estimated = n_visible * user_min_h
 return max(200.0, estimated)
 ```
 
-`n_visible` and `n_breaks` are counted after applying the area's `range`,
-`section_size` filter, and any per-area section flag overrides (break/hidden).
+`n_visible` and `n_breaks` are counted from the view's resolved sections list
+(after `resolve_view_sections()` is applied).
 `user_min_h` is `style.get('min_section_height', 0)`.
 
 Per-section label-conflict inflation (§2) is applied during actual rendering in
@@ -353,7 +373,7 @@ return to_pixels_relative(address)   # fallback
 | **Section height: max_h ceiling** | Redistribute surplus from capped sections | Phase 2 of `_compute_per_section_heights` | Implemented |
 | **Section height: area-level auto-expansion** | When overflow, expand H = Σ(min_h); re-run algorithm | Not at area level; canvas expands via `_auto_canvas_size()` | Partial — expansion is canvas-level, not area-level |
 | **Section height: break sections** | Breaks participate in iterative algorithm with min_h floor | Breaks use fixed `break_height` path; excluded from `_compute_per_section_heights` | Not implemented |
-| **Link graph construction** | Edge A→B when B.range ⊆ section L in A | `build_link_graph()` — identical logic | Implemented |
+| **Link graph construction** | Edge A→B when B.range ⊆ section L in A | `build_link_graph_from_links()` from explicit `links[]`; empty graph when `links` absent | Implemented — explicit links only |
 | **Multiple parents** | Use first-encountered (BFS) source | `assign_columns()` uses max-depth rule | Implemented (stricter than proposal) |
 | **Column assignment: BFS depth** | BFS with max-depth propagation | `assign_columns()` — Kahn's algorithm with max propagation | Implemented |
 | **Column assignment: column cap (N ≤ 4)** | Warn when > 3 columns; merge deepest levels | No cap; natural DAG depth used | Not implemented |

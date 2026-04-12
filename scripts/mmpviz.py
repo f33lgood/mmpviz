@@ -11,10 +11,10 @@ import copy
 import sys
 
 from area_view import AreaView
-from auto_layout import build_link_graph, build_link_graph_from_links, assign_columns
+from auto_layout import build_link_graph_from_links, assign_columns
 from helpers import safe_element_list_get, safe_element_dict_get, DefaultAppValues
 from links import Links
-from loader import load, validate, parse_int
+from loader import load, validate, parse_int, resolve_view_sections
 from logger import logger
 from renderer import MapRenderer
 from sections import Sections
@@ -221,37 +221,13 @@ def _auto_canvas_size(area_views: list,
 
 def _apply_area_section_flags(sections: list, area_config: dict) -> list:
     """
-    Apply per-area section flag overrides (break/hidden) from area_config.
-
-    Replicates the flag-append logic of AreaView._overwrite_sections_info()
-    so that height estimation sees the same effective section types.
-    Returns a new list of (possibly shallow-copied) Section objects.
+    No-op in the new schema: flags are already applied during section
+    resolution in resolve_view_sections().  Kept for API compatibility.
     """
-    inner_overrides = area_config.get('sections') or []
-    if not inner_overrides:
-        return sections
-
-    # Build id → set of extra flags
-    name_flags: dict = {}
-    for override in inner_overrides:
-        for name in (override.get('ids') or []):
-            for flag in (override.get('flags') or []):
-                name_flags.setdefault(name, set()).add(flag)
-
-    if not name_flags:
-        return sections
-
-    result = []
-    for s in sections:
-        extra = name_flags.get(s.id, set())
-        if extra:
-            s = copy.copy(s)
-            s.flags = list(set(s.flags) | extra)
-        result.append(s)
-    return result
+    return sections
 
 
-def _estimate_area_height(sections: list, style: dict, area_config: dict = None) -> float:
+def _estimate_area_height(sections: list, style: dict) -> float:
     """
     Estimate a suitable pixel height for an area from its section list.
 
@@ -259,13 +235,9 @@ def _estimate_area_height(sections: list, style: dict, area_config: dict = None)
     (min_h already includes label space per the proposal), then adds space for
     break sections and internal padding.
 
-    ``area_config`` is optional; when supplied its ``sections`` flag overrides
-    (break / hidden) are applied before counting, so the estimate matches the
-    actual rendered layout.
+    Sections are expected to already have the correct flags applied (breaks /
+    hidden) so no additional flag processing is done here.
     """
-    if area_config is not None:
-        sections = _apply_area_section_flags(sections, area_config)
-
     user_min_h = float(style.get('min_section_height', 0))
     break_height = float(style.get('break_height', 20))
     top_bottom_pad = 20.0  # area-internal padding
@@ -285,28 +257,22 @@ def _estimate_area_height(sections: list, style: dict, area_config: dict = None)
     return max(200.0, estimated)
 
 
-def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: Theme,
+def get_area_views(base_style: dict, diagram: dict, theme: Theme,
                    links=None) -> list:
     """
     Build AreaView objects from diagram config.
 
-    If no 'views' are configured in the diagram, returns a single default view
-    spanning all sections. Otherwise, creates one AreaView per configured view
-    with filtering and layout applied.
+    Each view fully declares its own ``sections[]`` array.  There is no global
+    section pool — sections live entirely inside the view that displays them.
 
     ``pos`` and ``size`` inside each view entry are optional — _auto_layout()
-    fills them in when absent.  When section link-graph data is available,
-    views are arranged in columns derived from topological depth; otherwise
-    they are distributed evenly left-to-right.
+    fills them in when absent.
     """
     area_configurations = diagram.get('views', []) or []
 
     if not area_configurations:
-        return [AreaView(
-            sections=Sections(sections=raw_sections),
-            style=copy.deepcopy(base_style),
-            theme=theme,
-        )]
+        logger.warning("No views configured in diagram.json — nothing to render.")
+        return []
 
     document_size = diagram.get('size', list(DefaultAppValues.DOCUMENT_SIZE))
 
@@ -320,30 +286,18 @@ def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: T
         if links is not None and links.entries:
             graph = build_link_graph_from_links(links.entries, view_ids)
         else:
-            graph = build_link_graph(area_configurations, raw_sections)
+            graph = {vid: [] for vid in view_ids}
         columns = assign_columns(graph, view_ids)
 
-        # Pre-filter sections per view to estimate heights
+        # Pre-resolve sections per view to estimate heights
         area_heights = {}
         for area_config in area_configurations:
             if 'size' in area_config:
                 continue
             vid = area_config.get('id', '')
             area_style = theme.resolve(vid)
-            memory_range = area_config.get('range', None)
-            section_size = area_config.get('section_size', None)
-            range_min = parse_int(memory_range[0]) if memory_range and len(memory_range) > 0 else None
-            range_max = parse_int(memory_range[1]) if memory_range and len(memory_range) > 1 else None
-            size_min = section_size[0] if section_size and len(section_size) > 0 else None
-            size_max = section_size[1] if section_size and len(section_size) > 1 else None
-            filtered = (
-                Sections(sections=copy.deepcopy(raw_sections))
-                .filter_address_min(range_min)
-                .filter_address_max(range_max)
-                .filter_size_min(size_min)
-                .filter_size_max(size_max)
-            )
-            area_heights[vid] = _estimate_area_height(filtered.get_sections(), area_style, area_config)
+            view_sections = copy.deepcopy(resolve_view_sections(area_config))
+            area_heights[vid] = _estimate_area_height(view_sections, area_style)
 
     area_configurations = _auto_layout(
         area_configurations, tuple(document_size),
@@ -353,49 +307,21 @@ def get_area_views(raw_sections: list, base_style: dict, diagram: dict, theme: T
     area_views = []
     for i, area_config in enumerate(area_configurations):
         view_id = area_config.get('id', f'view-{i}')
-        memory_range = area_config.get('range', None)
-        section_size = area_config.get('section_size', None)
 
-        range_min = None
-        range_max = None
-        if memory_range:
-            range_min = parse_int(memory_range[0]) if len(memory_range) > 0 else None
-            range_max = parse_int(memory_range[1]) if len(memory_range) > 1 else None
+        view_sections = copy.deepcopy(resolve_view_sections(area_config))
 
-        size_min = None
-        size_max = None
-        if section_size:
-            size_min = section_size[0] if len(section_size) > 0 else None
-            size_max = section_size[1] if len(section_size) > 1 else None
-
-        filtered_sections = (
-            Sections(sections=copy.deepcopy(raw_sections))
-            .filter_address_min(range_min)
-            .filter_address_max(range_max)
-            .filter_size_min(size_min)
-            .filter_size_max(size_max)
-        )
-
-        if len(filtered_sections.get_sections()) == 0:
+        if len(view_sections) == 0:
             logger.warning(
-                f"View '{view_id}' (index {i}) has no sections after filtering. "
-                f"Check range and section_size settings. This view will be omitted.")
+                f"View '{view_id}' (index {i}) has no sections. "
+                "This view will be omitted.")
             continue
 
         area_style = theme.resolve(view_id)
 
-        # Pass the declared range as 'start'/'end' so AreaView uses the full
-        # declared coordinate space, not just the filtered sections' range.
-        effective_config = dict(area_config)
-        if range_min is not None:
-            effective_config['start'] = range_min
-        if range_max is not None:
-            effective_config['end'] = range_max
-
         area_views.append(AreaView(
-            sections=filtered_sections,
+            sections=Sections(sections=view_sections),
             style=area_style,
-            area_config=effective_config,
+            area_config=area_config,
             theme=theme,
         ))
 
@@ -423,7 +349,7 @@ def main():
 
     # Load diagram
     try:
-        raw_sections, diagram = load(args.diagram)
+        diagram = load(args.diagram)
     except (ValueError, OSError) as e:
         print(f"Error loading diagram: {e}")
         sys.exit(1)
@@ -452,7 +378,7 @@ def main():
     # Build area views
     area_configs = diagram.get('views', []) or []
     needs_auto = any('pos' not in c or 'size' not in c for c in area_configs)
-    area_views = get_area_views(raw_sections, base_style, diagram, theme, links=links)
+    area_views = get_area_views(base_style, diagram, theme, links=links)
     if not area_views:
         print("Error: no area views could be created. Check diagram.json configuration.")
         sys.exit(1)
@@ -469,7 +395,6 @@ def main():
         links=links,
         style=base_style,
         size=document_size,
-        raw_sections=raw_sections,
     ).draw()
 
     # Write output

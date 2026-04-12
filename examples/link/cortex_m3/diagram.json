@@ -1,188 +1,41 @@
 {
-  "sections": [
-    {
-      "id": "Code",
-      "address": "0x00000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "SRAM Area",
-      "address": "0x20000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "Peripheral",
-      "address": "0x40000000",
-      "size": "0x20000000"
-    },
-    {
-      "id": "External RAM",
-      "address": "0x60000000",
-      "size": "0x40000000"
-    },
-    {
-      "id": "External Device",
-      "address": "0xA0000000",
-      "size": "0x40000000"
-    },
-    {
-      "id": "Private Periph. Bus - Internal",
-      "address": "0xE0000000",
-      "size": "0x08000000",
-      "name": "PPB Internal"
-    },
-    {
-      "id": "Private Periph. Bus - External",
-      "address": "0xE8000000",
-      "size": "0x08000000",
-      "name": "PPB External"
-    },
-    {
-      "id": "Vendor Specific",
-      "address": "0xF0000000",
-      "size": "0x08000000"
-    },
-    {
-      "id": "TPIU",
-      "address": "0xE8040000",
-      "size": "0x00001000"
-    },
-    {
-      "id": "ETM",
-      "address": "0xE8041000",
-      "size": "0x00001000"
-    },
-    {
-      "id": "External PPB",
-      "address": "0xE8042000",
-      "size": "0x00001000"
-    },
-    {
-      "id": "ROM Table",
-      "address": "0xE8043000",
-      "size": "0x00001000"
-    },
-    {
-      "id": "ITM",
-      "address": "0xE0000000",
-      "size": "0x00010000"
-    },
-    {
-      "id": "DWT",
-      "address": "0xE0010000",
-      "size": "0x00010000"
-    },
-    {
-      "id": "FPB",
-      "address": "0xE0020000",
-      "size": "0x00010000"
-    },
-    {
-      "id": "Reserved",
-      "address": "0xE0030000",
-      "size": "0x000B0000"
-    },
-    {
-      "id": "NVIC",
-      "address": "0xE00E0000",
-      "size": "0x00010000"
-    },
-    {
-      "id": "NVIC",
-      "address": "0xE00F0000",
-      "size": "0x00010000"
-    },
-    {
-      "id": "Bit band region",
-      "address": "0x20000000",
-      "size": "0x00100000"
-    },
-    {
-      "id": "Bit",
-      "address": "0x20100000",
-      "size": "0x01F00000"
-    },
-    {
-      "id": "Bit band alias",
-      "address": "0x22000000",
-      "size": "0x01000000"
-    },
-    {
-      "id": "Bit band region",
-      "address": "0x40000000",
-      "size": "0x00100000"
-    },
-    {
-      "id": "Bit",
-      "address": "0x40100000",
-      "size": "0x01F00000"
-    },
-    {
-      "id": "Bit band alias",
-      "address": "0x42000000",
-      "size": "0x01000000"
-    }
-  ],
   "views": [
     {
       "id": "full-view",
       "title": "Full Memory Map",
-      "range": [
-        "0x0",
-        "0xF8000000"
-      ],
-      "section_size": [
-        49283072
+      "sections": [
+        { "id": "code",                        "address": "0x00000000", "size": "0x20000000", "name": "Code" },
+        { "id": "sram_area",                   "address": "0x20000000", "size": "0x20000000", "name": "SRAM Area" },
+        { "id": "peripheral",                  "address": "0x40000000", "size": "0x20000000", "name": "Peripheral" },
+        { "id": "external_ram",                "address": "0x60000000", "size": "0x40000000", "name": "External RAM" },
+        { "id": "external_device",             "address": "0xA0000000", "size": "0x40000000", "name": "External Device" },
+        { "id": "private_periph_bus_internal", "address": "0xE0000000", "size": "0x08000000", "name": "PPB Internal" },
+        { "id": "private_periph_bus_external", "address": "0xE8000000", "size": "0x08000000", "name": "PPB External" },
+        { "id": "vendor_specific",             "address": "0xF0000000", "size": "0x08000000", "name": "Vendor Specific" }
       ]
     },
     {
       "id": "link-detail-view",
       "title": "Address Link Example",
-      "range": [
-        "0xE8040000",
-        "0xE8044000"
-      ],
       "sections": [
-        {
-          "ids": [
-            "ETM",
-            "Peripheral"
-          ],
-          "flags": [
-            "break"
-          ]
-        }
+        { "id": "tpiu",         "address": "0xE8040000", "size": "0x00001000", "name": "TPIU"         },
+        { "id": "etm",          "address": "0xE8041000", "size": "0x00001000", "name": "ETM",          "flags": ["break"] },
+        { "id": "external_ppb", "address": "0xE8042000", "size": "0x00001000", "name": "External PPB" },
+        { "id": "rom_table",    "address": "0xE8043000", "size": "0x00001000", "name": "ROM Table"    }
       ]
     },
     {
       "id": "bit-band-view",
       "title": "None",
-      "range": [
-        "0x40000000",
-        "0x43000000"
-      ],
       "sections": [
-        {
-          "ids": [
-            "Bit"
-          ],
-          "flags": [
-            "break"
-          ]
-        },
-        {
-          "ids": [
-            "Reserved"
-          ],
-          "flags": [
-            "grows-down"
-          ]
-        }
+        { "id": "periph_bit_band_region", "address": "0x40000000", "size": "0x00100000", "name": "Bit band region" },
+        { "id": "periph_bit",             "address": "0x40100000", "size": "0x01F00000", "name": "Bit",             "flags": ["break"] },
+        { "id": "periph_bit_band_alias",  "address": "0x42000000", "size": "0x01000000", "name": "Bit band alias"  }
       ]
     }
   ],
   "links": [
-    {"from": {"view": "full-view", "sections": ["Peripheral"]},                       "to": {"view": "bit-band-view"}},
-    {"from": {"view": "full-view", "sections": ["Private Periph. Bus - External"]},   "to": {"view": "link-detail-view"}}
+    { "from": { "view": "full-view", "sections": ["peripheral"] },                  "to": { "view": "bit-band-view" } },
+    { "from": { "view": "full-view", "sections": ["private_periph_bus_external"] }, "to": { "view": "link-detail-view" } }
   ]
 }

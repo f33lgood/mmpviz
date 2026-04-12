@@ -227,53 +227,8 @@ Any valid SVG color string is accepted:
 
 ---
 
-## Full Example
+## Examples
 
-```json
-{
-  "schema_version": 1,
-  "extends": "default",
-  "style": {
-    "background": "#1a1a2e",
-    "fill": "#16213e",
-    "stroke": "#0f3460",
-    "stroke_width": 1,
-    "font_size": 13,
-    "font_family": "Helvetica",
-    "text_fill": "#a8dadc",
-    "text_stroke_width": 0,
-    "opacity": 1,
-    "break_height": 24,
-    "growth_arrow_size": 1,
-    "growth_arrow_fill": "#e94560",
-    "growth_arrow_stroke": "#e94560"
-  },
-  "views": {
-    "flash-view": {
-      "background": "#212b38",
-      "fill": "#08c6ab",
-      "text_fill": "white",
-      "sections": {
-        "text":   { "fill": "#1d6fa4" },
-        "rodata": { "fill": "#2a9d8f" }
-      }
-    },
-    "sram-view": {
-      "fill": "#6b3fa0",
-      "text_fill": "#e8d5f5",
-      "sections": {
-        "stack": { "fill": "#9b72cf" }
-      }
-    }
-  },
-  "links": {
-    "stroke": "#37465b",
-    "fill": "#212b38",
-    "opacity": 0.6
-  },
-  "labels": {
-    "stroke": "#a8dadc",
-    "stroke_dasharray": "5,3"
-  }
-}
-```
+The four built-in themes in `themes/` (`default.json`, `light.json`, `monochrome.json`,
+`plantuml.json`) are the canonical reference examples. Each uses `extends`, `style`,
+`links`, and `labels` — browse them directly to see real usage.

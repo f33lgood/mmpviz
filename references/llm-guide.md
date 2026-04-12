@@ -62,13 +62,10 @@ maps), use **break sections** to compress the empty space.
 4. All non-break sections are redistributed to fill the remaining panel height.
 
 ```json
-"sections": [
-  { "id": "Gap0", "address": "0x00100000", "size": "0x0FF00000", "name": "···" }
-],
 "views": [
   {
     "sections": [
-      { "ids": ["Gap0"], "flags": ["break"] }
+      { "id": "gap0", "address": "0x00100000", "size": "0x0FF00000", "name": "···", "flags": ["break"] }
     ]
   }
 ]
@@ -112,9 +109,8 @@ from a source view to an explicit destination view.
 
 - **`from.view` and `to.view` are always required.** There are no implicit defaults.
 - **`from.sections` is optional.** Omit it to span the source view's full address range.
-- **Section IDs resolve globally.** Sections filtered out of the source view by
-  `section_size` or marked `hidden` are still valid — their address range is looked up
-  from the global `sections[]` table.
+- **`to.sections` is optional.** When specified, the destination anchor is pinned to that address range independently of the source — useful for cross-address mappings (virtual→physical, DMA aliases).
+- **Section IDs must exist in the specified view's `sections[]` list.** Links resolve section addresses from the view they reference.
 - **Multiple entries → same destination.** To fan-in from two source views to the same
   detail panel, add two entries with the same `to.view`.
 
@@ -246,8 +242,8 @@ Common warnings and their causes:
 
 | Warning | Root cause |
 |---------|-----------|
-| `Section link [...] is outside the shown views` | Link section address range not covered by any detail view. Either adjust the detail view's `range`, add a hidden section to extend `highest_memory`, or remove the entry from `links.sections`. |
-| `View '...' has no sections after filtering` | `range` or `section_size` filter too tight. |
+| `Link: section '...' not found in view '...'` | Section ID in `from.sections` does not exist in the specified view's `sections[]`. Check spelling and confirm the section is declared in that view. |
+| `could not resolve source range, skipping` | The link's source anchor could not be determined (section missing or view has no sections). Fix the section reference or add the section to the source view. |
 
 ### Step 3 — Visual spot-check (human)
 
@@ -310,24 +306,22 @@ visible blank band.
 
 ---
 
-## 11. Hidden Section Exhaustiveness Rule
+## 11. Section Exclusivity Per View
 
 When a section is **expanded** in a detail view (i.e., the detail view shows its
-sub-sections), the parent section AND all its sub-sections must be hidden in every
-view that is supposed to show only the collapsed view.
+sub-sections), the parent section should not also appear in the same view. Each
+view declares only what it wants to display.
 
 ### Rule
 
 For each view at a higher zoom level (overview, intermediate view):
-1. Hide the parent section (e.g., `"uDMA"`).
-2. Also hide every sub-section that falls within the parent's address range
-   (e.g., `"UART"`, `"SPIM"`, `"I2C0"`, …). If you omit even one, it will
-   appear as an extra visible section in the parent view.
-3. If the detail view itself has a sub-sub-view (three levels of zoom), repeat
-   for that level too.
+1. Include the parent section (e.g., `"udma"`) but not its sub-sections.
+2. In the detail view, include the sub-sections but not the parent.
+3. Since each view has its own `sections[]` list, simply omit whichever layer
+   should not be visible — no flags required.
 
 **Symptom when violated:** An unexpected colored section appears in the overview
-or intermediate panel, usually at the bottom of the expanded region.
+or intermediate panel, usually covering the area of the expanded region.
 
 ---
 
@@ -376,10 +370,10 @@ even at small heights (e.g., tooltips, exported metadata).
 | Overview panel looks blank or all sections are invisible | No breaks; huge address range compresses everything to sub-pixel | Add break sections for large gaps |
 | Title first character clipped | Title too long for panel width | Shorten title or widen panel |
 | Title not visible at all | `panel_pos_y` = 0 in manual layout | Set `panel_pos_y` ≥ 50, or switch to auto-layout |
-| Link band missing (warning in logs) | Section ID not found in source view or global sections | Check spelling; confirm section exists in `sections[]` |
+| Link band missing (warning in logs) | Section ID not found in the source view | Check spelling; confirm the section is declared in that view's `sections[]` |
 | Link band connects to the wrong detail panel | Wrong `to.view` specified | Set `to.view` to the exact `id` of the intended target view |
 | Link band visible but band origin is at wrong vertical position | Source view has breaks; anchor is computed from compressed subarea — this is correct behaviour | No fix needed; the renderer handles compressed coordinates automatically |
-| Unexpected colored section at bottom of overview or intermediate view | Sub-sections of an expanded region not fully hidden — at least one sub-section is missing from the hidden list | Add all sub-sections of the expanded region to the hidden list in every parent view |
+| Unexpected colored section overlapping others in a view | Parent and sub-sections both included in the same view | Remove the layer that should not be visible from the view's `sections[]` |
 | Blank/empty stripe inside a panel | Gap section starts at wrong address, leaving an unmapped range | Recompute gap address as `previous.address + previous.size` |
 | Address labels appear to belong to wrong panel | Panels too close horizontally | Increase horizontal gap to ≥ 150 px between right edge of one panel and left edge of next |
 
@@ -389,17 +383,14 @@ even at small heights (e.g., tooltips, exported metadata).
 
 Before submitting a new example:
 
-- [ ] All section IDs are unique within the diagram
-- [ ] Section `address + size` values do not exceed the view's `range` end
-- [ ] Every view's `pos` + `size` fits within the diagram `size` canvas
+- [ ] Every section has `id`, `address`, `size`, and `name` (use `""` to suppress label)
+- [ ] Section IDs are unique within each view; they use only `[a-z0-9_-]` characters
+- [ ] Every view's `pos` + `size` fits within the diagram `size` canvas (if `size` is set)
 - [ ] Panel titles are ≤ `floor((panel_width − 40) / 13)` characters
 - [ ] All important sections are ≥ 20 px tall in their display panel (use breaks if not)
 - [ ] Each `links` entry has both `from.view` and `to.view` referencing valid view IDs
-- [ ] Section IDs in `from.sections` exist in the global `sections[]` table
-- [ ] The source view's address range covers every section listed in `from.sections`
+- [ ] Section IDs in `from.sections` exist in the referenced view's `sections[]` list
 - [ ] Gap sections are contiguous: `gap.address == previous.address + previous.size`
-- [ ] Hidden lists are exhaustive: every sub-section of an expanded region is hidden
-  in ALL parent views (not just the immediate parent)
 - [ ] Horizontal gap between panels ≥ 150 px
 - [ ] Break section names include address/size info (since address labels hide at 20 px)
 - [ ] Running `check.py` produces no ERRORs (exit 0 or 2)

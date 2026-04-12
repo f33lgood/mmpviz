@@ -21,7 +21,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 
 from area_view import AreaView
 from links import Links
-from loader import load, parse_int
+from loader import load
 from mmpviz import get_area_views
 from renderer import MapRenderer
 from sections import Sections
@@ -146,7 +146,7 @@ def render_example(example_dir):
     diagram_path = os.path.join(example_dir, 'diagram.json')
     theme_path = os.path.join(example_dir, 'theme.json')
 
-    raw_sections, diagram = load(diagram_path)
+    diagram = load(diagram_path)
     theme = Theme(theme_path if os.path.isfile(theme_path) else None)
     base_style = theme.resolve('')
 
@@ -156,14 +156,13 @@ def render_example(example_dir):
     links_config = diagram.get('links', [])
     links = Links(links_config=links_config, style=theme.resolve_links())
 
-    area_views = get_area_views(raw_sections, base_style, diagram, theme, links=links)
+    area_views = get_area_views(base_style, diagram, theme, links=links)
 
     return MapRenderer(
         area_views=area_views,
         links=links,
         style=base_style,
         size=doc_size,
-        raw_sections=raw_sections,
     ).draw()
 
 
