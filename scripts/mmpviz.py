@@ -3,8 +3,15 @@
 mmpviz — Memory Map SVG Visualizer
 
 Usage:
-    python scripts/mmpviz.py -d diagram.json [-t theme.json] [-o map.svg]
-    python scripts/mmpviz.py --validate diagram.json
+    python scripts/mmpviz.py -d diagram.json -o out.svg [-t theme.json]
+        Schema validate → layout check → render SVG.
+        Aborts on check ERRORs; prints WARNINGs but still renders.
+
+    python scripts/mmpviz.py -d diagram.json --fmt
+        Format diagram.json in-place only (no render).
+
+    python scripts/mmpviz.py -d diagram.json -o out.svg --fmt
+        Format diagram.json, then schema validate → layout check → render SVG.
 """
 import argparse
 import copy
@@ -15,6 +22,7 @@ from area_view import AreaView
 from auto_layout import build_link_graph_from_links, assign_columns, order_within_column
 from helpers import safe_element_list_get, safe_element_dict_get, DefaultAppValues
 from links import Links
+from fmt_diagram import format_diagram
 from loader import load, validate, parse_int, resolve_view_sections
 from logger import logger
 from renderer import MapRenderer
@@ -37,7 +45,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser(
         description='Generate an SVG memory map diagram from a diagram.json file.')
     parser.add_argument('--diagram', '-d',
-                        help='Path to the diagram.json file (memory sections + display layout)',
+                        help='Path to the diagram.json file',
                         required=False)
     parser.add_argument('--theme', '-t',
                         help=('Visual styling. Three forms accepted: '
@@ -47,12 +55,14 @@ def parse_arguments():
                               'Custom themes support "extends" to inherit from a built-in base.'),
                         default=None)
     parser.add_argument('--output', '-o',
-                        help='Path for the generated SVG file (default: map.svg)',
-                        default='map.svg')
-    parser.add_argument('--validate',
-                        help='Validate the diagram.json file and exit (no SVG generated)',
-                        metavar='DIAGRAM_PATH',
+                        help='Path for the generated SVG file. '
+                             'Required to produce SVG output; omit to run fmt/check only.',
                         default=None)
+    parser.add_argument('--fmt',
+                        help='Format diagram.json in-place before rendering '
+                             '(or as a standalone operation when -o is omitted).',
+                        action='store_true',
+                        default=False)
     parser.add_argument('--version', '-v',
                         action='version',
                         version=f'mmpviz {__version__}')
@@ -488,20 +498,36 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
 def main():
     args = parse_arguments()
 
-    # --validate mode: check diagram.json and exit
-    if args.validate:
-        errors = validate(args.validate)
-        if errors:
-            print("Validation failed:")
-            for e in errors:
-                print(f"  - {e}")
-            sys.exit(1)
-        else:
-            print("OK")
-            sys.exit(0)
-
     if not args.diagram:
-        print("Error: --diagram / -d is required unless using --validate")
+        print("Error: --diagram / -d is required")
+        sys.exit(1)
+
+    if not args.fmt and not args.output:
+        print("Error: specify -o <path> to render SVG, --fmt to format, or both.")
+        sys.exit(1)
+
+    # --fmt: format diagram.json in-place
+    if args.fmt:
+        import json as _json
+        try:
+            with open(args.diagram, 'r', encoding='utf-8') as f:
+                data = _json.load(f)
+            formatted = format_diagram(data)
+            with open(args.diagram, 'w', encoding='utf-8') as f:
+                f.write(formatted)
+            print(f"Formatted: {args.diagram}")
+        except (OSError, ValueError) as e:
+            print(f"Error formatting diagram: {e}")
+            sys.exit(1)
+        if not args.output:
+            sys.exit(0)  # format-only mode, done
+
+    # Schema validation (JSON Schema via jsonschema, if available)
+    schema_errors = validate(args.diagram)
+    if schema_errors:
+        print("Schema validation failed:")
+        for e in schema_errors:
+            print(f"  {e}")
         sys.exit(1)
 
     # Load diagram
@@ -518,20 +544,34 @@ def main():
         print(f"Error loading theme: {e}")
         sys.exit(1)
 
-    base_style = theme.resolve('')  # global defaults for areas without explicit id
+    base_style = theme.resolve('')
 
     # Links
     links_config = diagram.get('links', [])
     links_style = theme.resolve_links()
     links = Links(links_config=links_config, style=links_style)
 
-    # Build area views (auto-layout always runs)
+    # Build area views — auto-layout always runs
     area_views = get_area_views(base_style, diagram, theme, links=links)
     if not area_views:
         print("Error: no area views could be created. Check diagram.json configuration.")
         sys.exit(1)
 
-    # Canvas always auto-sizes to fit all placed views.
+    # Layout checks — deferred import avoids circular dependency
+    # (check.py imports get_area_views from mmpviz at module level)
+    from check import run_checks, ALL_RULES  # noqa: PLC0415
+    issues = run_checks(diagram, area_views, ALL_RULES)
+    errors   = [i for i in issues if i.level == 'ERROR']
+    warnings = [i for i in issues if i.level == 'WARN']
+    for w in warnings:
+        print(f"  {w}")
+    if errors:
+        print("\nErrors found — aborting render. Fix the issues above and re-run.")
+        for e in errors:
+            print(f"  {e}")
+        sys.exit(1)
+
+    # Canvas always auto-sizes to fit all placed views
     doc_w, doc_h, left_overflow, top_overflow = _auto_canvas_size(area_views)
     document_size = (doc_w, doc_h)
     origin = (-left_overflow, -top_overflow)

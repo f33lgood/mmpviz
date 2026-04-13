@@ -1,20 +1,25 @@
-# mmpviz check.py — Rule Reference
+# mmpviz — Check Rules Reference
 
-`scripts/check.py` is a **separate, standalone script** — it is not called by `mmpviz.py`
-and does not run automatically during rendering. You must invoke it explicitly.
+**When to read this document:** whenever the render outputs an `[ERROR]` or `[WARNING]`
+line. Look up the rule name in the table below, read its description and fix guidance,
+then edit `diagram.json` accordingly and re-render.
 
-`check.py` does **not** read or parse the SVG. It loads `diagram.json` + `theme.json`,
-runs the same layout engine as `mmpviz.py` (`get_area_views()`), and validates the
-computed section heights and panel positions against the rules below. It stops before
-SVG generation. This means `check.py` can be run before or instead of rendering.
+These rules are validated by loading `diagram.json` + `theme.json`, running the same
+layout engine as the renderer (`get_area_views()`), and checking the computed section
+heights and panel positions. They do **not** parse the SVG output.
 
-Three distinct operations exist:
+The validation runs **automatically** as part of every `mmpviz.py` render:
+`[ERROR]` issues abort before SVG generation; `[WARNING]` issues are printed but
+rendering continues. The same rules are also available standalone via `check.py` for
+CI pipelines that need machine-readable output (`--format json`) or selective rule
+runs (`--rules`).
 
-| Command | Input | What it checks |
-|---------|-------|---------------|
-| `python scripts/mmpviz.py -d diagram.json -o out.svg` | `diagram.json` | Nothing — renders directly |
-| `python scripts/mmpviz.py --validate diagram.json` | `diagram.json` | JSON Schema only (structure, required fields, types) |
-| `python scripts/check.py -d diagram.json` | `diagram.json` | Layout and display rules (this document) |
+| Command | What happens |
+|---------|-------------|
+| `python scripts/mmpviz.py -d diagram.json -o out.svg` | Schema validate → layout check → render SVG |
+| `python scripts/mmpviz.py -d diagram.json -o out.svg --fmt` | Format JSON → schema validate → layout check → render SVG |
+| `python scripts/mmpviz.py -d diagram.json --fmt` | Format JSON only |
+| `python scripts/check.py -d diagram.json` | Layout check only (standalone; no format or render) |
 
 ## Quick Usage
 
@@ -38,11 +43,11 @@ Exit codes: **0** = no issues, **1** = one or more ERRORs, **2** = warnings only
 |------|-------|-------|
 | `min-height-violated` | WARN | Human/AI |
 | `section-height-conflict` | ERROR | Human/AI |
-| `out-of-canvas` | ERROR | Tool bug |
+| `out-of-canvas` | ERROR | Bug — report |
 | `section-overlap` | WARN | Human/AI |
 | `uncovered-gap` | WARN | Human/AI |
 | `panel-overlap` | ERROR | Human/AI |
-| `band-too-wide` | WARN | Human/AI |
+| `link-anchor-out-of-bounds` | ERROR | Human/AI |
 | `unresolved-section` | ERROR | Human/AI |
 | `title-overlap` | WARN | Human/AI |
 | `label-overlap` | WARN | Bug — report |
@@ -59,13 +64,12 @@ When satisfying all minimum-height constraints would require more pixels than th
 panel has, the renderer falls back to pure proportional layout — all sections
 render at their proportional size and minimums are violated.
 
-**Fix:** Human/AI — edit `diagram.json`; adjust `theme.json` only if the global floor itself is the problem.
+**Fix:** Human/AI — edit `diagram.json`.
 
 **How:**
 - Set `"min_height"` on sections that are too thin to read in `diagram.json` — gives them a guaranteed pixel floor.
 - Set `"max_height"` on sections that dominate the view in `diagram.json` — caps their pixel budget; the freed height is redistributed to floor-locked sections first.
 - Add `"flags": ["break"]` to unimportant sections in `diagram.json` — compresses them to `break_height` px (default 20 px), freeing proportional height for the rest.
-- Lower `"min_section_height"` in `theme.json` — only if the global floor is the limiting factor (all sections, not just one, are being forced too large).
 
 ---
 
@@ -122,32 +126,36 @@ overview view and the named children in a detail view — never both in the same
 ### `uncovered-gap` — WARN
 
 **Violated when:** A large address gap between two consecutive visible sections is
-not fully compressed by a break section. Two conditions independently trigger this
-rule:
+not fully covered by break sections. Two conditions independently trigger this rule:
 
-1. **No break covers the gap** and the gap exceeds 5× the total size of all
-   non-break sections in that view — proportional layout shrinks the real sections
-   to near-invisible slivers.
+1. **No break coverage** and the gap exceeds 5× the total size of all non-break
+   sections in that view — proportional layout shrinks the real sections to
+   near-invisible slivers.
 
-2. **A break starts at the gap but stops short** — the existing break section ends
-   before the next visible section begins, leaving part of the gap uncompressed.
-   The warning message reports how far short the break falls.
+2. **Partial break coverage** — break sections overlap the gap but leave holes,
+   and the gap exceeds the size of its flanking sections. The warning message
+   reports the first uncovered address.
+
+Coverage is determined by the **union** of all break sections in the view.
+Multiple consecutive breaks that together span the full gap are correctly
+recognised as covering it — each break does not need to span the entire gap alone.
 
 Example: `Flash` at `0x0000_0000` (512 KB) and `SRAM` at `0x2000_0000` (128 KB)
-share a ~500 MB gap — without a break, the gap consumes almost all view height.
-A break ending at `0x0200_0000` instead of `0x2000_0000` triggers condition 2.
+share a ~500 MB gap. Without any break, condition 1 fires. With one break ending at
+`0x0200_0000` instead of `0x2000_0000`, condition 2 fires.
 
-**Fix:** Human/AI — add or correct a break section in `diagram.json`.
+**Fix:** Human/AI — add or correct break section(s) in `diagram.json`.
 
-**How:** Insert a break section spanning the entire gap:
+**How:** Break sections must be contiguous; their union must span `[gap_lo, gap_hi]`
+with no holes. A single break is simplest:
 
 ```json
 { "id": "gap0", "address": "0x00080000", "size": "0x1FF80000",
   "name": "···", "flags": ["break"] }
 ```
 
-The start address must be exactly `previous_section.address + previous_section.size`,
-and the break's end must exactly reach the next section's start.
+Multiple consecutive breaks are also valid — ensure each break's start address
+equals `previous_break.address + previous_break.size` with no gaps between them.
 
 ---
 
@@ -157,13 +165,12 @@ and the break's end must exactly reach the next section's start.
 when stacked panels in the same column grow tall enough to collide — sections,
 borders, and labels from one panel bleed into the other.
 
-**Fix:** Human/AI — reduce panel height in `diagram.json` or `theme.json`.
+**Fix:** Human/AI — reduce panel height in `diagram.json`.
 
 **How:**
 - Add `"break"` sections to compress large gaps in the taller view.
 - Set `"max_height"` on dominant sections in `diagram.json` to cap their pixel
   allocation.
-- Lower `"max_section_height"` in `theme.json` to cap all sections globally.
 
 ---
 
@@ -174,8 +181,7 @@ above it. Titles render 20 px above the panel top edge; check.py uses a 25 px
 clearance zone. This fires when the upper panel is too tall and leaves insufficient
 vertical gap for the lower panel's title.
 
-**Fix:** Human/AI — reduce the height of the upper panel in `diagram.json` or
-`theme.json`.
+**Fix:** Human/AI — reduce the height of the upper panel in `diagram.json`.
 
 **How:**
 - Add `"break"` sections to compress large gaps in the upper view.
@@ -212,20 +218,24 @@ that is a tool bug.
 
 ## Link Rules
 
-### `band-too-wide` — WARN
+### `link-anchor-out-of-bounds` — ERROR
 
-**Violated when:** A link band's horizontal span (source panel right edge to
-destination panel left edge) is very large — the band may dominate the diagram's
-visual composition.
+**Violated when:** A link band's source-side or destination-side y-anchor falls
+outside the panel's rendered pixel range `[pos_y, pos_y + size_y]`. When this
+happens the band is drawn partially or fully outside the panel rectangle and no
+longer aligns with the sections it is supposed to annotate.
 
-- Span > 200 px for the nearest detail panel: ideally ≤ 200 px.
-- Span > 600 px for any detail panel: band is visually very prominent.
+For section-ID specifiers this should never fire — sections are always within
+their panel's pixel range. It fires when `links[].from.sections` or
+`links[].to.sections` uses an explicit address-range form
+(e.g. `["0x0", "0x5000"]`) whose addresses extend beyond the view's actual
+address range.
 
-**Fix:** Human/AI — edit `theme.json`.
+**Fix:** Human/AI — edit `links[]` in `diagram.json`.
 
-**How:** Set `"opacity": 0.3`–`0.4` in the `links` section of `theme.json` to make
-the band recede without removing it. There is no `diagram.json` change that reduces
-the span — it is determined entirely by the auto-layout column placement.
+**How:** Correct the address values in `from.sections` or `to.sections` so they
+stay within the referenced view's address extent, or remove the explicit range to
+span the full view.
 
 ---
 

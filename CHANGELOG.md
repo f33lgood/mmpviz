@@ -25,15 +25,20 @@ Writing guide:
 ## [2026-04-13]
 
 ### Added
-- **`schemas/diagram.schema.json` and `schemas/theme.schema.json`** — machine-readable JSON Schema (draft 2020-12) contracts for both input formats; shipped with mmpviz and loaded automatically by `--validate` when the `jsonschema` Python package is available.
+- **`schemas/diagram.schema.json` and `schemas/theme.schema.json`** — machine-readable JSON Schema (draft 2020-12) contracts for both input formats; loaded automatically by the render pipeline when the `jsonschema` Python package is available.
 - **`sections[].min_height`** — per-section pixel height floor; effective floor = `max(min_height, theme min_section_height)`. Use for sections too small in proportion to read.
 - **`sections[].max_height`** — per-section pixel height ceiling; effective ceiling = `min(max_height, theme max_section_height)`. Use for sections that would otherwise dominate the view. `min_height` must not exceed `max_height`.
-- **`section-height-conflict` check rule** — `check.py` reports an ERROR when a section declares `min_height > max_height`.
+- **`section-height-conflict` check rule** — reports an ERROR when a section declares `min_height > max_height`.
+- **`--fmt` flag** — formats `diagram.json` in-place (canonical column-aligned style) when passed to `mmpviz.py`; combine with `-o` to format then render in one command.
+- **Integrated render pipeline** — `mmpviz.py` now runs schema validation and all layout checks automatically before SVG generation; `[ERROR]` issues abort the render, `[WARNING]` issues are printed but SVG is still written.
+- **Issue severity levels** — every `check.py` finding is now classified as `ERROR` or `WARNING`; standalone `check.py` exits 1 for errors, 2 for warnings-only, 0 for clean.
+- **`link-anchor-out-of-bounds` check rule** — ERROR when a link band's y-anchor (source or destination side) falls outside the panel's rendered pixel range; fires only for explicit address-range `sections` specifiers that extend beyond the view's address extent.
 
 ### Changed
+- **Agentic skill documentation** — `SKILL.md` description expanded with embedded-domain trigger phrases and informal-phrasing guidance; `references/check-rules.md` rewritten to reflect the integrated pipeline; `references/create-diagram.md` streamlined to a pure authoring reference (rendering and iteration steps moved to the skill workflow).
 - **Left-side label visibility** — labels with `"side": "left"` were clipped when their text extended past the left canvas edge; the SVG viewport now shifts to expose the full text. Right-side labels with long text or large `length` likewise expand the right-side canvas margin automatically.
 - **View title clipping** — view titles wider than their column panel no longer clip at the canvas edge; the SVG viewport now expands to expose the full title text on both sides.
-- **`uncovered-gap` detection improved** — also fires when a break section starts at the gap but stops short of the next visible section.
+- **`uncovered-gap` detection improved** — coverage is now determined by the union of all break sections; consecutive chained breaks that together span the full gap are correctly recognised as covering it and no longer produce a false positive.
 - **Link-crossing minimisation** — views in each column are automatically reordered to match the vertical order of their source sections, reducing link-band crossings in multi-column diagrams.
 - **64-bit address label support** — views whose sections have start addresses above `0xFFFFFFFF` now render all address labels in 16-digit hex format (`0x0000000300000000`), and the inter-column gap widens automatically to fit; 32-bit columns are unaffected.
 
@@ -43,6 +48,8 @@ Writing guide:
 - **`diagram.json` top-level `"size"`** — canvas is always auto-sized from content; `"size"` is now a deprecated no-op (triggers a validation warning).
 - **`views[].pos`** — view position is always computed by auto-layout; `"pos"` is now a deprecated no-op (triggers a validation warning).
 - **`views[].size`** — view dimensions are always computed by auto-layout; `"size"` is now a deprecated no-op (triggers a validation warning).
+- **`mmpviz.py --validate`** — superseded by the integrated pipeline; schema validation now runs automatically on every render.
+- **`band-too-wide` check rule** — replaced by `link-anchor-out-of-bounds`; the horizontal span of a link band is a layout consequence, not an error indicator.
 
 ---
 

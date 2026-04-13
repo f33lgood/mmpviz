@@ -1,10 +1,15 @@
 ---
 name: mmpviz
 description: >
-  This skill should be used when the user asks to "generate a memory map diagram",
-  "visualize memory layout", "create a memory map SVG", "draw memory regions",
-  "show flash and RAM as a diagram", or "produce an embedded memory map".
-  Use it when turning address/size data into an SVG memory map diagram.
+  Use this skill whenever the user wants to visualize, diagram, or document a memory map,
+  memory layout, or address space — even if they don't use those exact words.
+  Trigger on: "generate a memory map diagram", "visualize memory layout", "create a memory map SVG",
+  "draw memory regions", "show flash and RAM as a diagram", "produce an embedded memory map",
+  "draw my linker script regions", "visualize my device memory", "show the address space",
+  "diagram my peripheral registers", "create a memory layout SVG", "show me the flash layout",
+  "map out the RAM sections", "visualize my MPU regions", "document the memory map for this chip",
+  or any request to turn address/size data from a datasheet, linker script, header file, or RTL
+  into a diagram. Use this skill even when the request is casual or phrased informally.
 version: 1.0.0
 tools:
   - Read
@@ -18,95 +23,78 @@ Turn a JSON memory map description into a publication-quality SVG — one comman
 
 ---
 
-## Workflow
+## File naming
 
-1. **Extract** memory regions from context (datasheet, linker script, RTL, header): start address, size, and name for each region.
-2. **Write `diagram.json`** — declare views and their sections. Omit `pos`/`size`; auto-layout handles placement.
-3. **Render**: `python <skill_path>/scripts/mmpviz.py -d diagram.json -o map.svg`
-4. **Check**: `python <skill_path>/scripts/check.py -d diagram.json` — exit 0 = clean, 1 = errors, 2 = warnings only.
-5. **Fix** any errors from `check.py` or `WARNING` lines from the renderer, then re-render.
-6. Repeat until the diagram is correct.
+**Input (`-d`):** use the filename the user already has or specifies. Default to `diagram.json` in the current directory when no name is given.
+
+**Output (`-o`):** derive from the input — replace the `.json` extension with `.svg` (e.g. `stm32.json` → `stm32.svg`). Place it next to the input file unless the user asks otherwise.
 
 ---
 
-## Minimal `diagram.json`
+## Workflow
 
-```json
-{
-  "views": [
-    {
-      "id": "flash-view",
-      "title": "Flash",
-      "sections": [
-        { "id": "code",   "address": "0x08000000", "size": "0x09000", "name": "Code",       "flags": ["grows-up"] },
-        { "id": "consts", "address": "0x08009000", "size": "0x02000", "name": "Const Data"  }
-      ]
-    },
-    {
-      "id": "sram-view",
-      "title": "SRAM",
-      "sections": [
-        { "id": "bss",   "address": "0x20000000", "size": "0x00800", "name": ".bss"                      },
-        { "id": "stack", "address": "0x20004000", "size": "0x01000", "name": "Stack", "flags": ["grows-down"] }
-      ]
-    }
-  ]
-}
-```
-
-Key rules:
-- Each view declares its own `sections[]` inline — no global section pool
-- `id` must match `^[a-z0-9_-]+$` and be unique within its view
-- `address` and `size` accept hex strings (`"0x08000000"`) or integers
-- `name` is required; use `""` to suppress the label
-- Omit `pos`/`size` — auto-layout places every view automatically
+1. **Collect** memory regions from context (datasheet, linker script, RTL, header): start address, size, and name for each region.
+2. **Write the input file** — declare views and their sections. Omit `pos`/`size`; auto-layout handles placement.
+   Consult `references/create-diagram.md` for step-by-step authoring guidance, break/label/link patterns, and common pitfalls.
+3. **Render**: `python <skill_path>/scripts/mmpviz.py -d <input> -o <output>` (`mmpviz.py` lives in `scripts/` alongside this SKILL.md — use its absolute path)
+   The render pipeline runs automatically in order: schema validate → layout check → SVG render.
+   `[ERROR]` lines abort before the SVG is written; `[WARNING]` lines are printed but the SVG is still produced.
+   Errors and warnings are expected on the first render — they drive the next step.
+4. **Fix errors and warnings** — for each `[ERROR]` or `[WARNING]` line, consult `references/check-rules.md` to identify the rule, its cause, and the recommended fix. Edit the input file and re-render. Repeat until there are no `[ERROR]` or `[WARNING]` lines.
+5. **Post-render checks** — once the render is clean (no errors or warnings), review the SVG for visual issues not caught by the checker:
+   - **Section label overflow**: name truncated or overflowing its box — set `"min_height"` on that section, or flag it `"break"`.
+   - **Dominant section**: one section crowds out neighbours — set `"max_height"` on it.
+   - **Wrong column layout**: a view lands in the wrong column — verify `links[]` entries reference the correct view IDs.
+   - **Link band to wrong panel**: band connects to the wrong detail view — verify `to.view` matches the exact `id` of the intended target view.
+   Apply any necessary fixes to the input file and re-render.
+6. **Done** — both files are valid and visually correct.
 
 ---
 
 ## Commands
 
 ```bash
-# Render with default theme
-python <skill_path>/scripts/mmpviz.py -d diagram.json -o map.svg
+# Render (schema validate + layout check + SVG)
+python <skill_path>/scripts/mmpviz.py -d <input> -o <output>
 
 # Render with plantuml theme
-python <skill_path>/scripts/mmpviz.py -d diagram.json -t plantuml -o map.svg
+python <skill_path>/scripts/mmpviz.py -d <input> -t plantuml -o <output>
 
-# Validate only (no SVG written)
-python <skill_path>/scripts/mmpviz.py --validate diagram.json
+# Format input file in-place, then render
+python <skill_path>/scripts/mmpviz.py -d <input> -o <output> --fmt
 
-# Check layout rules
-python <skill_path>/scripts/check.py -d diagram.json
+# Format input file in-place only (no render)
+python <skill_path>/scripts/mmpviz.py -d <input> --fmt
 ```
-
----
-
-## Checklist
-
-- [ ] Every section has `id`, `address`, `size`, and `name`
-- [ ] Section IDs use only `[a-z0-9_-]` and are unique within their view
-- [ ] Large address gaps have a `"break"` section to compress them
-- [ ] Gap sections are contiguous: `gap.address == previous.address + previous.size`
-- [ ] Each `links` entry has both `from.view` and `to.view` referencing valid view IDs
-- [ ] Section IDs in `from.sections` exist in the referenced view's `sections[]`
-- [ ] `check.py` exits 0 or 2 (no ERRORs)
-- [ ] `mmpviz.py` produces no `WARNING` output
 
 ---
 
 ## Reference Docs
 
-| File | Contents |
-|------|----------|
-| `references/diagram-schema.md` | All `diagram.json` fields — types, defaults, allowed values |
-| `references/theme-schema.md` | All `theme.json` style properties, examples, and tips |
-| `references/create-diagram.md` | Step-by-step authoring guide with common pitfalls and fixes |
-| `references/check-rules.md` | All `check.py` rules, thresholds, and remediation |
+Read these as needed — don't load all at once.
 
----
+| File | When to read |
+|------|--------------|
+| `references/create-diagram.md` | Authoring `diagram.json` — views, sections, links, breaks, labels |
+| `references/diagram-schema.md` | Full field reference — types, defaults, allowed values |
+| `references/check-rules.md` | Diagnosing `[ERROR]`/`[WARNING]` output |
+| `references/theme-schema.md` | Customising visual style via `theme.json` |
+| `references/auto-layout-algorithm.md` | Layout engine internals — read only if diagnosing unexpected column or height behaviour |
 
-## Install as Claude Code Skill
+## Examples
 
-```bash
-ln -s "$(pwd)" ~/.claude/skills/mmpviz
-```
+`examples/` contains ready-to-render diagrams paired with their golden SVG outputs.
+Browse these for patterns before authoring from scratch:
+
+| Directory | What it demonstrates |
+|-----------|----------------------|
+| `examples/chips/` | Real chip memory maps (STM32, RISC-V, ARM CoreSight, etc.) |
+| `examples/link/` | Link band styles (polygon, curve) and anchor variants |
+| `examples/stack/` | Stack and guard-page layout patterns |
+| `examples/break/` | Break section usage for large address gaps |
+| `examples/labels/` | Address label annotations |
+| `examples/height/` | Per-section and global height overrides |
+| `examples/themes/` | Theme variations (default, plantuml) |
+
+Each example contains a `diagram.json` and a `golden.svg`.
+
