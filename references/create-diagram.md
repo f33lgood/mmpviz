@@ -53,8 +53,7 @@ defined inline directly inside the view. Every section requires `id`, `address`,
 ]
 ```
 
-The SVG canvas and panel positions are computed automatically — `pos` and `size`
-are optional and rarely needed.
+The SVG canvas and panel positions are computed automatically.
 
 **When the same region appears in multiple views:** declare the section inline in
 each view. Duplication is intentional and makes each view self-contained:
@@ -64,19 +63,6 @@ each view. Duplication is intentional and makes each view self-contained:
   { "id": "overview",   "sections": [{ "id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash" }] },
   { "id": "flash-zoom", "sections": [{ "id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash" }] }
 ]
-```
-
-**Manual placement:** supply `pos` and `size` on any view where you need precise
-control (auto-layout is used for views without them):
-
-```json
-{
-  "id": "flash-view",
-  "title": "Flash Memory",
-  "pos": [50, 80],
-  "size": [180, 700],
-  "sections": [...]
-}
 ```
 
 ---
@@ -89,6 +75,31 @@ Mark a section as a break to compress a large empty or unimportant region:
 
 ```json
 { "id": "unused", "address": "0x0800B000", "size": "0x00005000", "name": "···", "flags": ["break"] }
+```
+
+If the gap-to-range ratio exceeds ~90%, breaks are essential — without them, functional sections compress to sub-pixel height and become invisible.
+
+**Break vs. height clamping — when to use each:**
+
+| Situation | Use |
+|-----------|-----|
+| Address hole with no hardware behind it | `"break"` flag — compresses the gap visually |
+| All sections across all views are too small to read | `min_section_height` in `theme.json` — global height floor |
+| All sections across all views are too large | `max_section_height` in `theme.json` — global height ceiling |
+| One specific section is tiny relative to its neighbours | `"min_height"` on that section in `diagram.json` — per-section floor, takes precedence over the global minimum |
+| One specific section dominates the view | `"max_height"` on that section in `diagram.json` — per-section ceiling, takes precedence over the global maximum |
+| Name and size labels overlap inside a box | Nothing — the renderer inflates that section automatically |
+
+**Gap continuity:** every section (including breaks) must be exactly contiguous with its neighbours. Even a 1-byte error leaves a blank stripe in the panel:
+
+```
+section[i].address + section[i].size == section[i+1].address
+```
+
+**Break section names:** address labels are auto-hidden at the default 20 px break height. Embed the address range in the `name` field so the break remains informative:
+
+```json
+{ "id": "gap0", "address": "0x10000000", "size": "0x0FF00000", "name": "··· (0x1000_0000, 256 MiB)", "flags": ["break"] }
 ```
 
 ### Labels
@@ -123,7 +134,7 @@ python scripts/mmpviz.py -d diagram.json -o output.svg
 
 With a theme:
 ```bash
-python scripts/mmpviz.py -d diagram.json -t themes/light.json -o output.svg
+python scripts/mmpviz.py -d diagram.json -t plantuml -o output.svg
 ```
 
 Validate before rendering:
@@ -135,14 +146,29 @@ python scripts/mmpviz.py --validate diagram.json
 
 ## Step 5: Iterate
 
-Auto-layout handles placement by default — you rarely need to touch `pos` or
-`size`. Typical iteration focuses on:
+Auto-layout handles placement automatically. Typical iteration focuses on:
 
 - **Section label overflow**: if a section is shorter than `font_size` px, its name
-  label overflows the box. Increase `min_section_height` in `theme.json`, or flag the
+  label overflows the box. Increase `min_section_height` in `theme.json` (global) or
+  set `"min_height"` on the section in `diagram.json` (per-section), or flag the
   section as `"break"` to compress it.
+- **Dominant sections**: if one large section crowds out smaller neighbours, set
+  `"max_height"` on that section in `diagram.json` to cap its pixel allocation.
 - **Column arrangement**: the auto-layout derives columns from the `links[]` graph.
   If a view lands in the wrong column, check that its `links` entries correctly
-  reference it, or use `pos`/`size` to override placement.
+  reference it.
 - **Styling**: move colors, fonts, and link styles to `theme.json`.
   See `references/theme-schema.md` for all available style properties.
+
+---
+
+## Common Mistakes
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| Panel looks blank or sections are invisible | No breaks; large address range compresses everything to sub-pixel | Add `"break"` sections for large gaps |
+| Link band missing (warning in logs) | Section ID in `from.sections` not found in the source view | Check spelling; confirm the section is declared in that view's `sections[]` |
+| Link band connects to wrong detail panel | Wrong `to.view` | Set `to.view` to the exact `id` of the intended target view |
+| Link band origin at wrong vertical position | Source view has breaks; anchor is from compressed position — this is correct | No fix needed; renderer handles compressed coordinates automatically |
+| Unexpected section overlapping others in a view | Parent and sub-sections both included in the same view | Remove the layer that should not be visible from that view's `sections[]` |
+| Blank stripe inside a panel | Gap section starts at wrong address, leaving an unmapped range | Recompute: `gap.address = previous.address + previous.size` |

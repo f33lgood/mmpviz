@@ -1,0 +1,16 @@
+{
+  "title": "Per-Section Height Override",
+  "views": [
+    {
+      "id": "mem-map",
+      "title": "SoC Memory Map",
+      "sections": [
+        { "id": "rom",  "address": "0x00000000", "size": "0x00000100", "name": "Boot ROM (256 B)",  "min_height": 40 },
+        { "id": "gap1", "address": "0x00000100", "size": "0x1FFFFF00", "name": "···", "flags": ["break"] },
+        { "id": "sram", "address": "0x20000000", "size": "0x00020000", "name": "SRAM (128 KiB)" },
+        { "id": "gap2", "address": "0x20020000", "size": "0x5FFE0000", "name": "···", "flags": ["break"] },
+        { "id": "ddr",  "address": "0x80000000", "size": "0x40000000", "name": "DDR (1 GiB)",       "max_height": 80 }
+      ]
+    }
+  ]
+}

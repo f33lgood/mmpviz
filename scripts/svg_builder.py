@@ -38,11 +38,11 @@ class SVGBuilder:
         svg.save('output.svg')
     """
 
-    def __init__(self, width, height):
+    def __init__(self, width, height, origin_x=0, origin_y=0):
         self.root = ET.Element(_tag('svg'), {
             'width': str(width),
             'height': str(height),
-            'viewBox': f'0 0 {width} {height}',
+            'viewBox': f'{origin_x} {origin_y} {width} {height}',
         })
 
     def rect(self, x, y, width, height, **attrs) -> ET.Element:

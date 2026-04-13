@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mmpviz theme.json",
+  "description": "Visual styling for the mmpviz renderer. Themes are reusable across different diagrams.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "description": "Theme file format generation. Current value: 1.",
+      "type": "integer"
+    },
+    "extends": {
+      "description": "Built-in theme name ('default', 'plantuml') or path to inherit from.",
+      "type": "string"
+    },
+    "style": {
+      "description": "Global baseline styles applied to all views and sections.",
+      "$ref": "#/$defs/style_block"
+    },
+    "views": {
+      "description": "Per-view style overrides. Keys are view IDs from diagram.json.",
+      "type": "object",
+      "additionalProperties": { "$ref": "#/$defs/view_override" }
+    },
+    "links": {
+      "description": "Style for cross-view zoom band connectors.",
+      "$ref": "#/$defs/links_block"
+    },
+    "labels": {
+      "description": "Style for address annotation leader lines.",
+      "$ref": "#/$defs/style_block"
+    }
+  },
+  "$defs": {
+    "color_string": {
+      "description": "Any valid SVG color: named ('white'), hex ('#caf0f8'), rgb('rgb(33,43,56)'), or 'none'.",
+      "type": "string"
+    },
+    "style_props": {
+      "description": "All visual style properties. Used as a mixin via allOf.",
+      "properties": {
+        "background": {
+          "description": "View panel background fill.",
+          "$ref": "#/$defs/color_string"
+        },
+        "fill": {
+          "description": "Section box fill color.",
+          "$ref": "#/$defs/color_string"
+        },
+        "break_fill": {
+          "description": "Background fill of a break-section box. Falls back to 'fill' when unset.",
+          "$ref": "#/$defs/color_string"
+        },
+        "stroke": {
+          "description": "Outline color for boxes and frames.",
+          "$ref": "#/$defs/color_string"
+        },
+        "stroke_width": {
+          "description": "Outline thickness in pixels.",
+          "type": "number"
+        },
+        "stroke_dasharray": {
+          "description": "SVG dash pattern (e.g. '5,3'). Use 'none' for a solid outline.",
+          "type": "string"
+        },
+        "opacity": {
+          "description": "Element opacity.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "font_size": {
+          "description": "Font size in pixels. Use 12–14 for screen/print, 15–18 for projected slides.",
+          "oneOf": [
+            { "type": "number" },
+            { "type": "string" }
+          ]
+        },
+        "font_family": {
+          "description": "Font family.",
+          "type": "string"
+        },
+        "text_fill": {
+          "description": "Text color for the section name label inside the box. Address labels outside the box use the view-level value.",
+          "$ref": "#/$defs/color_string"
+        },
+        "text_stroke": {
+          "description": "Text outline color.",
+          "$ref": "#/$defs/color_string"
+        },
+        "text_stroke_width": {
+          "description": "Text outline thickness in pixels.",
+          "type": "number"
+        },
+        "break_height": {
+          "description": "Fixed height in pixels of a break section.",
+          "type": "number"
+        },
+        "min_section_height": {
+          "description": "Minimum pixel height for every visible section. Set to null for pure proportional rendering.",
+          "oneOf": [
+            { "type": "number" },
+            { "type": "null" }
+          ]
+        },
+        "max_section_height": {
+          "description": "Maximum pixel height for any single section.",
+          "oneOf": [
+            { "type": "number" },
+            { "type": "null" }
+          ]
+        },
+        "growth_arrow_size": {
+          "description": "Arrow size multiplier for grows-up/grows-down sections.",
+          "type": "number"
+        },
+        "growth_arrow_fill": {
+          "description": "Fill color of the growth arrow body.",
+          "$ref": "#/$defs/color_string"
+        },
+        "growth_arrow_stroke": {
+          "description": "Outline color of the growth arrow.",
+          "$ref": "#/$defs/color_string"
+        },
+        "label_arrow_size": {
+          "description": "Arrow head size multiplier for address annotation labels.",
+          "type": "number"
+        }
+      }
+    },
+    "style_block": {
+      "description": "Style properties block with no extra keys allowed.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/style_props" }],
+      "unevaluatedProperties": false
+    },
+    "view_override": {
+      "description": "Style overrides for a single view panel. Accepts all style properties plus a 'sections' map.",
+      "type": "object",
+      "allOf": [{ "$ref": "#/$defs/style_props" }],
+      "properties": {
+        "sections": {
+          "description": "Per-section style overrides within this view. Keys are section IDs from diagram.json.",
+          "type": "object",
+          "additionalProperties": {
+            "description": "Style overrides for one section.",
+            "type": "object",
+            "allOf": [{ "$ref": "#/$defs/style_props" }],
+            "unevaluatedProperties": false
+          }
+        }
+      },
+      "unevaluatedProperties": false
+    },
+    "links_block": {
+      "description": "Style for cross-view zoom band connectors.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "shape": {
+          "description": "Band edge shape. 'polygon' uses straight diagonal lines; 'curve' uses cubic Bézier curves.",
+          "type": "string",
+          "enum": ["polygon", "curve"]
+        },
+        "fill": {
+          "description": "Fill color for the band interior. Use 'none' for stroke-only.",
+          "$ref": "#/$defs/color_string"
+        },
+        "stroke": {
+          "description": "Stroke color for the band edges. Use 'none' for fill-only.",
+          "$ref": "#/$defs/color_string"
+        },
+        "stroke_width": {
+          "description": "Stroke thickness in pixels.",
+          "type": "number"
+        },
+        "stroke_dasharray": {
+          "description": "SVG dash pattern for band edges, e.g. '8,4'.",
+          "type": "string"
+        },
+        "opacity": {
+          "description": "Overall band opacity.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}

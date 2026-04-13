@@ -64,7 +64,7 @@ Full TL-UL crossbar SoC with 71 sections across four panels. Auto-layout fits th
 - **Break compression** — mark sparse address gaps as `"break"` sections. They collapse to a thin separator; the remaining panel height is redistributed proportionally.
 - **Growth arrows** — annotate stack/heap regions with directional arrows via `"grows-up"` / `"grows-down"` flags.
 - **Address labels** — attach annotated leader lines to any address, on either side of the panel, in any direction.
-- **Per-section colors** — full visual control through `theme.json` without touching diagram data. Four built-in themes: `default`, `light`, `monochrome`, `plantuml`. Custom themes can inherit from any built-in with `"extends"`.
+- **Per-section colors** — full visual control through `theme.json` without touching diagram data. Two built-in themes: `default`, `plantuml`. Custom themes can inherit from any built-in with `"extends"`.
 - **Auto-hide** — address, name, and size labels suppress themselves when a section is too small to fit them.
 - **No dependencies** — Python 3 stdlib only. No pip, no venv, no build step.
 
@@ -153,8 +153,6 @@ python scripts/mmpviz.py -d diagram.json --validate
 | `examples/chips/opentitan_earlgrey/` | OpenTitan Earl Grey TL-UL SoC (65+ peripherals) |
 | `examples/chips/pulpissimo/` | PULP RISC-V SoC — four-level zoom with µDMA channel detail |
 | `examples/themes/default/` | Default (neutral gray) theme |
-| `examples/themes/light/` | Light theme |
-| `examples/themes/monochrome/` | Monochrome theme |
 | `examples/themes/plantuml/` | PlantUML theme |
 | `examples/link/cortex_m3/` | Cortex-M3 link style reference |
 | `examples/break/` | Break section compression |
@@ -163,7 +161,7 @@ python scripts/mmpviz.py -d diagram.json --validate
 | `examples/stack/guard_page/` | MPU stack guard page — used/free split, no-access guard region |
 | `examples/stack/shadow_stack/` | Shadow stack — return-address-only region alongside the main call stack |
 
-Built-in themes in `themes/`: `default.json` (auto-loaded), `light.json`, `monochrome.json`, `plantuml.json`
+Built-in themes in `themes/`: `default.json` (auto-loaded), `plantuml.json`
 
 ---
 
@@ -174,11 +172,9 @@ Built-in themes in `themes/`: `default.json` (auto-loaded), `light.json`, `monoc
 | `references/create-diagram.md` | Step-by-step authoring guide |
 | `references/diagram-schema.md` | All `diagram.json` fields, types, and defaults |
 | `references/theme-schema.md` | All `theme.json` style properties |
-| `references/apply-theme.md` | Choosing and customizing themes |
-| `references/layout-guide.md` | Canvas sizing, manual placement, output targets |
-| `references/auto-layout-algorithm.md` | Auto-layout implementation reference |
+| `references/theme-schema.md` | All `theme.json` style properties; examples and tips |
+| `references/auto-layout-algorithm.md` | Auto-layout implementation reference and remaining work |
 | `references/check-rules.md` | Validation rules and remediation |
-| `references/llm-guide.md` | AI-assisted diagram authoring guide |
 
 ---
 

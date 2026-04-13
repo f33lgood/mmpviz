@@ -3,23 +3,24 @@
 A `theme.json` file controls the visual appearance of the diagram. It is completely
 separate from `diagram.json` — themes are reusable across different diagrams.
 
+The machine-readable contract for this format lives in `schemas/theme.schema.json`
+(JSON Schema draft 2020-12).
+
 ---
 
 ## Built-in Themes
 
-Four ready-to-use themes live in the `themes/` directory at the repository root.
-Pass any of them by name or by path:
+Two ready-to-use themes live in the `themes/` directory at the repository root.
+Pass either by name or by path:
 
 ```bash
-python scripts/mmpviz.py -d diagram.json -t light      -o map.svg   # by name
-python scripts/mmpviz.py -d diagram.json -t themes/light.json -o map.svg  # by path
+python scripts/mmpviz.py -d diagram.json -t plantuml -o map.svg   # by name
+python scripts/mmpviz.py -d diagram.json -t themes/plantuml.json -o map.svg  # by path
 ```
 
 | Name | File | Description |
 |------|------|-------------|
 | `default` | `themes/default.json` | Neutral black/white/gray palette. **Loaded automatically when `-t` is omitted.** |
-| `light` | `themes/light.json` | Steel-blue fills, white backgrounds, dark text. Suitable for printed documents and light-background slides. |
-| `monochrome` | `themes/monochrome.json` | Grayscale only, high contrast. Suitable for black-and-white printing. |
 | `plantuml` | `themes/plantuml.json` | PlantUML-style pastel fills with red outlines. |
 
 These themes set only `style` and `links`/`labels` blocks — no view- or section-specific
@@ -34,7 +35,6 @@ theme.json
 ├── schema_version   → integer; theme file format generation (optional)
 ├── extends          → built-in name or path to inherit from (optional)
 ├── style            → global baseline (applies to everything)
-├── palette          → automatic section colors by address order
 ├── views
 │   └── <view-id>    → overrides for a specific view (by id from diagram.json)
 │       └── sections
@@ -78,48 +78,22 @@ Inherit all settings from another theme and override only what changes:
 ```json
 {
   "schema_version": 1,
-  "extends": "light",
+  "extends": "plantuml",
   "style": { "stroke": "#cc2200" }
 }
 ```
 
 The `extends` value is resolved in order:
-1. A built-in name (`"default"`, `"light"`, `"monochrome"`, `"plantuml"`) → loaded from `themes/`
+1. A built-in name (`"default"`, `"plantuml"`) → loaded from `themes/`
 2. A relative path → resolved relative to the inheriting file's directory
 3. An absolute path → used as-is
 
 **Merge semantics:**
 - `style`, `links`, `labels` — shallow merge; child values override parent
-- `palette` — child replaces parent entirely; absent in child → inherit parent's
 - `views` — two-level merge (view properties, then section properties within each view)
 - `schema_version` and `extends` are stripped from the merged result
 
 **Circular or missing references** raise `ThemeError` at load time.
-
----
-
-## `palette` — Automatic Section Colors
-
-An optional top-level array of color strings. When present, sections that have **no
-explicit `fill`** at the view or section level are assigned colors from the palette in
-address order (first section → `palette[0]`, second → `palette[1]`, wrapping around).
-Break sections do not consume a palette slot.
-
-```json
-{
-  "palette": ["#b8d4e8", "#a8d5ba", "#c9b8d4", "#d4c4a8"],
-  "style": { ... }
-}
-```
-
-**Override precedence:**
-1. `theme.views[view_id].sections[section_id].fill` — wins over palette
-2. `theme.views[view_id].fill` — wins over palette
-3. `palette[index % len(palette)]` — applied when neither above is set
-4. `theme.style.fill` — used when no palette is defined
-
-This makes colorful themes fully **portable**: a theme with a palette assigns
-distinct colors to whatever sections it encounters, without knowing their IDs.
 
 ---
 
@@ -229,6 +203,19 @@ Any valid SVG color string is accepted:
 
 ## Examples
 
-The four built-in themes in `themes/` (`default.json`, `light.json`, `monochrome.json`,
-`plantuml.json`) are the canonical reference examples. Each uses `extends`, `style`,
-`links`, and `labels` — browse them directly to see real usage.
+| Example | What it shows |
+|---------|---------------|
+| `examples/themes/default/theme.json` | Minimal override of `default` — global `style`, `links`, `labels` |
+| `examples/themes/plantuml/theme.json` | `extends` with no other overrides — inherit a built-in unchanged |
+| `examples/stack/basic/theme.json` | `extends` + per-view `sections` overrides — section-level fills |
+| `examples/link/cortex_m3/theme.json` | `extends` + `links` block override |
+
+---
+
+## Tips
+
+- Keep theme files small — use `"extends"` to inherit a built-in and override only what changes.
+- Use one shared theme for a family of diagrams (e.g. all boards in a product line).
+- The `sections` key inside a view override accepts section `id` values, not `name` values.
+- `"stroke_dasharray": "none"` disables dashing for solid outlines.
+- `min_section_height` and `max_section_height` are especially useful for chips with both large (GB) and tiny (KB) sections in the same view.

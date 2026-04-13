@@ -80,46 +80,6 @@ class TestThemeFromFile(unittest.TestCase):
         self.assertNotIn('sections', style)
 
 
-class TestThemePalette(unittest.TestCase):
-
-    def setUp(self):
-        self.theme = Theme(os.path.join(FIXTURES, 'palette_theme.json'))
-
-    def test_palette_applied_when_no_explicit_fill(self):
-        # No area or section fill → palette kicks in
-        style = self.theme.resolve('any-area', 'any-section', palette_index=0)
-        self.assertEqual(style['fill'], '#aabbcc')
-
-    def test_palette_cycles(self):
-        style = self.theme.resolve('any-area', 'any-section', palette_index=3)
-        self.assertEqual(style['fill'], '#aabbcc')  # 3 % 3 == 0
-
-    def test_palette_index_1(self):
-        style = self.theme.resolve('any-area', 'any-section', palette_index=1)
-        self.assertEqual(style['fill'], '#bbccaa')
-
-    def test_area_fill_overrides_palette(self):
-        # Area has explicit fill → palette should NOT apply
-        style = self.theme.resolve('with-area-fill', 'any-section', palette_index=0)
-        self.assertEqual(style['fill'], '#explicit-area')
-
-    def test_section_fill_overrides_palette(self):
-        # Section has explicit fill → palette should NOT apply
-        style = self.theme.resolve('with-section-fill', 'sec-a', palette_index=0)
-        self.assertEqual(style['fill'], '#explicit-section')
-
-    def test_no_palette_index_ignores_palette(self):
-        # palette_index not supplied → falls through to defaults fill
-        style = self.theme.resolve('any-area', 'any-section')
-        self.assertEqual(style['fill'], 'lightgrey')
-
-    def test_no_palette_in_theme_ignores_index(self):
-        # Theme without palette → palette_index has no effect
-        theme = Theme(os.path.join(FIXTURES, 'sample_theme.json'))
-        style = theme.resolve('nonexistent', 'nonexistent', palette_index=0)
-        self.assertEqual(style['fill'], '#16213e')  # from sample defaults
-
-
 class TestThemeInheritance(unittest.TestCase):
 
     def _write_tmp(self, d, data):
@@ -130,19 +90,17 @@ class TestThemeInheritance(unittest.TestCase):
             return f.name
 
     def test_extends_builtin_name(self):
-        # A child that extends "light" by name inherits light's background and palette.
+        # A child that extends "plantuml" by name inherits plantuml's fill.
         with tempfile.TemporaryDirectory() as d:
             child_path = self._write_tmp(d, {
                 "schema_version": 1,
-                "extends": "light",
+                "extends": "plantuml",
                 "style": {"stroke": "red"}
             })
             t = Theme(child_path)
             style = t.resolve('x')
-            self.assertEqual(style['stroke'], 'red')         # child override
-            self.assertEqual(style['background'], '#ffffff')  # inherited from light
-            # palette from light is inherited
-            self.assertIn('palette', t._data)
+            self.assertEqual(style['stroke'], 'red')       # child override
+            self.assertEqual(style['fill'], '#FEFECE')     # inherited from plantuml
 
     def test_extends_relative_path(self):
         # extends with a relative path resolves relative to the child theme file.
@@ -184,36 +142,6 @@ class TestThemeInheritance(unittest.TestCase):
             self.assertEqual(style['fill'], '#child')         # child wins
             self.assertEqual(style['stroke'], '#parent')      # parent wins over gp
             self.assertEqual(style['background'], '#gp')      # inherited from gp
-
-    def test_palette_replaced_not_merged(self):
-        # Child palette fully replaces parent's — no index merging.
-        with tempfile.TemporaryDirectory() as d:
-            parent_path = self._write_tmp(d, {
-                "schema_version": 1,
-                "palette": ["#aaa", "#bbb", "#ccc"]
-            })
-            child_path = self._write_tmp(d, {
-                "schema_version": 1,
-                "extends": f"./{os.path.basename(parent_path)}",
-                "palette": ["#111", "#222"]
-            })
-            t = Theme(child_path)
-            self.assertEqual(t._data['palette'], ["#111", "#222"])
-
-    def test_palette_inherited_when_absent_in_child(self):
-        # If child doesn't specify palette, parent's is inherited.
-        with tempfile.TemporaryDirectory() as d:
-            parent_path = self._write_tmp(d, {
-                "schema_version": 1,
-                "palette": ["#aaa", "#bbb"]
-            })
-            child_path = self._write_tmp(d, {
-                "schema_version": 1,
-                "extends": f"./{os.path.basename(parent_path)}",
-                "style": {"stroke": "red"}
-            })
-            t = Theme(child_path)
-            self.assertEqual(t._data['palette'], ["#aaa", "#bbb"])
 
     def test_circular_extends_raises(self):
         # A → B → A should raise ThemeError.
@@ -326,16 +254,6 @@ class TestThemeValidation(unittest.TestCase):
 
 
 class TestThemeBuiltinNameResolution(unittest.TestCase):
-
-    def test_builtin_name_light(self):
-        t = Theme("light")
-        style = t.resolve('x')
-        self.assertEqual(style['fill'], '#dce8f0')
-
-    def test_builtin_name_monochrome(self):
-        t = Theme("monochrome")
-        style = t.resolve('x')
-        self.assertEqual(style['fill'], '#ebebeb')
 
     def test_builtin_name_plantuml(self):
         t = Theme("plantuml")

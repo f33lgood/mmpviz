@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "mmpviz diagram.json",
+  "description": "Semantic description of a memory map diagram for the mmpviz renderer.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "title": {
+      "description": "Document title (informational only).",
+      "type": "string"
+    },
+    "views": {
+      "description": "Display viewport definitions. Each view declares its own sections.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/view" }
+    },
+    "links": {
+      "description": "Cross-view connections rendered as zoom bands.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/link" }
+    }
+  },
+  "$defs": {
+    "hex_or_int": {
+      "description": "Memory address or byte count. Accepts a non-negative integer or a hex/decimal string.",
+      "oneOf": [
+        { "type": "integer", "minimum": 0 },
+        { "type": "string", "pattern": "^(0[xX][0-9a-fA-F]+|[0-9]+)$" }
+      ]
+    },
+    "view": {
+      "description": "One memory view panel in the SVG diagram.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id"],
+      "properties": {
+        "id": {
+          "description": "Unique identifier across the entire diagram. Used as a key in theme.json.",
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
+        },
+        "title": {
+          "description": "Label shown above the view panel.",
+          "type": "string"
+        },
+        "sections": {
+          "description": "Section definitions for this view.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/section" }
+        },
+        "labels": {
+          "description": "Address annotation labels for this view.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/label" }
+        }
+      }
+    },
+    "section": {
+      "description": "One contiguous memory region displayed in a view.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "address", "size", "name"],
+      "properties": {
+        "id": {
+          "description": "Identifier unique within this view. Used as a key in theme.json under views[view_id].sections.",
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
+        },
+        "address": {
+          "description": "Start address of this memory region.",
+          "$ref": "#/$defs/hex_or_int"
+        },
+        "size": {
+          "description": "Size of this memory region in bytes.",
+          "$ref": "#/$defs/hex_or_int"
+        },
+        "name": {
+          "description": "Display text shown inside the section box. Use empty string to suppress.",
+          "type": "string"
+        },
+        "flags": {
+          "description": "Visual behavior flags.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["break", "grows-up", "grows-down"]
+          }
+        },
+        "min_height": {
+          "description": "Pixel height floor for this section. Effective floor = max(min_height, theme min_section_height).",
+          "type": "number",
+          "minimum": 0
+        },
+        "max_height": {
+          "description": "Pixel height ceiling for this section. Effective ceiling = min(max_height, theme max_section_height).",
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "label": {
+      "description": "Annotated leader line pointing to a specific address.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address"],
+      "properties": {
+        "address": {
+          "description": "Memory address where the label points.",
+          "$ref": "#/$defs/hex_or_int"
+        },
+        "text": {
+          "description": "Label text. Defaults to 'Label'.",
+          "type": "string"
+        },
+        "length": {
+          "description": "Length of the annotation line in pixels. Default: 20.",
+          "type": "number"
+        },
+        "side": {
+          "description": "Which side of the panel to draw the label. Default: 'right'.",
+          "type": "string",
+          "enum": ["left", "right"]
+        },
+        "directions": {
+          "description": "Arrow direction(s): 'in', 'out', or both.",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": ["in", "out"]
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["in", "out"]
+              }
+            }
+          ]
+        }
+      }
+    },
+    "link": {
+      "description": "Cross-view connection rendered as a zoom band.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from", "to"],
+      "properties": {
+        "from": { "$ref": "#/$defs/link_endpoint" },
+        "to": { "$ref": "#/$defs/link_endpoint" }
+      }
+    },
+    "link_endpoint": {
+      "description": "One end of a cross-view link.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["view"],
+      "properties": {
+        "view": {
+          "description": "View id. Must match a views[].id in this diagram.",
+          "type": "string"
+        },
+        "sections": {
+          "description": "Section IDs or ['0xSTART', '0xEND'] address range that the band anchors to. Omit to use the view's full address range.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

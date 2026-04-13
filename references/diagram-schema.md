@@ -4,6 +4,10 @@ A `diagram.json` file is the single semantic description of a memory map diagram
 It contains one or more views, each with its own sections, plus optional cross-view links.
 **No visual styling belongs here** — put colors, fonts, and sizes in `theme.json`.
 
+The machine-readable contract for this format lives in `schemas/diagram.schema.json`
+(JSON Schema draft 2020-12). The validation script loads it automatically when the
+`jsonschema` Python package is available.
+
 ---
 
 ## Top-Level Fields
@@ -11,17 +15,8 @@ It contains one or more views, each with its own sections, plus optional cross-v
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `title` | string | No | `""` | Document title (informational only) |
-| `size` | `[width, height]` | No | **auto** | SVG canvas floor in pixels. When auto-layout is active (any view omits `pos`/`size`), the canvas expands to fit all views and this value is only a minimum. Omit it entirely to let auto-layout size the canvas. Set it only when you need a fixed coordinate space for manual view placement. |
 | `views` | array | Yes | — | Display viewport definitions — each view declares its own sections |
 | `links` | array | No | `[]` | Cross-view connections |
-
-### Choosing a Canvas Size (manual layout only)
-
-This section applies only when you supply explicit `pos`/`size` on views. With auto-layout, skip it — the canvas is computed automatically.
-
-Because the output is SVG, the numbers in `size` define the **coordinate space and aspect ratio**, not a fixed pixel size. The diagram scales to any physical size without loss.
-
-Choose values that match your intended output format's aspect ratio and give comfortable spacing for the number of views you have. See `references/layout-guide.md` for recommended `size`, `pos`, and `size` values for common targets (A4 paper, 16:9 slides, etc.).
 
 ---
 
@@ -33,15 +28,13 @@ Each entry in `views` defines one memory view panel in the SVG diagram. A view o
 |-------|------|----------|---------|-------------|
 | `id` | string | Yes | — | Unique identifier — must be unique across the entire diagram. **Format: `[a-z0-9_-]` only** (lowercase letters, digits, underscores, hyphens — no spaces, uppercase, dots, or slashes). Examples: `"flash-view"`, `"apb_detail"`. Used as a key in `theme.json` to apply per-view styling. |
 | `title` | string | No | `""` | Label shown above the view panel |
-| `pos` | `[x, y]` | No | **auto** | Top-left pixel position. Omit to use auto-layout (see below). Supply to override auto-layout for this view only. |
-| `size` | `[width, height]` | No | **auto** | Pixel dimensions. Omit to use auto-layout (see below). Supply to override auto-layout for this view only. |
 | `sections` | array | Yes | — | Section definitions for this view (see below) |
 | `labels` | array | No | `[]` | Address annotation labels (see below) |
 
 ### Auto-layout
 
-When any view omits `pos` or `size`, the auto-layout engine activates for the
-whole diagram:
+The auto-layout engine always runs — view positions and canvas size are computed
+automatically:
 
 1. **Link graph** — a DAG is built from the `links` array (one directed edge per
    entry, `from.view → to.view`). When `links` is absent or empty, all views have
@@ -51,13 +44,9 @@ whole diagram:
 3. **Bin-packing** — within each DAG column, views are greedily stacked until
    the column would overflow; excess views spill into a new sub-column.
 4. **Height estimation** — each view's height is set to
-   `n_visible × min_section_height + n_breaks × (break_height + 4) + 20`,
-   guaranteeing all sections can reach `min_section_height`.
-5. **Canvas expansion** — the SVG canvas grows to fit all placed views; the
-   `size` value in `diagram.json` acts as a floor, not a hard limit.
-
-You can mix explicit and auto layout: supply `pos`/`size` on the views where
-you need precise control and omit them on the rest.
+   `Σ max(min_section_height, section.min_height) + n_breaks × (break_height + 4) + 20`,
+   guaranteeing all sections can reach their effective minimum height.
+5. **Canvas sizing** — the SVG canvas is sized to exactly contain all placed views.
 
 ---
 
@@ -73,6 +62,8 @@ displayed in that view.
 | `size` | hex string or int | Yes | — | Size in bytes. Hex strings and integers both accepted. |
 | `name` | string | Yes | — | Display text shown inside the section box. No uniqueness requirement — duplicates are allowed. May be an empty string `""` to suppress the label. |
 | `flags` | array of strings | No | `[]` | Visual behavior flags (see below). |
+| `min_height` | number (≥ 0) | No | `null` | Per-section pixel height floor. Effective floor = `max(min_height, theme min_section_height)`. Use for sections whose proportional height would be too small to read. |
+| `max_height` | number (≥ 0) | No | `null` | Per-section pixel height ceiling. Effective ceiling = `min(max_height, theme max_section_height)`. Use for sections whose proportional height would dominate the view. `min_height` must not exceed `max_height`. |
 
 ### `flags` allowed values
 

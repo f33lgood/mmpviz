@@ -113,25 +113,11 @@ class AreaView:
         Structural overrides (address, size, flags) are already applied during
         section resolution in loader.resolve_view_sections() — no per-view
         override logic is needed here.
-
-        Palette indices are assigned in address order, counting only non-break
-        sections (break sections are visual separators and do not consume a
-        palette slot).
         """
-        # Pre-pass: assign a palette index to each non-break section.
-        palette_index = 0
-        palette_indices = {}
-        for section in self.sections.get_sections():
-            if not section.is_break():
-                palette_indices[section.id] = palette_index
-                palette_index += 1
-
         for section in self.sections.get_sections():
             # Resolve style from theme; fall back to area-level style dict
             if self.theme:
-                section.style = self.theme.resolve(
-                    self.view_id, section.id,
-                    palette_index=palette_indices.get(section.id))
+                section.style = self.theme.resolve(self.view_id, section.id)
                 section.addr_label_style = self.theme.resolve(self.view_id)
             else:
                 section.style = copy.deepcopy(self.style)
@@ -204,12 +190,19 @@ class AreaView:
                 elif free_bytes > 0:
                     heights[id(s)] = free_px * sbytes(s) / free_bytes
 
-        # Phase 2: apply max_h ceiling and redistribute freed surplus.
+        # Phase 2: apply max_h ceiling (scalar or per-section dict) and redistribute surplus.
+        def _max_h_for(s):
+            if isinstance(max_h, dict):
+                return float(max_h[id(s)]) if id(s) in max_h else None
+            return float(max_h) if max_h is not None else None
+
         if max_h is not None:
-            hi = float(max_h)
             surplus = 0.0
             for s in sections:
-                if not s.is_hidden() and not s.is_break() and heights[id(s)] > hi:
+                if s.is_hidden() or s.is_break():
+                    continue
+                hi = _max_h_for(s)
+                if hi is not None and heights[id(s)] > hi:
                     surplus += heights[id(s)] - hi
                     heights[id(s)] = hi
             if surplus > 1e-6:
@@ -221,7 +214,8 @@ class AreaView:
                 else:
                     uncapped = [s for s in sections
                                 if not s.is_hidden() and not s.is_break()
-                                and heights[id(s)] < hi]
+                                and (_max_h_for(s) is None
+                                     or heights[id(s)] < _max_h_for(s))]
                     if uncapped:
                         unc_bytes = sum(sbytes(s) for s in uncapped)
                         for s in uncapped:
@@ -400,18 +394,40 @@ class AreaView:
                 if not s.is_hidden() and not s.is_break() and s.size > 0
             ]
 
-            if all_visible and (user_min_h_val > 0.0 or max_section_h is not None):
+            has_per_section = any(
+                s.min_height is not None or s.max_height is not None
+                for s in all_visible
+            )
+            if all_visible and (user_min_h_val > 0.0 or max_section_h is not None
+                                or has_per_section):
                 total_range = max(self.end_address - self.start_address, 1)
                 section_bytes = sum(s.size for s in all_visible)
                 available_for_sections = section_bytes / total_range * self.size_y
 
-                # Use user_min_h only (not label-conflict inflation) so that
-                # very long section names in a small panel don't push the total
-                # minimum above available_px and trigger the proportional fallback.
-                per_section_min_h = {id(s): user_min_h_val for s in all_visible}
+                # Effective floor per section: max(global_min_h, section.min_height).
+                per_section_min_h = {
+                    id(s): max(
+                        user_min_h_val,
+                        s.min_height if s.min_height is not None else 0.0,
+                    )
+                    for s in all_visible
+                }
+
+                # Effective ceiling per section: min(global_max_h, section.max_height).
+                nb_per_max: dict | None = None
+                if any(s.max_height is not None for s in all_visible):
+                    nb_per_max = {}
+                    for s in all_visible:
+                        if s.max_height is not None:
+                            cap = float(s.max_height)
+                            nb_per_max[id(s)] = (
+                                min(cap, float(max_section_h))
+                                if max_section_h is not None else cap
+                            )
 
                 section_px = self._compute_per_section_heights(
-                    all_visible, available_for_sections, per_section_min_h, max_section_h)
+                    all_visible, available_for_sections, per_section_min_h,
+                    nb_per_max if nb_per_max is not None else max_section_h)
 
                 if section_px:
                     # Stack sections high-address-first within the section block.
@@ -454,17 +470,37 @@ class AreaView:
                     if not s.is_hidden() and not s.is_break() and s.size > 0
                 ])
 
-        # Per-section min_h: apply the label-conflict floor only for sections
-        # where the size label (top-left) and name label (centred) would overlap
-        # on the x-axis at the current section width.  Non-conflicting sections
-        # keep their proportional height (floor = 0.0 or user_min_h).
+        # Per-section min_h: effective floor = max(global_min_h,
+        # section.min_height, label-conflict inflation).
+        # label-conflict inflation is auto-derived geometry; the other two are
+        # user-controlled floors at different granularities.
         per_section_min_h = {
-            id(s): max(user_min_h_val, self._section_label_min_h(s, font_size))
+            id(s): max(
+                user_min_h_val,
+                s.min_height if s.min_height is not None else 0.0,
+                self._section_label_min_h(s, font_size),
+            )
             for s in all_visible
         }
 
+        # Per-section max_h: effective ceiling = min(global_max_h, section.max_height).
+        # Build a dict only when at least one section has a per-section override;
+        # otherwise pass the scalar global ceiling as before.
+        per_section_max_h: dict | None = None
+        if any(s.max_height is not None for s in all_visible):
+            per_section_max_h = {}
+            for s in all_visible:
+                if s.max_height is not None:
+                    cap = float(s.max_height)
+                    per_section_max_h[id(s)] = (
+                        min(cap, float(max_section_h)) if max_section_h is not None else cap
+                    )
+                # sections without a per-section override use the global ceiling
+                # (handled inside _compute_per_section_heights when max_h is a scalar)
+
         section_px = self._compute_per_section_heights(
-            all_visible, available_for_non_breaks, per_section_min_h, max_section_h)
+            all_visible, available_for_non_breaks, per_section_min_h,
+            per_section_max_h if per_section_max_h is not None else max_section_h)
 
         if section_px:
             # Assign size_y_override and pos_y_in_subarea per visible section,

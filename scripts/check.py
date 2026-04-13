@@ -92,7 +92,8 @@ def _populate_section_heights(area_views: list) -> list:
 
 def _check_min_height_violated(view_id: str, section, sub) -> list[Issue]:
     """
-    Section height is below min_section_height.
+    Section height is below its effective minimum (max of global min_section_height
+    and the section's own min_height).
 
     This indicates the proportional-fallback was triggered: the algorithm
     could not satisfy all minimum-height constraints simultaneously and fell
@@ -101,19 +102,47 @@ def _check_min_height_violated(view_id: str, section, sub) -> list[Issue]:
     """
     if section.is_break():
         return []
-    min_h = sub.style.get('min_section_height')
-    if min_h is None:
-        return []
+    global_min = sub.style.get('min_section_height')
     try:
-        min_h = float(min_h)
+        global_min = float(global_min) if global_min is not None else 0.0
     except (TypeError, ValueError):
+        global_min = 0.0
+    section_min = section.min_height if section.min_height is not None else 0.0
+    effective_min = max(global_min, section_min)
+    if effective_min <= 0:
         return []
-    if section.size_y < min_h - 1e-6:
+    if section.size_y < effective_min - 1e-6:
         return [Issue(
             'min-height-violated', view_id, section.id,
-            f"height {section.size_y:.1f} px < min_section_height {min_h:.0f} px "
-            f"— proportional fallback likely triggered; increase panel height or "
-            f"raise max_section_height in the area theme",
+            f"height {section.size_y:.1f} px < effective min {effective_min:.0f} px "
+            f"(global min_section_height={global_min:.0f}, "
+            f"section min_height={section_min:.0f}) "
+            f"— proportional fallback likely triggered; add break sections to "
+            f"reduce competing sections or lower the floor",
+        )]
+    return []
+
+
+def _check_section_height_conflict(view_id: str, section, sub) -> list[Issue]:
+    """
+    A section's min_height exceeds its max_height.
+
+    When both are set and min > max, the height algorithm receives contradictory
+    constraints.  The floor-locking phase will lock the section at min_height,
+    but the ceiling phase will then cap it at max_height (below the floor),
+    producing an incorrect height.  This conflict must be fixed in diagram.json.
+    """
+    if section.is_break():
+        return []
+    min_h = section.min_height
+    max_h = section.max_height
+    if min_h is None or max_h is None:
+        return []
+    if min_h > max_h:
+        return [Issue(
+            'section-height-conflict', view_id, section.id,
+            f"min_height ({min_h:.0f} px) > max_height ({max_h:.0f} px) "
+            f"— fix in diagram.json sections[]",
         )]
     return []
 
@@ -229,7 +258,7 @@ def _check_panel_overlap(area_views: list) -> list[Issue]:
                     'panel-overlap', a.view_id, None,
                     f"panel [{a.pos_x},{a.pos_y} {a.size_x}×{a.size_y}] physically overlaps "
                     f"'{b.view_id}' [{b.pos_x},{b.pos_y} {b.size_x}×{b.size_y}]"
-                    f" — adjust pos or size in diagram.json",
+                    f" — adjust column assignment or add break sections to reduce view height",
                 ))
     return issues
 
@@ -261,7 +290,8 @@ def _check_title_overlap(area_views: list) -> list[Issue]:
                 'title-overlap', a.view_id, None,
                 f"title of '{a.view_id}' (needs y≥{a_title_top:.0f}) overlaps bottom of "
                 f"'{b.view_id}' (y={b_bottom:.0f}) by {overlap:.0f} px "
-                f"— increase vertical gap to at least {_TITLE_CLEARANCE_PX} px",
+                f"— vertical gap must be at least {_TITLE_CLEARANCE_PX} px; "
+                f"add break sections or increase min_height to reduce view height",
             ))
     return issues
 
@@ -281,7 +311,7 @@ def _addr_label_chars_for_area(area) -> int:
             if section.is_hidden() or section.is_break():
                 continue
             found_any = True
-            if max(section.address, section.address + section.size) > _ADDR_64BIT_THRESHOLD:
+            if section.address > _ADDR_64BIT_THRESHOLD:
                 return _ADDR_LABEL_CHARS_64
     return _ADDR_LABEL_CHARS if found_any else 0
 
@@ -365,7 +395,7 @@ def _check_addr_64bit_column_width(area_views: list) -> list[Issue]:
             for section in sub.sections.get_sections():
                 if section.is_hidden() or section.is_break():
                     continue
-                if max(section.address, section.address + section.size - 1) > _ADDR_64BIT_THRESHOLD:
+                if section.address > _ADDR_64BIT_THRESHOLD:
                     needs_64bit = True
                     break
             if needs_64bit:
@@ -462,13 +492,25 @@ def _check_uncovered_gap(area_views: list) -> list[Issue]:
             # Skip if any break section fully covers the gap.
             if any(blo <= gap_lo and bhi >= gap_hi for blo, bhi in break_ranges):
                 continue
-            if gap_size > 5 * total_visible:
+            # Detect a break that starts at this gap but stops short — the most
+            # common cause is a wrong size value on an existing break section.
+            partial_break = any(
+                blo <= gap_lo < bhi < gap_hi for blo, bhi in break_ranges)
+            if (gap_size > 5 * total_visible
+                    or (partial_break and gap_size > max(s1.size, s2.size))):
+                if partial_break:
+                    brk_end = next(bhi for blo, bhi in break_ranges
+                                   if blo <= gap_lo < bhi < gap_hi)
+                    detail = (f" — existing break ends at {hex(brk_end)}, "
+                              f"{hex(gap_hi - brk_end)} short of '{s2.id}'")
+                else:
+                    detail = (f" is {gap_size // total_visible}× the total visible "
+                              f"content — sections will appear very small")
                 issues.append(Issue(
                     'uncovered-gap', av.view_id, s1.id,
                     f"uncovered gap of {hex(gap_size)} between '{s1.id}' and "
-                    f"'{s2.id}' is {gap_size // total_visible}× the total visible "
-                    f"content — sections will appear very small; "
-                    f"add a break section spanning the gap",
+                    f"'{s2.id}'{detail}; "
+                    f"add or extend a break section spanning the full gap",
                 ))
     return issues
 
@@ -533,6 +575,7 @@ def _check_unresolved_link_sections(area_views: list,
 
 ALL_RULES = {
     'min-height-violated',
+    'section-height-conflict',
     'out-of-canvas',
     'band-too-wide',
     'unresolved-section',
@@ -546,17 +589,18 @@ ALL_RULES = {
 
 PER_SECTION_RULES = [
     _check_min_height_violated,
+    _check_section_height_conflict,
 ]
 
 
 def run_checks(diagram: dict, area_views: list,
                enabled_rules: set) -> list[Issue]:
-    canvas = diagram.get('size', list(DefaultAppValues.DOCUMENT_SIZE))
-    canvas_w, canvas_h = float(canvas[0]), float(canvas[1])
-    # Auto-layout expands the canvas beyond diagram.size; use actual content bounds.
+    # Canvas bounds are always derived from actual content (no diagram 'size' field).
     if area_views:
-        canvas_w = max(canvas_w, max(av.pos_x + av.size_x for av in area_views) + 110)
-        canvas_h = max(canvas_h, max(av.pos_y + av.size_y for av in area_views) + 30)
+        canvas_w = max(av.pos_x + av.size_x for av in area_views) + 110
+        canvas_h = max(av.pos_y + av.size_y for av in area_views) + 30
+    else:
+        canvas_w, canvas_h = float(DefaultAppValues.DOCUMENT_SIZE[0]), float(DefaultAppValues.DOCUMENT_SIZE[1])
     links_config = diagram.get('links', [])
 
     issues = []
@@ -598,7 +642,7 @@ def parse_args():
     parser.add_argument('--theme', '-t', default=None,
                         help=('Visual styling. Three forms: '
                               '(omit) = built-in default; '
-                              '-t <name> = built-in theme (default, light, monochrome, plantuml); '
+                              '-t <name> = built-in theme (default, plantuml); '
                               '-t <path> = custom theme.json file.'))
     parser.add_argument('--format', choices=['text', 'json'], default='text',
                         help='Output format (default: text)')

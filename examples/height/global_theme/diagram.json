@@ -1,0 +1,17 @@
+{
+  "title": "Global Min Height — APB Peripheral Bus",
+  "views": [
+    {
+      "id": "apb-bus",
+      "title": "APB Peripheral Bus",
+      "sections": [
+        { "id": "uart0",  "address": "0x40000000", "size": "0x00000400", "name": "UART0" },
+        { "id": "uart1",  "address": "0x40000400", "size": "0x00000400", "name": "UART1" },
+        { "id": "spi0",   "address": "0x40000800", "size": "0x00000400", "name": "SPI0" },
+        { "id": "spi1",   "address": "0x40000C00", "size": "0x00000400", "name": "SPI1" },
+        { "id": "i2c0",   "address": "0x40001000", "size": "0x00000400", "name": "I2C0" },
+        { "id": "dma",    "address": "0x40001400", "size": "0x00010000", "name": "DMA Controller" }
+      ]
+    }
+  ]
+}

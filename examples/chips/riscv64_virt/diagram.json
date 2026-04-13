@@ -1,0 +1,46 @@
+{
+  "title": "QEMU RISC-V virt Machine",
+  "views": [
+    {
+      "id": "virt-overview",
+      "title": "RISC-V virt",
+      "sections": [
+        { "id": "mrom",      "address": "0x00001000", "size": "0x0000B000", "name": "Machine ROM"  },
+        { "id": "brk1",      "address": "0x0000C000", "size": "0x01FF4000", "name": "···",         "flags": ["break"] },
+        { "id": "clint",     "address": "0x02000000", "size": "0x00010000", "name": "CLINT"         },
+        { "id": "brk2",      "address": "0x02010000", "size": "0x09FF0000", "name": "···",         "flags": ["break"] },
+        { "id": "plic",      "address": "0x0C000000", "size": "0x04000000", "name": "PLIC"          },
+        { "id": "uart0",     "address": "0x10000000", "size": "0x00001000", "name": "UART0"         },
+        { "id": "virtio",    "address": "0x10001000", "size": "0x00007000", "name": "VirtIO"        },
+        { "id": "brk3",      "address": "0x10008000", "size": "0x6FFF8000", "name": "···",         "flags": ["break"] },
+        { "id": "dram",      "address": "0x80000000", "size": "0x80000000", "name": "DRAM"          },
+        { "id": "brk4",      "address": "0x100000000","size": "0x200000000","name": "···",         "flags": ["break"] },
+        { "id": "pcie-mmio", "address": "0x300000000","size": "0x040000000","name": "PCIe MMIO"   }
+      ]
+    },
+    {
+      "id": "himem-view",
+      "title": "High Memory",
+      "sections": [
+        { "id": "dram",      "address": "0x80000000", "size": "0x80000000",  "name": "DRAM"      },
+        { "id": "brk-hi",   "address": "0x100000000","size": "0x200000000", "name": "···",      "flags": ["break"] },
+        { "id": "pcie-mmio","address": "0x300000000","size": "0x040000000", "name": "PCIe MMIO" }
+      ]
+    },
+    {
+      "id": "io-view",
+      "title": "Device I/O",
+      "sections": [
+        { "id": "clint",   "address": "0x02000000", "size": "0x00010000", "name": "CLINT"   },
+        { "id": "brk-io",  "address": "0x02010000", "size": "0x09FF0000", "name": "···",   "flags": ["break"] },
+        { "id": "plic",    "address": "0x0C000000", "size": "0x04000000", "name": "PLIC"    },
+        { "id": "uart0",   "address": "0x10000000", "size": "0x00001000", "name": "UART0"   },
+        { "id": "virtio",  "address": "0x10001000", "size": "0x00007000", "name": "VirtIO"  }
+      ]
+    }
+  ],
+  "links": [
+    { "from": { "view": "virt-overview", "sections": ["dram", "pcie-mmio"] }, "to": { "view": "himem-view" } },
+    { "from": { "view": "virt-overview", "sections": ["clint", "virtio"] }, "to": { "view": "io-view" } }
+  ]
+}

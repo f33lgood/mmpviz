@@ -183,6 +183,74 @@ class TestResolveViewSections(unittest.TestCase):
         self.assertEqual(result[0].address, 0x08000000)
         self.assertEqual(result[0].size, 0x20000)
 
+    def test_min_height_parsed(self):
+        result = resolve_view_sections({'sections': [
+            {'id': 's', 'address': '0x0', 'size': '0x100', 'name': 'S', 'min_height': 30}
+        ]})
+        self.assertEqual(result[0].min_height, 30.0)
+
+    def test_max_height_parsed(self):
+        result = resolve_view_sections({'sections': [
+            {'id': 's', 'address': '0x0', 'size': '0x100', 'name': 'S', 'max_height': 150}
+        ]})
+        self.assertEqual(result[0].max_height, 150.0)
+
+    def test_min_max_height_defaults_none(self):
+        result = resolve_view_sections({'sections': [
+            {'id': 's', 'address': '0x0', 'size': '0x100', 'name': 'S'}
+        ]})
+        self.assertIsNone(result[0].min_height)
+        self.assertIsNone(result[0].max_height)
+
+
+class TestValidateDeprecated(unittest.TestCase):
+
+    def test_diagram_size_produces_deprecation_warning(self):
+        f = tempfile.NamedTemporaryFile(mode='w', suffix='.json',
+                                        delete=False, encoding='utf-8')
+        json.dump({"size": [500, 600], "views": []}, f)
+        f.close()
+        errors = validate(f.name)
+        self.assertTrue(any("DEPRECATED" in e and "size" in e for e in errors))
+
+    def test_view_pos_produces_deprecation_warning(self):
+        f = tempfile.NamedTemporaryFile(mode='w', suffix='.json',
+                                        delete=False, encoding='utf-8')
+        json.dump({"views": [{"id": "v", "pos": [10, 20], "sections": []}]}, f)
+        f.close()
+        errors = validate(f.name)
+        self.assertTrue(any("DEPRECATED" in e and "pos" in e for e in errors))
+
+    def test_view_size_produces_deprecation_warning(self):
+        f = tempfile.NamedTemporaryFile(mode='w', suffix='.json',
+                                        delete=False, encoding='utf-8')
+        json.dump({"views": [{"id": "v", "size": [100, 400], "sections": []}]}, f)
+        f.close()
+        errors = validate(f.name)
+        self.assertTrue(any("DEPRECATED" in e and "size" in e for e in errors))
+
+    def test_min_height_conflict_is_error(self):
+        f = tempfile.NamedTemporaryFile(mode='w', suffix='.json',
+                                        delete=False, encoding='utf-8')
+        json.dump({"views": [{"id": "v", "sections": [
+            {"id": "s", "address": "0x0", "size": "0x100", "name": "S",
+             "min_height": 100, "max_height": 50}
+        ]}]}, f)
+        f.close()
+        errors = validate(f.name)
+        self.assertTrue(any("min_height" in e and "max_height" in e for e in errors))
+
+    def test_min_height_negative_is_error(self):
+        f = tempfile.NamedTemporaryFile(mode='w', suffix='.json',
+                                        delete=False, encoding='utf-8')
+        json.dump({"views": [{"id": "v", "sections": [
+            {"id": "s", "address": "0x0", "size": "0x100", "name": "S",
+             "min_height": -5}
+        ]}]}, f)
+        f.close()
+        errors = validate(f.name)
+        self.assertTrue(any("min_height" in e for e in errors))
+
 
 if __name__ == '__main__':
     unittest.main()

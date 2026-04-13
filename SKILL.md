@@ -14,151 +14,83 @@ tools:
 
 # mmpviz — Memory Map Visualizer
 
-Generate SVG memory map diagrams from a JSON description of memory regions.
-Takes a `diagram.json` (memory layout + display areas) and optionally a `theme.json` (colors, fonts),
-and produces a self-contained `.svg` file.
+Turn a JSON memory map description into a publication-quality SVG — one command, no dependencies.
 
 ---
 
-## Prerequisites
+## Workflow
 
-Python 3 (standard library only — no pip installs required).
-
----
-
-## Invocation
-
-```bash
-python <skill_path>/scripts/mmpviz.py -d diagram.json [-t theme.json] [-o output.svg]
-```
-
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-d` / `--diagram` | required | Path to `diagram.json` |
-| `-t` / `--theme` | built-in defaults | Path to `theme.json` |
-| `-o` / `--output` | `map.svg` | Output SVG file path |
-| `--validate` | — | Validate `diagram.json` and exit (no SVG written) |
+1. **Extract** memory regions from context (datasheet, linker script, RTL, header): start address, size, and name for each region.
+2. **Write `diagram.json`** — declare views and their sections. Omit `pos`/`size`; auto-layout handles placement.
+3. **Render**: `python <skill_path>/scripts/mmpviz.py -d diagram.json -o map.svg`
+4. **Check**: `python <skill_path>/scripts/check.py -d diagram.json` — exit 0 = clean, 1 = errors, 2 = warnings only.
+5. **Fix** any errors from `check.py` or `WARNING` lines from the renderer, then re-render.
+6. Repeat until the diagram is correct.
 
 ---
 
-## Quick Example
+## Minimal `diagram.json`
 
-**diagram.json**
 ```json
 {
-  "title": "STM32F103 Memory Map",
-  "size": [500, 900],
-  "sections": [
-    { "id": "Flash", "address": "0x08000000", "size": "0x00020000", "type": "area" },
-    { "id": "text",  "address": "0x08000000", "size": "0x00009000", "name": "Code", "flags": ["grows-up"] },
-    { "id": "rodata","address": "0x08009000", "size": "0x00002000", "name": "Const Data" },
-
-    { "id": "SRAM",  "address": "0x20000000", "size": "0x00005000", "type": "area" },
-    { "id": "stack", "address": "0x20004000", "size": "0x00001000", "name": "Stack", "flags": ["grows-down"] }
-  ],
-  "areas": [
+  "views": [
     {
       "id": "flash-view",
-      "title": "Flash Memory",
-      "range": ["0x08000000", "0x08020000"],
-      "pos": [50, 80],
-      "size": [180, 750]
+      "title": "Flash",
+      "sections": [
+        { "id": "code",   "address": "0x08000000", "size": "0x09000", "name": "Code",       "flags": ["grows-up"] },
+        { "id": "consts", "address": "0x08009000", "size": "0x02000", "name": "Const Data"  }
+      ]
     },
     {
       "id": "sram-view",
       "title": "SRAM",
-      "range": ["0x20000000", "0x20005000"],
-      "pos": [270, 80],
-      "size": [180, 750]
+      "sections": [
+        { "id": "bss",   "address": "0x20000000", "size": "0x00800", "name": ".bss"                      },
+        { "id": "stack", "address": "0x20004000", "size": "0x01000", "name": "Stack", "flags": ["grows-down"] }
+      ]
     }
-  ],
-  "links": {
-    "sections": [["Flash", "SRAM"]]
-  }
+  ]
 }
 ```
 
-**Generate SVG:**
-```bash
-python <skill_path>/scripts/mmpviz.py -d diagram.json -o memory_map.svg
-```
+Key rules:
+- Each view declares its own `sections[]` inline — no global section pool
+- `id` must match `^[a-z0-9_-]+$` and be unique within its view
+- `address` and `size` accept hex strings (`"0x08000000"`) or integers
+- `name` is required; use `""` to suppress the label
+- Omit `pos`/`size` — auto-layout places every view automatically
 
-**With a theme:**
+---
+
+## Commands
+
 ```bash
-python <skill_path>/scripts/mmpviz.py -d diagram.json -t <skill_path>/examples/dark_theme.json -o memory_map.svg
+# Render with default theme
+python <skill_path>/scripts/mmpviz.py -d diagram.json -o map.svg
+
+# Render with plantuml theme
+python <skill_path>/scripts/mmpviz.py -d diagram.json -t plantuml -o map.svg
+
+# Validate only (no SVG written)
+python <skill_path>/scripts/mmpviz.py --validate diagram.json
+
+# Check layout rules
+python <skill_path>/scripts/check.py -d diagram.json
 ```
 
 ---
 
-## `diagram.json` Structure
+## Checklist
 
-Two top-level concepts:
-
-### `sections[]` — memory regions
-
-```json
-{ "id": "text", "address": "0x08000000", "size": "0x9000", "name": "Code", "flags": ["grows-up"] }
-```
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `id` | yes | Unique identifier (used as theme key) |
-| `address` | yes | Start address (hex string or integer) |
-| `size` | yes | Size in bytes (hex string or integer) |
-| `type` | no | `"area"` for a container region, `"section"` (default) for a leaf |
-| `name` | no | Display label (falls back to `id`) |
-| `flags` | no | `"grows-up"`, `"grows-down"`, `"break"`, `"hidden"` |
-
-### `areas[]` — display panels
-
-```json
-{
-  "id": "flash-view",
-  "title": "Flash Memory",
-  "range": ["0x08000000", "0x08020000"],
-  "pos": [50, 80],
-  "size": [180, 750]
-}
-```
-
-| Field | Required | Description |
-|-------|----------|-------------|
-| `id` | yes | Unique identifier — **matches `theme.json` area key** |
-| `range` | no | `[min_addr, max_addr]` — filters which sections appear |
-| `pos` | no | `[x, y]` pixel position on canvas |
-| `size` | no | `[width, height]` pixel dimensions |
-| `sections` | no | Per-section flag/address overrides within this area |
-| `labels` | no | Address annotation lines |
-
----
-
-## `theme.json` Structure (optional)
-
-```json
-{
-  "defaults": {
-    "background": "#1a1a2e",
-    "fill": "#16213e",
-    "text_fill": "#a8dadc",
-    "font_size": 13
-  },
-  "areas": {
-    "flash-view": {
-      "fill": "#08c6ab",
-      "text_fill": "white",
-      "sections": {
-        "text": { "fill": "#1d6fa4" }
-      }
-    }
-  },
-  "links":  { "fill": "#212b38", "opacity": 0.6 },
-  "labels": { "stroke": "#a8dadc", "stroke_dasharray": "5,3" }
-}
-```
-
-Resolution order: `defaults` → `areas[area_id]` → `areas[area_id].sections[section_id]`
-
-Ready-made themes: `examples/dark_theme.json`, `examples/light_theme.json`
+- [ ] Every section has `id`, `address`, `size`, and `name`
+- [ ] Section IDs use only `[a-z0-9_-]` and are unique within their view
+- [ ] Large address gaps have a `"break"` section to compress them
+- [ ] Gap sections are contiguous: `gap.address == previous.address + previous.size`
+- [ ] Each `links` entry has both `from.view` and `to.view` referencing valid view IDs
+- [ ] Section IDs in `from.sections` exist in the referenced view's `sections[]`
+- [ ] `check.py` exits 0 or 2 (no ERRORs)
+- [ ] `mmpviz.py` produces no `WARNING` output
 
 ---
 
@@ -166,10 +98,10 @@ Ready-made themes: `examples/dark_theme.json`, `examples/light_theme.json`
 
 | File | Contents |
 |------|----------|
-| `references/diagram-schema.md` | All `diagram.json` fields with types, defaults, allowed values |
-| `references/theme-schema.md` | All `theme.json` fields with types and defaults |
-| `references/create-diagram.md` | Step-by-step guide for authoring a diagram from scratch |
-| `references/apply-theme.md` | How to choose and customize a theme |
+| `references/diagram-schema.md` | All `diagram.json` fields — types, defaults, allowed values |
+| `references/theme-schema.md` | All `theme.json` style properties, examples, and tips |
+| `references/create-diagram.md` | Step-by-step authoring guide with common pitfalls and fixes |
+| `references/check-rules.md` | All `check.py` rules, thresholds, and remediation |
 
 ---
 
@@ -177,9 +109,4 @@ Ready-made themes: `examples/dark_theme.json`, `examples/light_theme.json`
 
 ```bash
 ln -s "$(pwd)" ~/.claude/skills/mmpviz
-```
-
-After linking, agents can invoke the skill via its absolute path:
-```bash
-python ~/.claude/skills/mmpviz/scripts/mmpviz.py -d diagram.json -o map.svg
 ```

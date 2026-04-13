@@ -15,7 +15,8 @@ class Section:
     label_offset: int = 10
     style: dict
 
-    def __init__(self, size, address, id, flags=None, name=None):
+    def __init__(self, size, address, id, flags=None, name=None,
+                 min_height=None, max_height=None):
         self.size = size
         self.address = address
         self.id = id
@@ -25,6 +26,8 @@ class Section:
         self.style = {}
         self.addr_label_style = {}  # view-level style (no section overrides) for address labels
         self.flags = flags if flags is not None else []
+        self.min_height = min_height  # per-section pixel floor (diagram.json)
+        self.max_height = max_height  # per-section pixel ceiling (diagram.json)
         self.size_y_override = None   # set by per-section height algorithm
         self.pos_y_in_subarea = None  # set by per-section height algorithm
 

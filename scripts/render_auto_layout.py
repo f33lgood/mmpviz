@@ -9,7 +9,6 @@ Usage:
     python scripts/render_auto_layout.py [-t theme.json] [-o output_dir]
 """
 import argparse
-import copy
 import os
 import sys
 
@@ -27,15 +26,6 @@ DEFAULT_THEME = os.path.join(os.path.dirname(__file__), '..', 'examples', 'theme
                               'plantuml', 'theme.json')
 
 
-def strip_layout(diagram: dict) -> dict:
-    """Return a copy of the diagram with pos/size removed from every view config."""
-    d = copy.deepcopy(diagram)
-    for area in d.get('views', []):
-        area.pop('pos', None)
-        area.pop('size', None)
-    return d
-
-
 def render_chip(chip_name: str, theme_path: str, output_dir: str) -> str:
     chip_dir = os.path.join(CHIPS_DIR, chip_name)
     diagram_path = os.path.join(chip_dir, 'diagram.json')
@@ -43,35 +33,31 @@ def render_chip(chip_name: str, theme_path: str, output_dir: str) -> str:
         print(f"  [skip] {chip_name}: no diagram.json found")
         return None
 
-    raw_sections, diagram = load(diagram_path)
-    diagram = strip_layout(diagram)
+    diagram = load(diagram_path)
 
     theme = Theme(theme_path)
     base_style = theme.resolve('')
-
-    document_size = diagram.get('size', [1100, 1000])
-    if isinstance(document_size, list):
-        document_size = tuple(document_size)
 
     links_config = diagram.get('links', {})
     links_style = theme.resolve_links()
     links = Links(links_config=links_config, style=links_style)
 
-    area_views = get_area_views(raw_sections, base_style, diagram, theme)
+    area_views = get_area_views(base_style, diagram, theme, links=links)
     if not area_views:
         print(f"  [skip] {chip_name}: no area views produced")
         return None
 
-    # Auto-expand canvas to fit all auto-placed areas (no clipping).
-    needed = _auto_canvas_size(area_views)
-    document_size = (max(document_size[0], needed[0]),
-                     max(document_size[1], needed[1]))
+    # Canvas always auto-sizes to content.
+    doc_w, doc_h, left_overflow, top_overflow = _auto_canvas_size(area_views)
+    document_size = (doc_w, doc_h)
+    origin = (-left_overflow, -top_overflow)
 
     svg_str = MapRenderer(
         area_views=area_views,
         links=links,
         style=base_style,
         size=document_size,
+        origin=origin,
     ).draw()
 
     os.makedirs(output_dir, exist_ok=True)

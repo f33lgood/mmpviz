@@ -1,8 +1,7 @@
 # Auto Layout Algorithm — Current Implementation
 
 This document describes the auto layout algorithm as it is actually implemented.
-It is authoritative for understanding and maintaining the code; the original
-proposal (`auto-layout-proposal.md`) remains the reference for future work.
+It is authoritative for understanding and maintaining the code.
 
 ---
 
@@ -12,40 +11,41 @@ proposal (`auto-layout-proposal.md`) remains the reference for future work.
 2. [Section Height Sizing](#2-section-height-sizing)
 3. [Link Graph Construction](#3-link-graph-construction)
 4. [Column Assignment](#4-column-assignment)
-5. [Area Ordering Within a Column](#5-area-ordering-within-a-column)
-6. [Area Height Estimation](#6-area-height-estimation)
+5. [View Ordering Within a Column](#5-view-ordering-within-a-column)
+6. [View Height Estimation](#6-view-height-estimation)
 7. [Column Bin-Packing and Overflow Handling](#7-column-bin-packing-and-overflow-handling)
 8. [Column Width and Inter-Column Spacing](#8-column-width-and-inter-column-spacing)
 9. [Canvas Sizing](#9-canvas-sizing)
 10. [Link Band Endpoint Positioning](#10-link-band-endpoint-positioning)
-11. [Planned vs Implemented](#11-planned-vs-implemented)
+11. [Remaining Work](#11-remaining-work)
 
 ---
 
 ## 1. Entry Points and Activation
 
-Auto layout activates when **any** area in `diagram.json` lacks a `pos` or `size`
-field.  The main orchestrator is `get_area_views()` in `scripts/mmpviz.py`.
+Auto layout **always** runs.  The diagram-level `"size"` field and view-level
+`"pos"` / `"size"` fields are deprecated; any occurrence triggers a warning and
+is silently ignored.  The main orchestrator is `get_area_views()` in
+`scripts/mmpviz.py`.
 
 ```
 get_area_views()
     │
     ├─ build_link_graph_from_links()  # auto_layout.py — DAG from explicit links[]
     ├─ assign_columns()               # auto_layout.py — BFS depth → column index
-    ├─ _estimate_area_height()        # mmpviz.py — quick height estimate per area
+    ├─ _estimate_area_height()        # mmpviz.py — quick height estimate per view
     ├─ _auto_layout()                 # mmpviz.py — bin-packing, assigns pos + size
-    └─ AreaView(...)                  # area_view.py — section height algorithm per area
+    └─ AreaView(...)                  # area_view.py — section height algorithm per view
 ```
 
-When `links` is absent or empty, all views get an empty adjacency list (all column 0), and auto-layout stacks them side-by-side in a single column.
+When `links` is absent or empty, all views get an empty adjacency list (all
+column 0), and auto-layout stacks them vertically in a single column.
 
 After `get_area_views()` returns, the caller uses `_auto_canvas_size()` to
-expand the SVG canvas to fit all placed areas:
+size the SVG canvas to fit all placed views:
 
 ```python
-# mmpviz.py main() and render_auto_layout.py render_chip()
-needed = _auto_canvas_size(area_views)
-document_size = (max(orig_w, needed[0]), max(orig_h, needed[1]))
+document_size = _auto_canvas_size(area_views)
 ```
 
 ---
@@ -58,15 +58,18 @@ document_size = (max(orig_w, needed[0]), max(orig_h, needed[1]))
 Called during `AreaView._process()` for each sub-area.  First, a per-section
 minimum-height dict is built; then heights are distributed in two phases.
 
-### Per-section min_h derivation
+### Per-section effective floor
 
-`_process()` builds a dict `{id(s): floor_px}` for all visible sections:
+`_process()` builds a per-section floor dict `{id(s): effective_floor_px}` for
+all visible sections:
 
 ```
 for each visible section s:
-    user_min  = style.get('min_section_height', 0)
-    label_min = _section_label_min_h(s, font_size)
-    per_section_min_h[id(s)] = max(user_min, label_min)
+    user_global  = style.get('min_section_height', 0)
+    section_min  = s.min_height  (from diagram.json, or None)
+    label_min    = _section_label_min_h(s, font_size)
+    effective_floor = max(user_global, section_min or 0, label_min)
+    per_section_min_h[id(s)] = effective_floor
 ```
 
 `_section_label_min_h(s, font_size)` detects whether the size label
@@ -83,15 +86,23 @@ else:
     return 0.0                 # no conflict — keep proportional height
 ```
 
-This means only sections whose size label and name label would genuinely
-collide receive an extra height floor; all other sections keep proportional
-sizing, keeping diagrams compact.
+### Per-section effective ceiling
+
+```
+for each visible section s:
+    global_max   = style.get('max_section_height', None)
+    section_max  = s.max_height  (from diagram.json, or None)
+    if section_max is not None:
+        effective_ceiling = min(section_max, global_max) if global_max else section_max
+    else:
+        effective_ceiling = global_max  (scalar passed to algorithm)
+```
 
 ### Phase 1 — Floor locking (min_h)
 
 `_compute_per_section_heights(sections, available_px, min_h, max_h)` accepts
 `min_h` as either a scalar (backward-compatible) or the per-section dict built
-above.
+above.  `max_h` may similarly be a scalar or a per-section dict.
 
 ```
 heights = proportional(section.size / total_bytes) * available_px
@@ -110,17 +121,24 @@ size-0 sections are ignored.
 
 ### Phase 2 — Ceiling application (max_h)
 
-After Phase 1 converges, any section exceeding `max_h` is capped and its
-surplus is redistributed proportionally to floored (min_h-locked) sections
-first, then to any remaining uncapped section.
+After Phase 1 converges, any section exceeding its effective ceiling is capped
+and its surplus is redistributed proportionally to floored (min_h-locked)
+sections first, then to any remaining uncapped section.
 
 **Constants (from theme / default.json defaults):**
 
 | Theme key              | default.json | Meaning                                          |
 |------------------------|--------------|--------------------------------------------------|
-| `min_section_height`   | 20 px         | User-controlled section height floor            |
-| `max_section_height`   | 300 px        | Section height ceiling                          |
-| `break_height`           | 20 px         | Fixed height for break sections                 |
+| `min_section_height`   | 20 px         | Global section height floor (all sections)      |
+| `max_section_height`   | 300 px        | Global section height ceiling (all sections)    |
+| `break_height`         | 20 px         | Fixed height for break sections                 |
+
+**Per-section overrides (diagram.json):**
+
+| Section field   | Effective value                                       |
+|-----------------|-------------------------------------------------------|
+| `min_height`    | `max(min_height, min_section_height)` — higher wins  |
+| `max_height`    | `min(max_height, max_section_height)` — lower wins   |
 
 Break sections use a separate code path (`break_height` fixed height) and do
 **not** participate in `_compute_per_section_heights`.
@@ -189,33 +207,50 @@ while queue:
 
 Taking `max` instead of first-assignment handles diamonds: if B is reachable
 from two paths of different depths, it is placed at the deeper column.
-Disconnected areas default to column 0.
+Disconnected views default to column 0.
 
 ---
 
-## 5. Area Ordering Within a Column
+## 5. View Ordering Within a Column
 
-**Location:** `order_within_column()` in `scripts/auto_layout.py`
+**Location:** `order_within_column()` in `scripts/auto_layout.py`;
+called from `get_area_views()` in `scripts/mmpviz.py`
 
-Sorts areas in column C+1 by the vertical midpoint of their linking section
-within column C, minimising link-band crossings:
+After `_auto_layout()` assigns positions, views within each visual bin (same
+x-position = same bin) are reordered to minimise link-band crossings, then
+y-positions within the bin are recomputed to match the new order.  Bin
+membership never changes — only the order of views already sharing a bin.
 
 ```
-for each target area B (column C+1):
-    for each source area A that links to B:
+for each target view B (column C+1):
+    for each source view A that links to B:
         mid = pixel midpoint of the section in A that contains B's range
         source_midpoints[B].append(A.pos_y + mid)
 
-sort column C+1 by mean(source_midpoints[B])   ascending → top to bottom
+sort column C+1 views by mean(source_midpoints[B])   ascending → top to bottom
 ```
 
-**Note:** this function is implemented but not yet wired into `get_area_views()`.
-The current bin-packing in `_auto_layout()` uses the order areas appear in the
-DAG column group (original diagram.json order within each column level).
+**Within-bin y-reassignment** (after sort, same PADDING/TITLE_SPACE constants):
+
+```python
+bins_by_x = group area_configurations by cfg['pos'][0]
+for bin_cfgs in bins_by_x.values():
+    if len(bin_cfgs) <= 1: continue
+    bin_cfgs.sort(key=rank_from_col_order)
+    y = TITLE_SPACE
+    for cfg in bin_cfgs:
+        cfg['pos'][1] = y
+        y += cfg['size'][1] + PADDING
+```
+
+**Fallback:** views whose midpoint cannot be computed — because their link spans
+multiple source sections or has fan-in from multiple sources — receive
+`key = inf` and sort stably to the end of the bin, preserving diagram.json
+order for those views.
 
 ---
 
-## 6. Area Height Estimation
+## 6. View Height Estimation
 
 **Location:** `_estimate_area_height()` in `scripts/mmpviz.py`
 
@@ -223,15 +258,15 @@ A lightweight estimate used by `_auto_layout()` for bin-packing and initial
 size assignment.  Does not run the full section-height algorithm.
 
 ```python
-estimated = n_visible * user_min_h
+for each visible section s:
+    floor = max(global_min_h, s.min_height or 0)
+    visible_floor_sum += floor
+
+estimated = visible_floor_sum
           + n_breaks  * (break_height + 4)
           + 20                          # top/bottom padding
 return max(200.0, estimated)
 ```
-
-`n_visible` and `n_breaks` are counted from the view's resolved sections list
-(after `resolve_view_sections()` is applied).
-`user_min_h` is `style.get('min_section_height', 0)`.
 
 Per-section label-conflict inflation (§2) is applied during actual rendering in
 `AreaView._process()` and is not included in the estimate — any resulting
@@ -251,24 +286,28 @@ col_cfgs = {dag_col: [area_configs in that column]}
 
 ### 7.2 Greedy bin-packing per DAG column (spill-first)
 
+`DEFAULT_H = 800 px` is used as the initial bin-packing target height.
+
 ```
-for each area in DAG column:
-    trial = current_bin + [area]
+base_available_h = DEFAULT_H - TITLE_SPACE - BOTTOM_PAD  # 710 px
+
+for each view in DAG column:
+    trial = current_bin + [view]
     if stack_height(trial) ≤ available_h  OR  current_bin is empty:
-        append area to current_bin
+        append view to current_bin
     else:
         if len(current_bin) ≥ 2:
             # Spill: commit bin, start new one
             final_cols.append(current_bin)
-            current_bin = [area]
+            current_bin = [view]
         else:
-            # 1-area bin: accept overflow, canvas will expand
-            current_bin.append(area)
+            # 1-view bin: accept overflow, canvas will expand
+            current_bin.append(view)
 commit current_bin
 ```
 
-**Key:** areas are never scaled down.  Each keeps its full estimated height so
-all sections can reach `min_section_height`.  Canvas expansion (§9) handles
+**Key:** views are never scaled down.  Each keeps its full estimated height so
+all sections can reach their effective minimum.  Canvas expansion (§9) handles
 the extra height.
 
 ### 7.3 Position assignment
@@ -285,62 +324,110 @@ for col_idx, bin_cfgs in enumerate(final_cols):
 
 **Layout constants:**
 
-| Constant       | Value  | Purpose                                      |
-|----------------|--------|----------------------------------------------|
-| `PADDING`      | 50 px  | Left canvas margin; gap between stacked areas|
-| `TITLE_SPACE`  | 60 px  | Vertical space above areas (titles)          |
-| `BOTTOM_PAD`   | 30 px  | Margin below last area                       |
-| `INTER_COL_GAP`| 120 px | Gap between column right edge and next left  |
-| `MAX_COL_WIDTH`| 230 px | Maximum box width (readability cap)          |
+| Constant              | Value   | Purpose                                           |
+|-----------------------|---------|---------------------------------------------------|
+| `PADDING`             | 50 px   | Left canvas margin; gap between stacked views     |
+| `TITLE_SPACE`         | 60 px   | Vertical space above views (titles)               |
+| `BOTTOM_PAD`          | 30 px   | Margin below last view                            |
+| `INTER_COL_GAP`       | 120 px  | Gap between column right edge and next left       |
+| `MAX_COL_WIDTH`       | 230 px  | Maximum box width (readability cap)               |
+| `DEFAULT_H`           | 800 px  | Default bin-packing height target                 |
+| Title render offset   | −20 px  | Title text y-position relative to panel `pos_y`  |
+| `_TITLE_CLEARANCE_PX` | 25 px   | Vertical clearance zone above each panel checked by `check.py` for `title-overlap`; derived from title render offset + cap-height margin |
 
 ---
 
 ## 8. Column Width and Inter-Column Spacing
 
-`col_width` is always `MAX_COL_WIDTH` (230 px). The initial canvas width from
-`diagram.json` is not used to derive column width — the SVG canvas is expanded
-after layout via `_auto_canvas_size()` (§9), so there is no need to fit columns
-within a pre-declared width:
+`col_width` is always `MAX_COL_WIDTH` (230 px). The inter-column gap is computed
+per-column from the actual address width and font size of the source column:
 
 ```python
-col_width = MAX_COL_WIDTH   # 230 px — fixed regardless of canvas width
+gap = _ADDR_LABEL_H_OFFSET                        # 10 px: offset from panel right edge
+    + addr_chars * _HELVETICA_W_RATIO * font_size  # label width
+    + 38                                            # breathing room (link band + margin)
 ```
 
-The `INTER_COL_GAP` of 120 px provides clearance for:
-- 32-bit address labels: ≈ 82 px (`10 chars × 0.6 × 12 pt + 10 px offset`)
-- Link-band polygon: remaining 38 px breathing room
+**Address label geometry constants** (defined in `mmpviz.py`, mirrored in `check.py`):
 
-Column x-positions are uniformly spaced:
+| Constant               | Value | Purpose                                               |
+|------------------------|-------|-------------------------------------------------------|
+| `_ADDR_LABEL_H_OFFSET` | 10 px | Horizontal offset from panel right edge to label start |
+| `_ADDR_CHARS_32`       | 10    | `len("0x00000000")` — 8 hex digits                   |
+| `_ADDR_CHARS_64`       | 18    | `len("0x0000000000000000")` — 16 hex digits           |
+| `_ADDR_64BIT_THRESHOLD`| `0xFFFF_FFFF` | Start addresses above this need 64-bit format |
+| `_HELVETICA_W_RATIO`   | 0.6   | Estimated character width / font-size for Helvetica   |
+
+A column is "64-bit" when ANY section's **start address** exceeds `_ADDR_64BIT_THRESHOLD`.
+All sections in that view then use the 16-digit label format for visual consistency.
+
+**Example gaps at the default `font_size: 13`:**
+- 32-bit column: `10 + 10 × 0.6 × 13 + 38 = 126 px`
+- 64-bit column: `10 + 18 × 0.6 × 13 + 38 = 188 px`
+
+Column x-positions are cumulative:
 
 ```python
-x[col_idx] = PADDING + col_idx * (col_width + INTER_COL_GAP)
+x_starts = [PADDING]
+for bin_idx in range(len(final_cols) - 1):
+    x_starts.append(x_starts[-1] + col_width + _col_gap(final_cols[bin_idx]))
 ```
+
+The rightmost-column canvas margin (`right_pad`) uses the same label-width formula
+with 28 px breathing room instead of 38 (no link band beyond the last column).
 
 ---
 
-## 9. Canvas Sizing
+## 9. Canvas Sizing and Viewport Origin
 
-**Location:** `_auto_canvas_size()` in `scripts/mmpviz.py`
+**Location:** `_auto_canvas_size()` in `scripts/mmpviz.py`;
+`SVGBuilder.__init__()` in `scripts/svg_builder.py`
 
-After `get_area_views()` returns, the SVG canvas is expanded to the minimum
-size that fits all placed areas without clipping:
+After `get_area_views()` returns, the canvas is sized to contain all placed
+views plus label extents without clipping:
 
 ```python
 max_right  = max(av.pos_x + av.size_x for av in area_views)
 max_bottom = max(av.pos_y + av.size_y for av in area_views)
-needed = (max_right + 110, max_bottom + 30)
+
+# Scan user labels for actual left/right extents
+for av in area_views:
+    for lbl in av.labels.labels:
+        tw = len(lbl.text) * 0.6 * font_size
+        if lbl.side == 'left':
+            min_x = min(min_x, av.pos_x - lbl.length - 3 - tw)
+        else:
+            right_pad = max(right_pad, av.pos_x + av.size_x + lbl.length + 3 + tw - max_right + 10)
+
+# Scan view titles: 24 px, center-anchored at (av.pos_x + av.size_x/2, av.pos_y - 20)
+for av in area_views:
+    title_half = len(av.title) * 0.6 * 24 / 2
+    title_cx = av.pos_x + av.size_x / 2
+    min_x = min(min_x, title_cx - title_half)
+    right_pad = max(right_pad, ceil(title_cx + title_half - max_right) + 10)
+
+left_overflow = (ceil(-min_x) + 10) if min_x < 0 else 0
+W = int(max_right + right_pad) + left_overflow
+H = int(max_bottom + bottom_pad)
+return (W, H, left_overflow, 0)
 ```
 
-The `110 px` right padding accommodates address labels extending beyond the
-rightmost column's box edge.
+Returns a 4-tuple `(W, H, left_overflow, top_overflow)`.  The caller uses
+`left_overflow` to set `viewBox="{-left_overflow} 0 {W} {H}"` so that content
+at negative x-coordinates (e.g. long titles or left-side labels) becomes visible
+without moving any panel or section coordinates.
 
-The final canvas takes the element-wise maximum of the diagram's specified
-size and `needed`, so the canvas never shrinks below what `diagram.json`
-requests:
+**Right padding (default 110 px)** accommodates address labels:
+`10 px offset + 10 chars × 0.6 × 12 pt = 82 px`, plus 18 px breathing room.
+User labels with large `length` or long text, and view titles wider than their
+column, automatically expand `right_pad` or `left_overflow` as needed.
 
-```python
-document_size = (max(orig_w, needed[0]), max(orig_h, needed[1]))
-```
+**Left overflow** is non-zero when a left-side label or view title extends past
+x = 0.  The SVG `viewBox` is shifted accordingly; the background rect is drawn
+at `(−left_overflow, 0, W, H)` to cover the full visible area.
+
+The canvas is always derived from content — the diagram-level `"size"` field
+is deprecated and ignored.
 
 ---
 
@@ -364,33 +451,18 @@ return to_pixels_relative(address)   # fallback
 
 ---
 
-## 11. Planned vs Implemented
+## 11. Remaining Work
 
-| Topic | Proposal | Implementation | Status |
-|-------|----------|----------------|--------|
-| **Section height: min_h derivation** | Auto-derive `min_h = font_size + 28` | `_section_label_min_h()` computes per-section conflict-driven floor: `30 + font_size` only when size label and name label overlap on x-axis; 0 otherwise. User `min_section_height` applied independently. | Implemented — conflict-driven, per-section |
-| **Section height: per-section floor** | Iterative lock-at-min_h with separate min/max phases | `_compute_per_section_heights` Phase 1 (floor, accepts per-section dict) + Phase 2 (ceiling) | Implemented |
-| **Section height: max_h ceiling** | Redistribute surplus from capped sections | Phase 2 of `_compute_per_section_heights` | Implemented |
-| **Section height: area-level auto-expansion** | When overflow, expand H = Σ(min_h); re-run algorithm | Not at area level; canvas expands via `_auto_canvas_size()` | Partial — expansion is canvas-level, not area-level |
-| **Section height: break sections** | Breaks participate in iterative algorithm with min_h floor | Breaks use fixed `break_height` path; excluded from `_compute_per_section_heights` | Not implemented |
-| **Link graph construction** | Edge A→B when B.range ⊆ section L in A | `build_link_graph_from_links()` from explicit `links[]`; empty graph when `links` absent | Implemented — explicit links only |
-| **Multiple parents** | Use first-encountered (BFS) source | `assign_columns()` uses max-depth rule | Implemented (stricter than proposal) |
-| **Column assignment: BFS depth** | BFS with max-depth propagation | `assign_columns()` — Kahn's algorithm with max propagation | Implemented |
-| **Column assignment: column cap (N ≤ 4)** | Warn when > 3 columns; merge deepest levels | No cap; natural DAG depth used | Not implemented |
-| **Root detection heuristics** | Widest range or most sections when no edges | Areas with in-degree 0 (no special tie-breaking) | Simplified |
-| **Area height computation** | Run Phase 1 algorithm per area for exact height | `_estimate_area_height`: `n_visible × min_h + n_breaks × (break_height+4) + 20` | Simplified — formula, not full algorithm |
-| **Minimum area height (3 × min_h)** | `max(H_area, 3 × min_h)` | `max(200.0, estimated)` — hardcoded 200 px floor | Approximate |
-| **Area ordering: crossing minimisation** | Sort column C+1 by source midpoint | `order_within_column()` implemented but not wired into `get_area_views()` | Implemented, not active |
-| **Vertical placement: top alignment** | All columns start at same y | TITLE_SPACE = 60 px for every column | Implemented |
-| **Overflow: spill strategy** | Strategy A (split) for ≥ 3 areas, Strategy B (scale) for 1–2 | Spill when bin ≥ 2 areas; scale (accept, canvas expands) for 1-area bins | Implemented — threshold lowered to ≥ 2 |
-| **Overflow: scale strategy** | Scale H_area by fit_factor; re-run section algorithm | Not used — areas never scaled; canvas expands instead | Replaced by canvas expansion |
-| **Vertical nudge toward link source** | Shift area y toward link-band midpoint | Not implemented | Not implemented |
-| **Box width from label length** | `max(120, longest_name × font × 0.55)` | Fixed 230 px (`MAX_COL_WIDTH`); canvas auto-expands so initial canvas width is not used | Simplified |
-| **Address clearance: formula** | `addr_chars × 0.6 × font_size + 10` (82 px for 32-bit) | INTER_COL_GAP = 120 px fixed constant | Approximated; fixed rather than computed |
-| **Inter-column gap: per-column** | `max_box_width[C] + addr_clearance[C] + LINK_BAND_MIN` | Uniform 120 px gap for all columns | Simplified |
-| **Canvas sizing: natural content size** | `content_W = rightmost_right + LEFT_PAD` | `_auto_canvas_size()` — identical intent | Implemented |
-| **Canvas sizing: target format scaling** | Scale to A4 / slide aspect ratio | No scaling; natural pixel layout only | Not implemented |
-| **Link band endpoint alignment** | (not explicitly specified) | `address_to_py_actual()` interpolates within actual rendered section bounds | Implemented beyond proposal |
+Items from the original proposal judged worth implementing. Fully implemented
+items, dropped decisions, and superseded approaches have been removed.
+
+| Topic | Proposal calls for | Current state | Notes |
+|-------|--------------------|---------------|-------|
+| **View ordering: crossing minimisation** | Sort column C+1 by source midpoint of linking section (§6.3) | Implemented and wired: `order_within_column()` called in `get_area_views()`; within-bin y-positions reassigned after sort | Section-span / fan-in links fall back to diagram.json order |
+| **View height computation** | Run full Phase 1 algorithm per view for exact height before bin-packing (§5.1) | `_estimate_area_height()`: sums per-section `max(global_min_h, section.min_height)` + break budget; returns `max(200.0, estimated)` | Estimate still under-counts label-conflict inflation; canvas over-expansion absorbs the difference |
+| **Minimum view height** | `max(H_view, 3 × min_h)` (§5.2) | `max(200.0, estimated)` — hardcoded 200 px floor | Replace with principled formula |
+| **Box width from label length** | `max(120, longest_name × font × 0.55)` (§8.1) | Fixed `MAX_COL_WIDTH = 230 px` | Long section names clip silently; compute during height pre-pass |
+| **Address clearance + inter-column gap** | Per-column: `max_box_width[C] + addr_clearance[C] + LINK_BAND_MIN` (§8.2–8.4) | Implemented: `_col_gap()` in `_auto_layout()` computes gap per column from actual address width and font size | 32-bit columns: 126 px at default 13 pt; 64-bit columns: 188 px |
 
 ---
 

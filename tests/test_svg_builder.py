@@ -106,6 +106,16 @@ class TestSVGBuilderOutput(unittest.TestCase):
         self.assertEqual(svg.root.get('width'), '500')
         self.assertEqual(svg.root.get('height'), '800')
 
+    def test_default_viewbox_starts_at_origin(self):
+        svg = SVGBuilder(400, 300)
+        self.assertEqual(svg.root.get('viewBox'), '0 0 400 300')
+
+    def test_origin_shifts_viewbox(self):
+        svg = SVGBuilder(500, 300, origin_x=-120, origin_y=0)
+        self.assertEqual(svg.root.get('viewBox'), '-120 0 500 300')
+        self.assertEqual(svg.root.get('width'), '500')
+        self.assertEqual(svg.root.get('height'), '300')
+
 
 class TestTransformHelpers(unittest.TestCase):
 

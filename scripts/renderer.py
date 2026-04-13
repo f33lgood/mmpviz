@@ -6,6 +6,9 @@ from logger import logger
 from section import Section
 from svg_builder import SVGBuilder, translate, rotate
 
+# Addresses above this value need 64-bit (16 hex digit) label format.
+_ADDR_64BIT_THRESHOLD = 0xFFFF_FFFF
+
 
 def _s(style: dict, key: str, default=None):
     """Shorthand for style dict access with default."""
@@ -21,19 +24,22 @@ class MapRenderer:
     """
 
     def __init__(self, area_views: list, links, style: dict,
-                 size=DefaultAppValues.DOCUMENT_SIZE):
+                 size=DefaultAppValues.DOCUMENT_SIZE, origin=(0, 0)):
         self.area_views = area_views
         self.links = links
         self.style = style
         self.size = size
-        self.svg = SVGBuilder(size[0], size[1])
+        self.origin = origin
+        ox, oy = origin
+        self.svg = SVGBuilder(size[0], size[1], origin_x=ox, origin_y=oy)
 
     def draw(self) -> str:
         """Render the diagram and return the SVG string."""
         svg = self.svg
+        ox, oy = self.origin
 
-        # Background rectangle
-        bg = svg.rect(0, 0, self.size[0], self.size[1],
+        # Background rectangle — covers the full viewBox (origin may be negative)
+        bg = svg.rect(ox, oy, self.size[0], self.size[1],
                       fill=_s(self.style, 'background', 'white'))
         svg.root.append(bg)
 
@@ -66,6 +72,16 @@ class MapRenderer:
         translate(title, area.pos_x, area.pos_y)
         area_group.append(title)
 
+        # Use 16-digit (64-bit) address labels for ALL sections in a view
+        # if any address in the view exceeds the 32-bit range — keeps labels
+        # visually consistent within a view and matches check.py's width estimate.
+        is_64bit = any(
+            s.address > _ADDR_64BIT_THRESHOLD
+            for sub in area.get_split_area_views()
+            for s in sub.sections.get_sections()
+            if not s.is_hidden() and not s.is_break() and s.size > 0
+        )
+
         for sub_area in area.get_split_area_views():
             subarea_group = self.svg.g()
             subarea_group.append(self._make_main_frame(sub_area))
@@ -73,7 +89,7 @@ class MapRenderer:
             for section in sub_area.sections.get_sections():
                 if section.is_hidden():
                     continue
-                self._make_section(subarea_group, section, sub_area)
+                self._make_section(subarea_group, section, sub_area, is_64bit)
 
             translate(subarea_group, sub_area.pos_x, sub_area.pos_y)
             area_group.append(subarea_group)
@@ -84,13 +100,14 @@ class MapRenderer:
     # Section rendering
     # ------------------------------------------------------------------
 
-    def _make_section(self, group: ET.Element, section: Section, area_view) -> ET.Element:
+    def _make_section(self, group: ET.Element, section: Section, area_view,
+                      is_64bit: bool = False) -> ET.Element:
         area_view.apply_section_geometry(section)
 
         group.append(self._make_box(section))
         group.append(self._make_name(section))
-        group.append(self._make_address(section))
-        group.append(self._make_end_address(section))
+        group.append(self._make_address(section, is_64bit))
+        group.append(self._make_end_address(section, is_64bit))
         group.append(self._make_size_label(section))
 
         return group
@@ -166,17 +183,19 @@ class MapRenderer:
             text_type='small',
         )
 
-    def _make_address(self, section: Section) -> ET.Element:
+    def _make_address(self, section: Section, is_64bit: bool = False) -> ET.Element:
+        fmt = '016x' if is_64bit else '08x'
         return self._make_text(
-            f"0x{section.address:08x}",
+            f"0x{section.address:{fmt}}",
             section.addr_label_pos_x, section.addr_label_pos_y,
             style=section.addr_label_style,
             anchor='start',
         )
 
-    def _make_end_address(self, section: Section) -> ET.Element:
+    def _make_end_address(self, section: Section, is_64bit: bool = False) -> ET.Element:
+        fmt = '016x' if is_64bit else '08x'
         return self._make_text(
-            f"0x{section.address + section.size:08x}",
+            f"0x{section.address + section.size:{fmt}}",
             section.addr_label_pos_x, section.end_addr_label_pos_y,
             style=section.addr_label_style,
             anchor='start',

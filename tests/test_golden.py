@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
 from area_view import AreaView
 from links import Links
 from loader import load
-from mmpviz import get_area_views
+from mmpviz import get_area_views, _auto_canvas_size
 from renderer import MapRenderer
 from sections import Sections
 from theme import Theme
@@ -100,9 +100,9 @@ def extract_geometry(root):
                 continue
             x = (_fa(elem.get('x')) or 0.0) + ox
             y = (_fa(elem.get('y')) or 0.0) + oy
-            # skip the explicit canvas background rect
-            if (abs(x) < TOL and abs(y) < TOL
-                    and canvas_w is not None and abs(w - canvas_w) < TOL
+            # skip the explicit canvas background rect (full-canvas dimensions,
+            # any origin — the viewBox may be shifted for left-side labels)
+            if (canvas_w is not None and abs(w - canvas_w) < TOL
                     and canvas_h is not None and abs(h - canvas_h) < TOL):
                 continue
             rects.append((x, y, w, h, elem.get('fill', '').lower()))
@@ -150,19 +150,20 @@ def render_example(example_dir):
     theme = Theme(theme_path if os.path.isfile(theme_path) else None)
     base_style = theme.resolve('')
 
-    doc_size = diagram.get('size', [400, 700])
-    doc_size = tuple(doc_size) if isinstance(doc_size, list) else doc_size
-
     links_config = diagram.get('links', [])
     links = Links(links_config=links_config, style=theme.resolve_links())
 
     area_views = get_area_views(base_style, diagram, theme, links=links)
+    doc_w, doc_h, left_overflow, top_overflow = _auto_canvas_size(area_views)
+    doc_size = (doc_w, doc_h)
+    origin = (-left_overflow, -top_overflow)
 
     return MapRenderer(
         area_views=area_views,
         links=links,
         style=base_style,
         size=doc_size,
+        origin=origin,
     ).draw()
 
 
@@ -278,8 +279,14 @@ class GoldenTest(unittest.TestCase):
                     _close(gv, fv),
                     f"[{name}] path #{i + 1} coord #{j}: golden={gv:.4f} fresh={fv:.4f}")
 
-    def test_stack(self):
-        self._run_named('stack')
+    def test_stack_basic(self):
+        self._run_path('stack', 'basic')
+
+    def test_stack_guard_page(self):
+        self._run_path('stack', 'guard_page')
+
+    def test_stack_shadow_stack(self):
+        self._run_path('stack', 'shadow_stack')
 
     def test_break(self):
         self._run_named('break')
@@ -320,14 +327,17 @@ class GoldenTest(unittest.TestCase):
     def test_chip_pulpissimo(self):
         self._run_path('chips', 'pulpissimo')
 
-    def test_theme_light(self):
-        self._run_path('themes', 'light')
+    def test_chip_riscv64_virt(self):
+        self._run_path('chips', 'riscv64_virt')
 
     def test_theme_plantuml(self):
         self._run_path('themes', 'plantuml')
 
-    def test_theme_monochrome(self):
-        self._run_path('themes', 'monochrome')
+    def test_height_override(self):
+        self._run_path('height', 'height_override')
+
+    def test_height_global_theme(self):
+        self._run_path('height', 'global_theme')
 
     def _run_named(self, name):
         d = os.path.join(EXAMPLES_DIR, name)

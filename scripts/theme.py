@@ -10,15 +10,13 @@ SUPPORTED_SCHEMA_VERSION = 1
 
 _BUILTIN_NAMES = {
     "default": "default.json",
-    "light": "light.json",
-    "monochrome": "monochrome.json",
     "plantuml": "plantuml.json",
 }
 _THEMES_DIR = os.path.normpath(os.path.join(_HERE, '..', 'themes'))
 _MAX_INHERITANCE_DEPTH = 10
 _KNOWN_TOP_LEVEL_KEYS = frozenset({
     "schema_version", "extends",
-    "style", "palette", "views", "links", "labels"
+    "style", "views", "links", "labels"
 })
 
 
@@ -39,7 +37,7 @@ class Theme:
     Call resolve(view_id, section_id) to get a merged flat style dict.
 
     Inheritance: theme files may declare "extends": "<name-or-path>" to inherit
-    from a base theme. Built-in names: default, light, monochrome, plantuml.
+    from a base theme. Built-in names: default, plantuml.
     """
 
     DEFAULT = {
@@ -190,12 +188,6 @@ class Theme:
             if merged:
                 result[block] = merged
 
-        # Palette: child replaces entirely; if absent, inherit parent's
-        if "palette" in child:
-            result["palette"] = child["palette"]
-        elif "palette" in parent:
-            result["palette"] = parent["palette"]
-
         # Views: two-level merge
         p_views = parent.get("views", {})
         c_views = child.get("views", {})
@@ -230,15 +222,8 @@ class Theme:
         """Merge built-in defaults with theme-level style."""
         return {**self.DEFAULT, **{k: v for k, v in self._data.get('style', {}).items()}}
 
-    def resolve(self, view_id: str, section_id: str = None,
-                palette_index: int = None) -> dict:
-        """
-        Resolve and return a merged style dict for the given view (and optionally section).
-
-        When ``palette_index`` is provided and the theme defines a ``palette`` array,
-        the palette color is used as ``fill`` unless an explicit fill is already set at
-        the view or section level.
-        """
+    def resolve(self, view_id: str, section_id: str = None) -> dict:
+        """Resolve and return a merged style dict for the given view (and optionally section)."""
         base = self._base()
 
         area_data = self._data.get('views', {}).get(view_id, {})
@@ -248,15 +233,7 @@ class Theme:
         if section_id:
             section_style = area_data.get('sections', {}).get(section_id, {})
 
-        merged = {**base, **area_style, **section_style}
-
-        if palette_index is not None:
-            palette = self._data.get('palette', [])
-            has_explicit_fill = 'fill' in area_style or 'fill' in section_style
-            if palette and not has_explicit_fill:
-                merged['fill'] = palette[palette_index % len(palette)]
-
-        return merged
+        return {**base, **area_style, **section_style}
 
     def resolve_links(self) -> dict:
         """Return style dict for links, merging DEFAULT_LINKS with any theme override.

@@ -8,10 +8,11 @@ Usage:
 """
 import argparse
 import copy
+import math
 import sys
 
 from area_view import AreaView
-from auto_layout import build_link_graph_from_links, assign_columns
+from auto_layout import build_link_graph_from_links, assign_columns, order_within_column
 from helpers import safe_element_list_get, safe_element_dict_get, DefaultAppValues
 from links import Links
 from loader import load, validate, parse_int, resolve_view_sections
@@ -20,6 +21,16 @@ from renderer import MapRenderer
 from sections import Sections
 from theme import Theme
 from version import __version__
+
+
+# ---------------------------------------------------------------------------
+# Address label geometry — keep in sync with check.py panel-layout constants
+# ---------------------------------------------------------------------------
+_ADDR_LABEL_H_OFFSET  = 10       # px from panel right edge to label start
+_ADDR_CHARS_32        = 10       # len("0x00000000")
+_ADDR_CHARS_64        = 18       # len("0x0000000000000000")
+_ADDR_64BIT_THRESHOLD = 0xFFFF_FFFF
+_HELVETICA_W_RATIO    = 0.6
 
 
 def parse_arguments():
@@ -31,7 +42,7 @@ def parse_arguments():
     parser.add_argument('--theme', '-t',
                         help=('Visual styling. Three forms accepted: '
                               '(omit) = use the built-in default theme; '
-                              '-t <name> = use a built-in theme: default, light, monochrome, plantuml; '
+                              '-t <name> = use a built-in theme: default, plantuml; '
                               '-t <path> = use a custom theme.json file. '
                               'Custom themes support "extends" to inherit from a built-in base.'),
                         default=None)
@@ -48,40 +59,37 @@ def parse_arguments():
     return parser.parse_args()
 
 
-def _auto_layout(area_configs: list, document_size: tuple,
-                 columns: dict = None, area_heights: dict = None,
-                 target_format: str = 'a4') -> list:
+def _auto_layout(area_configs: list, columns: dict = None,
+                 area_heights: dict = None,
+                 area_font_sizes: dict = None) -> list:
     """
-    Fill in missing ``pos`` and ``size`` for area configs using auto-layout.
+    Assign ``pos`` and ``size`` for area configs using auto-layout.
 
-    When ``columns`` is None (default), areas are arranged left-to-right with
-    equal width.  When ``columns`` is provided (a dict mapping area_id →
-    column_index from assign_columns()), areas are grouped by DAG column and
-    packed vertically.
+    Areas are grouped by DAG column (from ``assign_columns()``) and packed
+    vertically within each column using a greedy bin-packing strategy.
 
-    **Greedy bin-packing with spill-first strategy (proposal §7.3):**
+    **Greedy bin-packing with spill-first strategy:**
     For each DAG column, areas are greedily stacked until adding another would
     exceed ``available_h``.  When overflow occurs with ≥ 2 areas already in the
-    bin, the overflowing area spills into a new adjacent sub-column (prefer
-    split).  When the bin has only 1 area, the new area is appended (scale
-    accepted, canvas will auto-expand if needed).
+    bin, the overflowing area spills into a new adjacent sub-column.  When the
+    bin has only 1 area, the new area is appended; the canvas auto-expands.
 
     Areas are never scaled down — each area keeps its full estimated height so
     that all sections can reach ``min_section_height``.  The caller is
-    responsible for expanding the SVG canvas to fit (use
-    ``_auto_canvas_size()``).
+    responsible for expanding the SVG canvas to fit (use ``_auto_canvas_size()``).
 
-    Column width is capped at 230 px (matching the pulpissimo reference layout)
-    so box sizes stay readable even on wide canvases.
+    Column width is capped at 230 px so section text and address labels remain
+    readable at any scale.
 
     Layout constants (all in pixels):
-      PADDING     = 50   left canvas margin / minimum area gap
-      INTER_COL_GAP = 120  gap between column right edge and next column left
-                           edge (fits 32-bit address labels + link-band jog)
-      TITLE_SPACE = 60   vertical space reserved above areas for titles
-      BOTTOM_PAD  = 30   vertical gap below areas
+      PADDING       = 50   left canvas margin / gap between stacked views
+      INTER_COL_GAP      per-column: 120 px for 32-bit columns, wider for
+                         64-bit (computed from actual label width + font size)
+      TITLE_SPACE   = 60   vertical space reserved above views for titles
+      BOTTOM_PAD    = 30   vertical gap below views
+      DEFAULT_H     = 800  default bin-packing height target before per-column
+                           override (max item height always wins)
     """
-    W, H = document_size
     N = len(area_configs)
     if N == 0:
         return area_configs
@@ -89,30 +97,31 @@ def _auto_layout(area_configs: list, document_size: tuple,
     PADDING = 50
     TITLE_SPACE = 60
     BOTTOM_PAD = 30
+    DEFAULT_H = 800.0
 
     if columns is None:
-        # Equal-distribution fallback (original behaviour)
-        auto_width = max(50.0, (W - PADDING * (N + 1)) / N)
-        auto_height = max(100.0, H - TITLE_SPACE - BOTTOM_PAD)
+        # Single-column fallback: stack all views vertically
+        MAX_COL_WIDTH = 230.0
         result = []
+        y = float(TITLE_SPACE)
         for i, cfg in enumerate(area_configs):
             new_cfg = dict(cfg)
-            if 'pos' not in cfg:
-                new_cfg['pos'] = [round(PADDING + i * (auto_width + PADDING), 1), TITLE_SPACE]
-            if 'size' not in cfg:
-                new_cfg['size'] = [round(auto_width, 1), auto_height]
+            aid = cfg.get('id', '')
+            auto_h = max(100.0, float((area_heights or {}).get(aid, 400.0)))
+            new_cfg['pos'] = [float(PADDING), round(y, 1)]
+            new_cfg['size'] = [MAX_COL_WIDTH, round(auto_h, 1)]
+            y += auto_h + PADDING
             result.append(new_cfg)
         return result
 
     # --- Column-based layout with greedy bin-packing ---
-    base_available_h = max(100.0, H - TITLE_SPACE - BOTTOM_PAD)
-    # Horizontal gap between a column's right edge and the next column's left edge.
-    # Must fit address labels (~82 px at 12 pt / 32-bit) + link-band jog + breathing
-    # room — proposal §8.3 LINK_BAND_MIN = addr_width + 20 = 102 px; use 120 for safety.
-    INTER_COL_GAP = 120
+    base_available_h = max(100.0, DEFAULT_H - TITLE_SPACE - BOTTOM_PAD)
     # Maximum column (box) width: capped at 230 px to match the pulpissimo reference
     # layout so section text and address labels stay readable on any canvas width.
     MAX_COL_WIDTH = 230.0
+    # Breathing room beyond the address label (same for 32-bit and 64-bit).
+    # For 32-bit at 12 pt: 10 + 10×0.6×12 + 38 = 120 px (historical default).
+    _INTER_BREATHING = 38
 
     raw_heights = dict(area_heights or {})
 
@@ -177,14 +186,40 @@ def _auto_layout(area_configs: list, document_size: tuple,
     # the caller via _auto_canvas_size() to accommodate the actual content.
 
     # Assign pixel positions
-    n_cols = len(final_cols)
     # Use MAX_COL_WIDTH directly — the SVG canvas auto-expands via _auto_canvas_size()
     # so the initial document_size width does not constrain column width.
     col_width = MAX_COL_WIDTH
 
+    def _col_gap(bin_cfgs: list) -> int:
+        """Inter-column gap for bin_cfgs based on their address width and font size."""
+        fs = max(
+            (float((area_font_sizes or {}).get(c.get('id', ''), 12.0))
+             for c in bin_cfgs),
+            default=12.0,
+        )
+        for c in bin_cfgs:
+            for s in c.get('sections', []):
+                try:
+                    if parse_int(s.get('address', '0')) > _ADDR_64BIT_THRESHOLD:
+                        return round(
+                            _ADDR_LABEL_H_OFFSET
+                            + _ADDR_CHARS_64 * _HELVETICA_W_RATIO * fs
+                            + _INTER_BREATHING)
+                except (ValueError, TypeError):
+                    pass
+        return round(
+            _ADDR_LABEL_H_OFFSET
+            + _ADDR_CHARS_32 * _HELVETICA_W_RATIO * fs
+            + _INTER_BREATHING)
+
+    # Cumulative x start positions: gap right of bin[n] → left edge of bin[n+1]
+    x_starts: list = [float(PADDING)]
+    for bin_idx in range(len(final_cols) - 1):
+        x_starts.append(x_starts[-1] + col_width + _col_gap(final_cols[bin_idx]))
+
     result_by_id: dict = {}
     for col_idx, bin_cfgs in enumerate(final_cols):
-        x = round(PADDING + col_idx * (col_width + INTER_COL_GAP), 1)
+        x = round(x_starts[col_idx], 1)
         y = float(TITLE_SPACE)
         for cfg in bin_cfgs:
             new_cfg = dict(cfg)
@@ -205,18 +240,80 @@ def _auto_layout(area_configs: list, document_size: tuple,
 def _auto_canvas_size(area_views: list,
                       right_pad: int = 110, bottom_pad: int = 30) -> tuple:
     """
-    Return ``(W, H)`` — the minimum SVG canvas dimensions to contain all
-    *area_views* without clipping.
+    Return ``(W, H, left_overflow, top_overflow)`` — SVG canvas dimensions and
+    origin shift needed to contain all *area_views* without clipping.
 
-    ``right_pad`` allows room for address labels beyond the rightmost column's
-    box edge (≈ 82 px label + 10 px offset + 18 px breathing room = 110 px).
+    ``right_pad`` is the default clearance for address labels to the right of
+    the rightmost column (≈ 82 px label + 10 px offset + 18 px breathing room).
+    User labels with large ``length`` or long text may require more; this is
+    computed automatically and ``right_pad`` is expanded if needed.
+
+    ``left_overflow`` > 0 means content extends left of x = 0 (e.g. left-side
+    labels).  The caller must shift the SVG viewBox origin by ``−left_overflow``
+    and increase the canvas width accordingly.  ``top_overflow`` is reserved for
+    future use (currently always 0).
     """
     if not area_views:
-        from loader import DefaultAppValues  # noqa: F401 — inline to avoid circular
-        return (1100, 1000)
-    max_right = max(av.pos_x + av.size_x for av in area_views)
+        return (1100, 1000, 0, 0)
+
+    max_right  = max(av.pos_x + av.size_x for av in area_views)
     max_bottom = max(av.pos_y + av.size_y for av in area_views)
-    return (int(max_right + right_pad), int(max_bottom + bottom_pad))
+
+    # Scan user labels to find actual left/right content extents.
+    _SPACER   = 3    # line_label_spacer constant in renderer.py
+    _CHAR_W   = 0.6  # Helvetica character width ratio
+    _MARGIN   = 10   # breathing room (px)
+
+    min_x = 0.0
+    for av in area_views:
+        if not av.labels or not av.labels.labels:
+            continue
+        fs = av.style.get('font_size', 12)
+        for lbl in av.labels.labels:
+            tw = len(lbl.text) * _CHAR_W * fs
+            if lbl.side == 'left':
+                x_end = av.pos_x - lbl.length - _SPACER - tw
+                min_x = min(min_x, x_end)
+            else:
+                x_end = av.pos_x + av.size_x + lbl.length + _SPACER + tw
+                right_pad = max(right_pad, int(x_end - max_right) + _MARGIN)
+
+    # Scan view titles: 24 px, center-anchored above each view at pos_x + size_x/2.
+    _TITLE_FONT_SIZE = 24
+    for av in area_views:
+        if not av.title:
+            continue
+        title_half = len(av.title) * _CHAR_W * _TITLE_FONT_SIZE / 2
+        title_cx = av.pos_x + av.size_x / 2
+        min_x = min(min_x, title_cx - title_half)
+        right_over = math.ceil(title_cx + title_half - max_right) + _MARGIN
+        if right_over > right_pad:
+            right_pad = right_over
+
+    # Widen right_pad for 64-bit address labels on the rightmost column.
+    # Default right_pad (110) = _ADDR_LABEL_H_OFFSET(10) + 32-bit label(72) + 28 breathing.
+    # 64-bit labels are wider; use the same 28 px breathing room.
+    _ADDR_RIGHT_BREATHING = 28
+    for av in area_views:
+        if av.pos_x + av.size_x < max_right - 0.5:
+            continue  # not in the rightmost column
+        fs = float(av.style.get('font_size', 12))
+        for sub in av.get_split_area_views():
+            for s in sub.sections.get_sections():
+                if s.is_hidden() or s.is_break() or s.size == 0:
+                    continue
+                if s.address > _ADDR_64BIT_THRESHOLD:
+                    needed = round(
+                        _ADDR_LABEL_H_OFFSET
+                        + _ADDR_CHARS_64 * _HELVETICA_W_RATIO * fs
+                        + _ADDR_RIGHT_BREATHING)
+                    right_pad = max(right_pad, needed)
+                    break
+
+    left_overflow = (math.ceil(-min_x) + _MARGIN) if min_x < 0 else 0
+    W = int(max_right + right_pad) + left_overflow
+    H = int(max_bottom + bottom_pad)
+    return (W, H, left_overflow, 0)
 
 
 def _apply_area_section_flags(sections: list, area_config: dict) -> list:
@@ -242,16 +339,18 @@ def _estimate_area_height(sections: list, style: dict) -> float:
     break_height = float(style.get('break_height', 20))
     top_bottom_pad = 20.0  # area-internal padding
 
-    n_visible = sum(
-        1 for s in sections
-        if not s.is_hidden() and not s.is_break() and s.size > 0
-    )
     n_breaks = sum(1 for s in sections if s.is_break())
 
-    # Use user-configured min_section_height as the per-section floor.
-    # Per-section label-conflict inflation is applied during actual rendering
-    # in AreaView._process(); the estimate only needs to be in the right ballpark.
-    estimated = (n_visible * user_min_h
+    # Sum per-section floors: each visible section contributes at least
+    # max(global_min_h, section.min_height).  Per-section label-conflict
+    # inflation is applied during actual rendering in AreaView._process();
+    # the estimate only needs to be in the right ballpark.
+    visible_floor_sum = sum(
+        max(user_min_h, s.min_height if s.min_height is not None else 0.0)
+        for s in sections
+        if not s.is_hidden() and not s.is_break() and s.size > 0
+    )
+    estimated = (visible_floor_sum
                  + n_breaks * (break_height + 4)
                  + top_bottom_pad)
     return max(200.0, estimated)
@@ -265,8 +364,8 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
     Each view fully declares its own ``sections[]`` array.  There is no global
     section pool — sections live entirely inside the view that displays them.
 
-    ``pos`` and ``size`` inside each view entry are optional — _auto_layout()
-    fills them in when absent.
+    Auto-layout always runs: ``pos`` and ``size`` on individual views and the
+    diagram-level ``size`` field are deprecated and ignored with a warning.
     """
     area_configurations = diagram.get('views', []) or []
 
@@ -274,35 +373,93 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
         logger.warning("No views configured in diagram.json — nothing to render.")
         return []
 
-    document_size = diagram.get('size', list(DefaultAppValues.DOCUMENT_SIZE))
+    # Warn about deprecated fields but do not abort — they are silently ignored.
+    if 'size' in diagram:
+        logger.warning(
+            "diagram.json: top-level 'size' is deprecated and ignored — "
+            "canvas dimensions are computed automatically"
+        )
+    for cfg in area_configurations:
+        vid = cfg.get('id', '?')
+        if 'pos' in cfg:
+            logger.warning(
+                f"view '{vid}': 'pos' is deprecated and ignored — "
+                "placement is controlled by auto-layout"
+            )
+        if 'size' in cfg:
+            logger.warning(
+                f"view '{vid}': 'size' is deprecated and ignored — "
+                "dimensions are controlled by auto-layout"
+            )
 
     # --- Link-graph column assignment ---
-    # Only run when at least one area is missing pos/size (full auto-layout mode).
-    needs_auto = any('pos' not in c or 'size' not in c for c in area_configurations)
-    columns = None
-    area_heights = None
-    if needs_auto:
-        view_ids = [c['id'] for c in area_configurations if 'id' in c]
-        if links is not None and links.entries:
-            graph = build_link_graph_from_links(links.entries, view_ids)
-        else:
-            graph = {vid: [] for vid in view_ids}
-        columns = assign_columns(graph, view_ids)
+    view_ids = [c['id'] for c in area_configurations if 'id' in c]
+    if links is not None and links.entries:
+        graph = build_link_graph_from_links(links.entries, view_ids)
+    else:
+        graph = {vid: [] for vid in view_ids}
+    columns = assign_columns(graph, view_ids)
 
-        # Pre-resolve sections per view to estimate heights
-        area_heights = {}
-        for area_config in area_configurations:
-            if 'size' in area_config:
-                continue
-            vid = area_config.get('id', '')
-            area_style = theme.resolve(vid)
-            view_sections = copy.deepcopy(resolve_view_sections(area_config))
-            area_heights[vid] = _estimate_area_height(view_sections, area_style)
+    # Pre-resolve sections per view to estimate heights and collect font sizes
+    area_heights = {}
+    area_font_sizes = {}
+    for area_config in area_configurations:
+        vid = area_config.get('id', '')
+        area_style = theme.resolve(vid)
+        view_sections = copy.deepcopy(resolve_view_sections(area_config))
+        area_heights[vid] = _estimate_area_height(view_sections, area_style)
+        area_font_sizes[vid] = float(area_style.get('font_size', 12))
 
+    # --- Single layout pass ---
     area_configurations = _auto_layout(
-        area_configurations, tuple(document_size),
-        columns=columns, area_heights=area_heights,
-    )
+        area_configurations, columns=columns, area_heights=area_heights,
+        area_font_sizes=area_font_sizes)
+
+    # --- Crossing minimisation: reorder within existing bins ---
+    # Sort column C+1 views so their top-to-bottom order matches the vertical
+    # order of their source sections in column C, eliminating band crossings.
+    # Only y-positions within each visual bin are adjusted; bin assignment and
+    # bin membership never change, so stm32f103-style bin splits are preserved.
+    # Views whose midpoint cannot be computed (section-span links, fan-in with
+    # multiple sources) keep their current order (stable sort with key=inf).
+    if links is not None and links.entries:
+        # Build temporary AreaViews to compute pixel midpoints
+        area_views_for_order = []
+        for area_config in area_configurations:
+            vid = area_config.get('id', '')
+            secs = copy.deepcopy(resolve_view_sections(area_config))
+            if not secs:
+                continue
+            area_views_for_order.append(AreaView(
+                sections=Sections(sections=secs),
+                style=theme.resolve(vid),
+                area_config=area_config,
+                theme=theme,
+            ))
+
+        col_order = order_within_column(graph, columns, area_views_for_order)
+
+        # Group configs by x-position (same x = same visual bin)
+        PADDING = 50
+        TITLE_SPACE = 60
+        bins_by_x: dict = {}
+        for cfg in area_configurations:
+            x = cfg.get('pos', [0, 0])[0]
+            bins_by_x.setdefault(x, []).append(cfg)
+
+        for bin_cfgs in bins_by_x.values():
+            if len(bin_cfgs) <= 1:
+                continue
+            # All configs in a bin share the same DAG column
+            col = columns.get(bin_cfgs[0].get('id', ''), 0)
+            id_to_rank = {vid: i for i, vid in enumerate(col_order.get(col, []))}
+            bin_cfgs.sort(
+                key=lambda c: id_to_rank.get(c.get('id', ''), float('inf')))
+            # Reassign y-positions to match new order
+            y = float(TITLE_SPACE)
+            for cfg in bin_cfgs:
+                cfg['pos'][1] = round(y, 1)
+                y += cfg.get('size', [0, 400])[1] + PADDING
 
     area_views = []
     for i, area_config in enumerate(area_configurations):
@@ -363,31 +520,21 @@ def main():
 
     base_style = theme.resolve('')  # global defaults for areas without explicit id
 
-    # Document size
-    document_size = diagram.get('size', list(DefaultAppValues.DOCUMENT_SIZE))
-    if isinstance(document_size, list) and len(document_size) == 2:
-        document_size = tuple(document_size)
-    else:
-        document_size = DefaultAppValues.DOCUMENT_SIZE
-
     # Links
     links_config = diagram.get('links', [])
     links_style = theme.resolve_links()
     links = Links(links_config=links_config, style=links_style)
 
-    # Build area views
-    area_configs = diagram.get('views', []) or []
-    needs_auto = any('pos' not in c or 'size' not in c for c in area_configs)
+    # Build area views (auto-layout always runs)
     area_views = get_area_views(base_style, diagram, theme, links=links)
     if not area_views:
         print("Error: no area views could be created. Check diagram.json configuration.")
         sys.exit(1)
 
-    # In auto-layout mode, expand the canvas to fit all areas (no clipping).
-    if needs_auto:
-        needed = _auto_canvas_size(area_views)
-        document_size = (max(document_size[0], needed[0]),
-                         max(document_size[1], needed[1]))
+    # Canvas always auto-sizes to fit all placed views.
+    doc_w, doc_h, left_overflow, top_overflow = _auto_canvas_size(area_views)
+    document_size = (doc_w, doc_h)
+    origin = (-left_overflow, -top_overflow)
 
     # Render
     svg_str = MapRenderer(
@@ -395,6 +542,7 @@ def main():
         links=links,
         style=base_style,
         size=document_size,
+        origin=origin,
     ).draw()
 
     # Write output

@@ -22,6 +22,30 @@ Writing guide:
 
 ---
 
+## [2026-04-13]
+
+### Added
+- **`schemas/diagram.schema.json` and `schemas/theme.schema.json`** — machine-readable JSON Schema (draft 2020-12) contracts for both input formats; shipped with mmpviz and loaded automatically by `--validate` when the `jsonschema` Python package is available.
+- **`sections[].min_height`** — per-section pixel height floor; effective floor = `max(min_height, theme min_section_height)`. Use for sections too small in proportion to read.
+- **`sections[].max_height`** — per-section pixel height ceiling; effective ceiling = `min(max_height, theme max_section_height)`. Use for sections that would otherwise dominate the view. `min_height` must not exceed `max_height`.
+- **`section-height-conflict` check rule** — `check.py` reports an ERROR when a section declares `min_height > max_height`.
+
+### Changed
+- **Left-side label visibility** — labels with `"side": "left"` were clipped when their text extended past the left canvas edge; the SVG viewport now shifts to expose the full text. Right-side labels with long text or large `length` likewise expand the right-side canvas margin automatically.
+- **View title clipping** — view titles wider than their column panel no longer clip at the canvas edge; the SVG viewport now expands to expose the full title text on both sides.
+- **`uncovered-gap` detection improved** — also fires when a break section starts at the gap but stops short of the next visible section.
+- **Link-crossing minimisation** — views in each column are automatically reordered to match the vertical order of their source sections, reducing link-band crossings in multi-column diagrams.
+- **64-bit address label support** — views whose sections have start addresses above `0xFFFFFFFF` now render all address labels in 16-digit hex format (`0x0000000300000000`), and the inter-column gap widens automatically to fit; 32-bit columns are unaffected.
+
+### Removed
+- **`light` and `monochrome` built-in themes** — `default` and `plantuml` are the two supported built-ins; `light`/`monochrome` are no longer documented, tested, or shipped as examples.
+- **`palette`** — automatic address-order section coloring removed; use explicit `views[id].sections[id].fill` overrides instead.
+- **`diagram.json` top-level `"size"`** — canvas is always auto-sized from content; `"size"` is now a deprecated no-op (triggers a validation warning).
+- **`views[].pos`** — view position is always computed by auto-layout; `"pos"` is now a deprecated no-op (triggers a validation warning).
+- **`views[].size`** — view dimensions are always computed by auto-layout; `"size"` is now a deprecated no-op (triggers a validation warning).
+
+---
+
 ## [2026-04-12]
 
 ### Added
