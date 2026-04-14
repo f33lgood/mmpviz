@@ -294,26 +294,26 @@ class GoldenTest(unittest.TestCase):
     def test_labels(self):
         self._run_named('labels')
 
+    def test_link_column_order(self):
+        self._run_path('link', 'column_order')
+
     def test_link_cortex_m3(self):
         self._run_path('link', 'cortex_m3')
 
-    def test_link_polygon_fill(self):
-        self._run_path('link', 'polygon_fill')
+    def test_link_fill(self):
+        self._run_path('link', 'fill')
 
-    def test_link_polygon_stroke(self):
-        self._run_path('link', 'polygon_stroke')
+    def test_link_stroke(self):
+        self._run_path('link', 'stroke')
 
-    def test_link_polygon_stroke_dashed(self):
-        self._run_path('link', 'polygon_stroke_dashed')
+    def test_link_stroke_dashed(self):
+        self._run_path('link', 'stroke_dashed')
 
-    def test_link_curve_fill(self):
-        self._run_path('link', 'curve_fill')
+    def test_link_polygon(self):
+        self._run_path('link', 'polygon')
 
-    def test_link_curve_stroke(self):
-        self._run_path('link', 'curve_stroke')
-
-    def test_link_curve_stroke_dashed(self):
-        self._run_path('link', 'curve_stroke_dashed')
+    def test_link_three_segments(self):
+        self._run_path('link', 'three_segments')
 
     def test_stm32f103(self):
         self._run_path('chips', 'stm32f103')

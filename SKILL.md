@@ -2,14 +2,8 @@
 name: mmpviz
 description: >
   Use this skill whenever the user wants to visualize, diagram, or document a memory map,
-  memory layout, or address space — even if they don't use those exact words.
-  Trigger on: "generate a memory map diagram", "visualize memory layout", "create a memory map SVG",
-  "draw memory regions", "show flash and RAM as a diagram", "produce an embedded memory map",
-  "draw my linker script regions", "visualize my device memory", "show the address space",
-  "diagram my peripheral registers", "create a memory layout SVG", "show me the flash layout",
-  "map out the RAM sections", "visualize my MPU regions", "document the memory map for this chip",
-  or any request to turn address/size data from a datasheet, linker script, header file, or RTL
-  into a diagram. Use this skill even when the request is casual or phrased informally.
+  memory layout, address map, or address space — from any source (datasheet, linker script,
+  RTL, header file). Key trigger concepts: memory map, memory layout, address map, address space.
 version: 1.0.0
 tools:
   - Read
@@ -33,21 +27,20 @@ Turn a JSON memory map description into a publication-quality SVG — one comman
 
 ## Workflow
 
-1. **Collect** memory regions from context (datasheet, linker script, RTL, header): start address, size, and name for each region.
-2. **Write the input file** — declare views and their sections. Omit `pos`/`size`; auto-layout handles placement.
-   Consult `references/create-diagram.md` for step-by-step authoring guidance, break/label/link patterns, and common pitfalls.
-3. **Render**: `python <skill_path>/scripts/mmpviz.py -d <input> -o <output>` (`mmpviz.py` lives in `scripts/` alongside this SKILL.md — use its absolute path)
+1. **Create the input file** — collect memory regions from context, design the view structure, then write `diagram.json`.
+   Consult `references/create-diagram.md` for detailed guidance on each of these sub-steps.
+2. **Render**: `python <skill_path>/scripts/mmpviz.py -d <input> -o <output>` (`mmpviz.py` lives in `scripts/` alongside this SKILL.md — use its absolute path)
    The render pipeline runs automatically in order: schema validate → layout check → SVG render.
    `[ERROR]` lines abort before the SVG is written; `[WARNING]` lines are printed but the SVG is still produced.
    Errors and warnings are expected on the first render — they drive the next step.
-4. **Fix errors and warnings** — for each `[ERROR]` or `[WARNING]` line, consult `references/check-rules.md` to identify the rule, its cause, and the recommended fix. Edit the input file and re-render. Repeat until there are no `[ERROR]` or `[WARNING]` lines.
-5. **Post-render checks** — once the render is clean (no errors or warnings), review the SVG for visual issues not caught by the checker:
+3. **Fix errors and warnings** — for each `[ERROR]` or `[WARNING]` line, consult `references/check-rules.md` to identify the rule, its cause, and the recommended fix. Edit the input file and re-render. Repeat until there are no `[ERROR]` or `[WARNING]` lines.
+4. **Post-render checks** — once the render is clean (no errors or warnings), review the SVG for visual issues not caught by the checker:
    - **Section label overflow**: name truncated or overflowing its box — set `"min_height"` on that section, or flag it `"break"`.
    - **Dominant section**: one section crowds out neighbours — set `"max_height"` on it.
    - **Wrong column layout**: a view lands in the wrong column — verify `links[]` entries reference the correct view IDs.
    - **Link band to wrong panel**: band connects to the wrong detail view — verify `to.view` matches the exact `id` of the intended target view.
    Apply any necessary fixes to the input file and re-render.
-6. **Done** — both files are valid and visually correct.
+5. **Done** — both files are valid and visually correct.
 
 ---
 

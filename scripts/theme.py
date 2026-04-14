@@ -60,14 +60,6 @@ class Theme:
         "label_arrow_size": 2,
     }
 
-    DEFAULT_LINKS = {
-        "shape": "polygon",
-        "fill": "#D8D8D8",
-        "stroke": "#888888",
-        "stroke_width": 1,
-        "opacity": 0.6,
-    }
-
     def __init__(self, path: str = None):
         self._data = {}
         resolved = self._resolve_path_arg(path)
@@ -236,12 +228,13 @@ class Theme:
         return {**base, **area_style, **section_style}
 
     def resolve_links(self) -> dict:
-        """Return style dict for links, merging DEFAULT_LINKS with any theme override.
-        Does not inherit section defaults — the renderer supplies its own fallbacks
-        for each link property via _s(), so merging _base() would cause section
-        properties like stroke_dasharray to bleed into link rendering unintentionally.
+        """Return the resolved links style dict.
+
+        All link keys are provided by the inherited theme chain (themes/default.json
+        defines the complete set). The renderer handles any missing keys via _s()
+        per-property fallbacks, so no Python-level defaults are needed here.
         """
-        return {**self.DEFAULT_LINKS, **self._data.get('links', {})}
+        return self._data.get('links', {})
 
     def resolve_labels(self) -> dict:
         """Return merged style dict for labels.

@@ -23,8 +23,7 @@ python scripts/mmpviz.py -d diagram.json -t themes/plantuml.json -o map.svg  # b
 | `default` | `themes/default.json` | Neutral black/white/gray palette. **Loaded automatically when `-t` is omitted.** |
 | `plantuml` | `themes/plantuml.json` | PlantUML-style pastel fills with red outlines. |
 
-These themes set only `style` and `links`/`labels` blocks — no view- or section-specific
-overrides — so they work with any `diagram.json` without modification.
+`themes/default.json` defines the complete set of all `style`, `links`, and `labels` properties; it is the authoritative baseline for link configuration. `themes/plantuml.json` uses `extends: "default"` and overrides only the visual appearance (fill, stroke, opacity, font) while inheriting the link geometry. Both themes have no view- or section-specific overrides, so they work with any `diagram.json` without modification.
 
 ---
 
@@ -43,11 +42,13 @@ theme.json
 └── labels           → style for address annotation lines
 ```
 
-**Resolution order** (later overrides earlier):
+**Resolution order for `style` properties** (later overrides earlier):
 1. Built-in fallback defaults (`Theme.DEFAULT` in `theme.py`)
 2. `theme.style` (global baseline from the loaded theme file, or its `extends` ancestor)
 3. `theme.views[view_id]`
 4. `theme.views[view_id].sections[section_id]`
+
+**Resolution order for `links` properties** — resolved solely through the `extends` chain: the merged `links` block across all ancestors, with child values overriding parent. `themes/default.json` defines the complete baseline; any theme using `extends: "default"` (directly or transitively) inherits all link properties.
 
 ---
 
@@ -166,29 +167,75 @@ Controls how pixel height is distributed across subareas (regions between break 
 
 ## `links` — Section Band Style
 
-The `links` block in `theme.json` controls the visual style of section band connectors drawn between the source stack and detail stacks. All properties are optional.
+The `links` block controls the visual style of section band connectors drawn between the source stack and detail stacks.
+
+A band is composed of three independent segments:
+
+```
+source view                                           dest view
+    │  ←─ source_seg ──→│←────── middle_seg ────────→│←─ dest_seg ─→  │
+    │      (src_w px)    │       (fills remainder)     │   (dst_w px)   │
+```
+
+Each segment has a configurable shape, and independently configurable heights for its left and right edges.
+
+**Center alignment (automatic):** The vertical center of every edge is fixed by which segment it belongs to — no configuration needed:
+
+| Segment | Left edge center | Right edge center |
+|---------|-----------------|------------------|
+| `source_seg` | source region center | source region center |
+| `middle_seg` | source region center | destination region center |
+| `dest_seg` | destination region center | destination region center |
+
+**Height references** (`lheight` / `rheight`) select the **span** (pixel height) of the band at that edge:
+- `"source"` — band spans the `from.sections` pixel height
+- `"destination"` — band spans the `to.sections` pixel height (or clamped full dest view when `to.sections` is absent)
+
+The edge y-coordinates are then: `center ± span/2`. This lets the band maintain source width through the curve while naturally shifting its center to align with the destination.
+
+### Segment properties
+
+The **Default** column shows the values defined in `themes/default.json`, which is the authoritative baseline for link configuration. Custom themes that use `extends: "default"` inherit all these values and only need to set the keys that differ.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `shape` | `"polygon"` \| `"curve"` | `"polygon"` | Band edge shape. `"polygon"` uses straight diagonal lines; `"curve"` uses cubic Bézier curves (Sankey style) |
-| `fill` | color string \| `"none"` | `"none"` | Fill color for the band interior. Set to a color for a filled band; `"none"` for stroke-only |
-| `stroke` | color string \| `"none"` | `"black"` | Stroke color for the top and bottom band edges. Set to `"none"` for fill-only |
+| `source_seg_shape` | `"polygon"` \| `"curve"` | `"polygon"` | Edge shape of the source outreach segment |
+| `source_seg_width` | number ≥ 0 | `0` | Width in pixels of the source outreach; `0` = no outreach |
+| `source_seg_lheight` | `"source"` \| `"destination"` | `"source"` | Height at the source-view edge of this segment |
+| `source_seg_rheight` | `"source"` \| `"destination"` | `"source"` | Height at the junction with the middle segment |
+| `middle_seg_shape` | `"polygon"` \| `"curve"` | `"curve"` | Edge shape of the middle connecting segment |
+| `middle_seg_lheight` | `"source"` \| `"destination"` | `"source"` | Height at the left edge of the middle segment |
+| `middle_seg_rheight` | `"source"` \| `"destination"` | `"source"` | Height at the right edge of the middle segment |
+| `dest_seg_shape` | `"polygon"` \| `"curve"` | `"curve"` | Edge shape of the destination outreach segment |
+| `dest_seg_width` | number ≥ 0 | `30` | Width in pixels of the destination outreach; `0` = no outreach |
+| `dest_seg_lheight` | `"source"` \| `"destination"` | `"source"` | Height at the junction with the middle segment |
+| `dest_seg_rheight` | `"source"` \| `"destination"` | `"destination"` | Height at the destination-view edge of this segment |
+
+### Visual properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `fill` | color string \| `"none"` | `"#e8e8e8"` | Fill color for the band interior. Set to `"none"` for stroke-only |
+| `stroke` | color string \| `"none"` | `"none"` | Stroke color for the top and bottom band edges. Set to a color to draw edges |
 | `stroke_width` | number | `1` | Stroke thickness in pixels |
-| `stroke_dasharray` | string | *(none)* | SVG dash pattern for stroke edges, e.g. `"8,4"`. Omit for solid stroke |
-| `opacity` | number 0–1 | `1` | Overall opacity of the band |
+| `stroke_dasharray` | string | *(unset)* | SVG dash pattern for stroke edges, e.g. `"8,4"`. Omit for solid stroke |
+| `opacity` | number 0–1 | `0.7` | Overall opacity of the band |
 
 **Composing styles:** `fill` and `stroke` are independent. Setting both draws a filled closed band plus stroked top/bottom edges. The stroked edges are drawn as open paths (no right vertical) so they never overlap the detail stack's own border.
 
-**Six standard styles:**
+**Continuity:** for a seamless band, adjacent segment heights should match at their shared junction — e.g. `source_seg_rheight` should equal `middle_seg_lheight`.
 
-| Style | Config |
-|-------|--------|
-| Polygon, fill only | `"shape": "polygon", "fill": "<color>", "stroke": "none"` |
-| Polygon, solid stroke | `"shape": "polygon", "fill": "none", "stroke": "<color>"` |
-| Polygon, dashed stroke | `"shape": "polygon", "fill": "none", "stroke": "<color>", "stroke_dasharray": "8,4"` |
-| Curve, fill only | `"shape": "curve", "fill": "<color>", "stroke": "none"` |
-| Curve, solid stroke | `"shape": "curve", "fill": "none", "stroke": "<color>"` |
-| Curve, dashed stroke | `"shape": "curve", "fill": "none", "stroke": "<color>", "stroke_dasharray": "8,4"` |
+**Example configurations** (all assume `extends: "default"` as base):
+
+| Style | Key overrides | Visual result |
+|-------|--------------|---------------|
+| **Default theme** | see `themes/default.json` | S-curve + 30 px Bézier dest taper, light-gray fill |
+| Fill style | `"fill": "<color>", "stroke": "none"` | Base shape (S-curve + dest taper) in a custom fill color |
+| Stroke only | `"fill": "none", "stroke": "<color>", "stroke_width": 2` | Base shape, edges only |
+| Dashed stroke | `"fill": "none", "stroke": "<color>", "stroke_width": 2, "stroke_dasharray": "8,4"` | Base shape, dashed edges |
+| Polygon middle | `"middle_seg_shape": "polygon", "middle_seg_rheight": "destination", "dest_seg_width": 0` | Straight trapezoidal connector; contrasts the default S-curve |
+| All three segments | `"source_seg_shape": "polygon", "source_seg_width": 20, "middle_seg_shape": "polygon", "middle_seg_rheight": "destination", "dest_seg_shape": "polygon", "dest_seg_width": 20` | Three polygon segments; zigzag kinks mark each boundary on both edges |
+| Sankey | `"middle_seg_lheight": "source", "middle_seg_rheight": "source", "dest_seg_width": 0` | Constant-width S-curve; band width proportional to source section size |
 
 ---
 
@@ -208,7 +255,12 @@ Any valid SVG color string is accepted:
 | `examples/themes/default/theme.json` | Minimal override of `default` — global `style`, `links`, `labels` |
 | `examples/themes/plantuml/theme.json` | `extends` with no other overrides — inherit a built-in unchanged |
 | `examples/stack/basic/theme.json` | `extends` + per-view `sections` overrides — section-level fills |
-| `examples/link/cortex_m3/theme.json` | `extends` + `links` block override |
+| `examples/link/cortex_m3/theme.json` | `extends` + `links` visual override (fill + opacity) |
+| `examples/link/fill/theme.json` | Default shape (S-curve + dest taper) with fill style |
+| `examples/link/stroke/theme.json` | Default shape with stroke-only style |
+| `examples/link/stroke_dashed/theme.json` | Default shape with dashed stroke style |
+| `examples/link/polygon/theme.json` | Polygon middle (straight trapezoid, no outreach) — contrasts the default S-curve |
+| `examples/link/three_segments/theme.json` | All three polygon segments visible: flat source jog → tapered middle → flat dest jog; kinks mark the boundaries |
 
 ---
 

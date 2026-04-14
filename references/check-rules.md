@@ -49,7 +49,7 @@ Exit codes: **0** = no issues, **1** = one or more ERRORs, **2** = warnings only
 | `panel-overlap` | ERROR | Human/AI |
 | `link-anchor-out-of-bounds` | ERROR | Human/AI |
 | `unresolved-section` | ERROR | Human/AI |
-| `title-overlap` | WARN | Human/AI |
+| `title-overlap` | WARN | Human/AI (shorten title or reduce view height) |
 | `label-overlap` | WARN | Bug — report |
 | `addr-64bit-column-width` | WARN | Bug — report |
 
@@ -176,16 +176,24 @@ borders, and labels from one panel bleed into the other.
 
 ### `title-overlap` — WARN
 
-**Violated when:** A panel's title text intrudes into the body of the panel directly
-above it. Titles render 20 px above the panel top edge; check.py uses a 25 px
-clearance zone. This fires when the upper panel is too tall and leaves insufficient
-vertical gap for the lower panel's title.
+**Violated when:** Two panel titles overlap — either vertically or horizontally:
 
-**Fix:** Human/AI — reduce the height of the upper panel in `diagram.json`.
+- **Vertical** — a panel's title intrudes into the body of the panel directly above
+  it in the same column. Titles render 20 px above the panel top edge; the checker
+  uses a 25 px clearance zone. Fires when the upper panel is too tall, leaving
+  insufficient vertical gap for the lower panel's title.
+
+- **Horizontal** — two panel titles at the same vertical level (e.g. adjacent columns
+  in the top row) overlap in the inter-column gap. Title width is estimated from the
+  character count × font size.
+
+**Fix (vertical):** Human/AI — reduce the height of the upper panel in `diagram.json`.
 
 **How:**
 - Add `"break"` sections to compress large gaps in the upper view.
 - Set `"max_height"` on dominant sections in the upper view.
+
+**Fix (horizontal):** Human/AI — shorten the view `"title"` field in `diagram.json`.
 
 ---
 

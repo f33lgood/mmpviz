@@ -13,7 +13,7 @@ It is authoritative for understanding and maintaining the code.
 4. [Column Assignment](#4-column-assignment)
 5. [View Ordering Within a Column](#5-view-ordering-within-a-column)
 6. [View Height Estimation](#6-view-height-estimation)
-7. [Column Bin-Packing and Overflow Handling](#7-column-bin-packing-and-overflow-handling)
+7. [DAG Column Placement](#7-dag-column-placement)
 8. [Column Width and Inter-Column Spacing](#8-column-width-and-inter-column-spacing)
 9. [Canvas Sizing](#9-canvas-sizing)
 10. [Link Band Endpoint Positioning](#10-link-band-endpoint-positioning)
@@ -34,7 +34,9 @@ get_area_views()
     ├─ build_link_graph_from_links()  # auto_layout.py — DAG from explicit links[]
     ├─ assign_columns()               # auto_layout.py — BFS depth → column index
     ├─ _estimate_area_height()        # mmpviz.py — quick height estimate per view
-    ├─ _auto_layout()                 # mmpviz.py — bin-packing, assigns pos + size
+    ├─ sort_by_dag_tree()             # auto_layout.py — DAG-tree ordering pre-sort
+    ├─ _auto_layout()                 # mmpviz.py — DAG column placement, assigns pos + size
+    ├─ order_within_column()          # auto_layout.py — crossing minimisation post-sort
     └─ AreaView(...)                  # area_view.py — section height algorithm per view
 ```
 
@@ -213,24 +215,74 @@ Disconnected views default to column 0.
 
 ## 5. View Ordering Within a Column
 
+Two separate ordering passes run in `get_area_views()` — one before `_auto_layout()`
+and one after.
+
+### 5.1 DAG-Tree Pre-Sort (`sort_by_dag_tree`)
+
+**Location:** `sort_by_dag_tree()` in `scripts/auto_layout.py`;
+called from `get_area_views()` before `_auto_layout()`.
+
+Reorders views within each DAG column so the layout expands like a tree from
+left to right.
+
+**Column 0 (roots):** original `diagram.json` order is preserved exactly.
+
+**Column N+1:** each view is sorted by a two-part key:
+
+```
+key(V) = (min_parent_position, -mean_source_section_address)
+
+where:
+    min_parent_position = min position of V's parents in column N's ordered list
+                          (float('inf') if no known parent → sorts last)
+    mean_source_section_address = mean of (s.address + s.size/2)
+                          for every source section s in every link that targets V
+```
+
+The result: children of an earlier-positioned parent appear before children
+of a later-positioned parent; among siblings sharing the same parent, the view
+linked from the **highest** source address appears first (top of column in the SVG,
+consistent with the convention that higher addresses render near the top of a panel).
+
+```python
+for col in sorted(by_col):
+    if col == 0:
+        ordered = JSON order
+    else:
+        ordered = sort by (min_parent_position, -mean_src_addr)
+    record col_position[vid] for next column
+    result.extend(ordered)
+```
+
+Because views in column N+1 are processed in this order by `_auto_layout()`,
+overflow boundaries (if any were applied) would fall between sibling groups
+rather than splitting them arbitrarily.
+
+### 5.2 Crossing Minimisation Post-Sort (`order_within_column`)
+
 **Location:** `order_within_column()` in `scripts/auto_layout.py`;
-called from `get_area_views()` in `scripts/mmpviz.py`
+called from `get_area_views()` after `_auto_layout()`.
 
-After `_auto_layout()` assigns positions, views within each visual bin (same
-x-position = same bin) are reordered to minimise link-band crossings, then
-y-positions within the bin are recomputed to match the new order.  Bin
-membership never changes — only the order of views already sharing a bin.
+After positions are assigned, views within each column (same x-position) are
+reordered to minimise link-band crossings, then y-positions are recomputed to
+match the new order.
+
+Section midpoints are looked up by section ID from each link entry's
+`from_sections` field (not by address containment), which correctly handles
+multi-section links:
 
 ```
-for each target view B (column C+1):
-    for each source view A that links to B:
-        mid = pixel midpoint of the section in A that contains B's range
-        source_midpoints[B].append(A.pos_y + mid)
+for each link entry (from_view A → to_view B, from_sections = [s1, s2, ...]):
+    find sections matching from_sections in A's rendered AreaView
+    compute pixel span from lowest to highest address across matched sections
+    mid = pixel midpoint of that span, in absolute y coordinates
+    source_midpoints[B].append(mid)
 
-sort column C+1 views by mean(source_midpoints[B])   ascending → top to bottom
+sort column views by mean(source_midpoints[B])   ascending → top to bottom
 ```
 
-**Within-bin y-reassignment** (after sort, same PADDING/TITLE_SPACE constants):
+**Within-column y-reassignment** (after sort):
 
 ```python
 bins_by_x = group area_configurations by cfg['pos'][0]
@@ -243,10 +295,12 @@ for bin_cfgs in bins_by_x.values():
         y += cfg['size'][1] + PADDING
 ```
 
-**Fallback:** views whose midpoint cannot be computed — because their link spans
-multiple source sections or has fan-in from multiple sources — receive
-`key = inf` and sort stably to the end of the bin, preserving diagram.json
-order for those views.
+**Fallback:** views with no computable source midpoint receive `key = inf`
+and sort stably to the bottom, preserving the pre-sort order for those views.
+
+Because `sort_by_dag_tree` already places high-address sources near the top,
+the crossing-minimisation pass is largely a no-op for well-structured diagrams.
+It remains active as a correctness backstop.
 
 ---
 
@@ -274,7 +328,7 @@ height increase is absorbed by canvas auto-expansion (§9).
 
 ---
 
-## 7. Column Bin-Packing and Overflow Handling
+## 7. DAG Column Placement
 
 **Location:** `_auto_layout()` in `scripts/mmpviz.py`
 
@@ -284,37 +338,26 @@ height increase is absorbed by canvas auto-expansion (§9).
 col_cfgs = {dag_col: [area_configs in that column]}
 ```
 
-### 7.2 Greedy bin-packing per DAG column (spill-first)
+### 7.2 One visual column per DAG level
 
-`DEFAULT_H = 800 px` is used as the initial bin-packing target height.
+All views assigned to the same DAG column are placed in a single visual column —
+no height-based splitting or bin-packing is applied.  The SVG canvas expands
+vertically via `_auto_canvas_size()` to accommodate all stacked views.
 
-```
-base_available_h = DEFAULT_H - TITLE_SPACE - BOTTOM_PAD  # 710 px
-
-for each view in DAG column:
-    trial = current_bin + [view]
-    if stack_height(trial) ≤ available_h  OR  current_bin is empty:
-        append view to current_bin
-    else:
-        if len(current_bin) ≥ 2:
-            # Spill: commit bin, start new one
-            final_cols.append(current_bin)
-            current_bin = [view]
-        else:
-            # 1-view bin: accept overflow, canvas will expand
-            current_bin.append(view)
-commit current_bin
+```python
+final_cols = []
+for dag_col in sorted(col_cfgs.keys()):
+    final_cols.append(list(col_cfgs[dag_col]))
 ```
 
-**Key:** views are never scaled down.  Each keeps its full estimated height so
-all sections can reach their effective minimum.  Canvas expansion (§9) handles
-the extra height.
+Views are never scaled down: each keeps its full estimated height so all
+sections can reach their effective minimum.
 
 ### 7.3 Position assignment
 
 ```python
 for col_idx, bin_cfgs in enumerate(final_cols):
-    x = PADDING + col_idx * (col_width + INTER_COL_GAP)
+    x = x_starts[col_idx]   # cumulative, accounting for per-column gap
     y = TITLE_SPACE
     for cfg in bin_cfgs:
         cfg['pos']  = [x, y]
@@ -328,10 +371,7 @@ for col_idx, bin_cfgs in enumerate(final_cols):
 |-----------------------|---------|---------------------------------------------------|
 | `PADDING`             | 50 px   | Left canvas margin; gap between stacked views     |
 | `TITLE_SPACE`         | 60 px   | Vertical space above views (titles)               |
-| `BOTTOM_PAD`          | 30 px   | Margin below last view                            |
-| `INTER_COL_GAP`       | 120 px  | Gap between column right edge and next left       |
 | `MAX_COL_WIDTH`       | 230 px  | Maximum box width (readability cap)               |
-| `DEFAULT_H`           | 800 px  | Default bin-packing height target                 |
 | Title render offset   | −20 px  | Title text y-position relative to panel `pos_y`  |
 | `_TITLE_CLEARANCE_PX` | 25 px   | Vertical clearance zone above each panel checked by `check.py` for `title-overlap`; derived from title render offset + cap-height margin |
 
@@ -453,16 +493,16 @@ return to_pixels_relative(address)   # fallback
 
 ## 11. Remaining Work
 
-Items from the original proposal judged worth implementing. Fully implemented
-items, dropped decisions, and superseded approaches have been removed.
+Items worth implementing in future iterations. Fully implemented items, dropped
+decisions, and superseded approaches have been removed.
 
-| Topic | Proposal calls for | Current state | Notes |
-|-------|--------------------|---------------|-------|
-| **View ordering: crossing minimisation** | Sort column C+1 by source midpoint of linking section (§6.3) | Implemented and wired: `order_within_column()` called in `get_area_views()`; within-bin y-positions reassigned after sort | Section-span / fan-in links fall back to diagram.json order |
-| **View height computation** | Run full Phase 1 algorithm per view for exact height before bin-packing (§5.1) | `_estimate_area_height()`: sums per-section `max(global_min_h, section.min_height)` + break budget; returns `max(200.0, estimated)` | Estimate still under-counts label-conflict inflation; canvas over-expansion absorbs the difference |
-| **Minimum view height** | `max(H_view, 3 × min_h)` (§5.2) | `max(200.0, estimated)` — hardcoded 200 px floor | Replace with principled formula |
-| **Box width from label length** | `max(120, longest_name × font × 0.55)` (§8.1) | Fixed `MAX_COL_WIDTH = 230 px` | Long section names clip silently; compute during height pre-pass |
-| **Address clearance + inter-column gap** | Per-column: `max_box_width[C] + addr_clearance[C] + LINK_BAND_MIN` (§8.2–8.4) | Implemented: `_col_gap()` in `_auto_layout()` computes gap per column from actual address width and font size | 32-bit columns: 126 px at default 13 pt; 64-bit columns: 188 px |
+| Topic | Current state | Notes |
+|-------|---------------|-------|
+| **Smarter column splitting** | Pure DAG: one visual column per DAG level; canvas grows vertically to fit | When a single DAG column contains many tall views, the result may be very tall. A future algorithm could split a DAG column into sub-columns by grouping sibling views (e.g. by parent, or by height budget), while still keeping each sibling group contiguous. |
+| **View height computation** | `_estimate_area_height()`: sums per-section `max(global_min_h, section.min_height)` + break budget; returns `max(200.0, estimated)` | Estimate still under-counts label-conflict inflation; canvas over-expansion absorbs the difference. Replace with exact per-section computation using the Phase 1 algorithm. |
+| **Minimum view height** | `max(200.0, estimated)` — hardcoded 200 px floor | Replace with principled formula: `max(H_view, 3 × min_h)`. |
+| **Box width from label length** | Fixed `MAX_COL_WIDTH = 230 px` | Long section names clip silently; compute during height pre-pass using `max(120, longest_name × font × 0.55)`. |
+| **Address clearance + inter-column gap** | Implemented: `_col_gap()` computes gap per column from actual address width and font size | 32-bit columns: 126 px at default 13 pt; 64-bit columns: 188 px. |
 
 ---
 

@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "extends": "default",
   "style": {
     "background": "#ffffff",
     "fill": "#FEFECE",
@@ -21,7 +22,6 @@
     "label_arrow_size": 2
   },
   "links": {
-    "shape": "polygon",
     "fill": "#D8D8D8",
     "stroke": "#888888",
     "stroke_width": 1,

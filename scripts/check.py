@@ -36,6 +36,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from area_view import AreaView
 from helpers import DefaultAppValues
+from links import Links
 from loader import load
 from theme import Theme
 
@@ -233,16 +234,27 @@ def _check_panel_overlap(area_views: list) -> list[Issue]:
     return issues
 
 
+_TITLE_FONT_SIZE = 24   # pt — title text is always rendered at 24 px
+_TITLE_Y_OFFSET  = 20   # px above panel top edge (from renderer._make_title)
+_TITLE_CHAR_W    = 0.6  # Helvetica character width ratio
+
+
 def _check_title_overlap(area_views: list) -> list[Issue]:
     """
-    A panel's title intrudes into the body of the panel directly above it.
+    Title overlap — two flavours:
 
-    Titles are rendered _TITLE_CLEARANCE_PX above the panel's top edge.
-    When the gap between two vertically adjacent, horizontally overlapping
-    panels is smaller than _TITLE_CLEARANCE_PX, the lower panel's title
-    overlaps the upper panel's body.
+    1. **Vertical** — a panel's title intrudes into the body of the panel
+       directly above it in the same column.  Titles are rendered
+       _TITLE_Y_OFFSET px above the panel's top edge; a _TITLE_CLEARANCE_PX
+       clearance zone is required.
+
+    2. **Horizontal** — two panel titles at the same vertical level
+       (adjacent columns, or top row) overlap in the inter-column gap.
+       Title width is estimated as len(title) × _TITLE_CHAR_W × _TITLE_FONT_SIZE.
     """
     issues = []
+
+    # --- Flavour 1: vertical title-body intrusion ---
     for a in area_views:
         a_title_top = a.pos_y - _TITLE_CLEARANCE_PX
         for b in area_views:
@@ -263,6 +275,38 @@ def _check_title_overlap(area_views: list) -> list[Issue]:
                 f"— vertical gap must be at least {_TITLE_CLEARANCE_PX} px; "
                 f"add break sections or increase min_height to reduce view height",
             ))
+
+    # --- Flavour 2: horizontal title-title collision ---
+    for i, a in enumerate(area_views):
+        if not a.title:
+            continue
+        a_cy  = a.pos_x + a.size_x / 2
+        a_ty  = a.pos_y - _TITLE_Y_OFFSET
+        a_hw  = len(a.title) * _TITLE_CHAR_W * _TITLE_FONT_SIZE / 2
+        a_x0, a_x1 = a_cy - a_hw, a_cy + a_hw
+
+        for b in area_views[i + 1:]:
+            if not b.title:
+                continue
+            b_cy  = b.pos_x + b.size_x / 2
+            b_ty  = b.pos_y - _TITLE_Y_OFFSET
+            b_hw  = len(b.title) * _TITLE_CHAR_W * _TITLE_FONT_SIZE / 2
+            b_x0, b_x1 = b_cy - b_hw, b_cy + b_hw
+
+            # Must be at the same vertical level (within one title line height)
+            if abs(a_ty - b_ty) > _TITLE_FONT_SIZE:
+                continue
+            # Horizontal bounding boxes must overlap
+            if a_x0 >= b_x1 or b_x0 >= a_x1:
+                continue
+            overlap_px = min(a_x1, b_x1) - max(a_x0, b_x0)
+            issues.append(Issue(
+                'title-overlap', a.view_id, None,
+                f"title of '{a.view_id}' (x=[{a_x0:.0f},{a_x1:.0f}]) overlaps "
+                f"title of '{b.view_id}' (x=[{b_x0:.0f},{b_x1:.0f}]) by {overlap_px:.0f} px "
+                f"— shorten one or both titles",
+            ))
+
     return issues
 
 
@@ -837,7 +881,9 @@ def main():
         sys.exit(1)
 
     base_style = theme.resolve('')
-    area_views = get_area_views(base_style, diagram, theme)
+    links = Links(links_config=diagram.get('links', []),
+                  style=theme.resolve_links())
+    area_views = get_area_views(base_style, diagram, theme, links=links)
     if not area_views:
         print("Error: no views could be created.", file=sys.stderr)
         sys.exit(1)

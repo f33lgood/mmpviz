@@ -2,7 +2,6 @@
   "schema_version": 1,
   "extends": "default",
   "links": {
-    "shape": "curve",
     "fill": "none",
     "stroke": "#4A7FA5",
     "stroke_width": 2

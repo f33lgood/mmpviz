@@ -2,7 +2,6 @@
   "schema_version": 1,
   "extends": "default",
   "links": {
-    "shape": "polygon",
     "fill": "gray",
     "stroke": "none",
     "opacity": 0.5

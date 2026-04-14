@@ -19,7 +19,8 @@ import math
 import sys
 
 from area_view import AreaView
-from auto_layout import build_link_graph_from_links, assign_columns, order_within_column
+from auto_layout import (build_link_graph_from_links, assign_columns,
+                         sort_by_dag_tree, order_within_column)
 from helpers import safe_element_list_get, safe_element_dict_get, DefaultAppValues
 from links import Links
 from fmt_diagram import format_diagram
@@ -75,18 +76,12 @@ def _auto_layout(area_configs: list, columns: dict = None,
     """
     Assign ``pos`` and ``size`` for area configs using auto-layout.
 
-    Areas are grouped by DAG column (from ``assign_columns()``) and packed
-    vertically within each column using a greedy bin-packing strategy.
-
-    **Greedy bin-packing with spill-first strategy:**
-    For each DAG column, areas are greedily stacked until adding another would
-    exceed ``available_h``.  When overflow occurs with ≥ 2 areas already in the
-    bin, the overflowing area spills into a new adjacent sub-column.  When the
-    bin has only 1 area, the new area is appended; the canvas auto-expands.
+    Areas are grouped by DAG column (from ``assign_columns()``) and stacked
+    vertically within each column.  One visual column is produced per DAG level;
+    the SVG canvas auto-expands via ``_auto_canvas_size()`` to fit all content.
 
     Areas are never scaled down — each area keeps its full estimated height so
-    that all sections can reach ``min_section_height``.  The caller is
-    responsible for expanding the SVG canvas to fit (use ``_auto_canvas_size()``).
+    that all sections can reach ``min_section_height``.
 
     Column width is capped at 230 px so section text and address labels remain
     readable at any scale.
@@ -96,9 +91,6 @@ def _auto_layout(area_configs: list, columns: dict = None,
       INTER_COL_GAP      per-column: 120 px for 32-bit columns, wider for
                          64-bit (computed from actual label width + font size)
       TITLE_SPACE   = 60   vertical space reserved above views for titles
-      BOTTOM_PAD    = 30   vertical gap below views
-      DEFAULT_H     = 800  default bin-packing height target before per-column
-                           override (max item height always wins)
     """
     N = len(area_configs)
     if N == 0:
@@ -106,8 +98,6 @@ def _auto_layout(area_configs: list, columns: dict = None,
 
     PADDING = 50
     TITLE_SPACE = 60
-    BOTTOM_PAD = 30
-    DEFAULT_H = 800.0
 
     if columns is None:
         # Single-column fallback: stack all views vertically
@@ -124,10 +114,10 @@ def _auto_layout(area_configs: list, columns: dict = None,
             result.append(new_cfg)
         return result
 
-    # --- Column-based layout with greedy bin-packing ---
-    base_available_h = max(100.0, DEFAULT_H - TITLE_SPACE - BOTTOM_PAD)
-    # Maximum column (box) width: capped at 230 px to match the pulpissimo reference
-    # layout so section text and address labels stay readable on any canvas width.
+    # --- DAG-based column layout (one visual column per DAG level) ---
+    # All views assigned to the same DAG column are stacked in a single visual
+    # column; the SVG canvas auto-expands via _auto_canvas_size() to fit.
+    # No bin-packing / height-based splitting is applied.
     MAX_COL_WIDTH = 230.0
     # Breathing room beyond the address label (same for 32-bit and 64-bit).
     # For 32-bit at 12 pt: 10 + 10×0.6×12 + 38 = 120 px (historical default).
@@ -141,12 +131,6 @@ def _auto_layout(area_configs: list, columns: dict = None,
             return float(cfg['size'][1])
         return max(100.0, float(raw_heights.get(cfg.get('id', ''), 400.0)))
 
-    def _col_stack_height(cfgs: list) -> float:
-        """Total height of a list of area configs when stacked with gaps."""
-        if not cfgs:
-            return 0.0
-        return sum(_area_h(c) for c in cfgs) + PADDING * (len(cfgs) - 1)
-
     # Group configs by DAG column
     col_cfgs: dict = {}
     for cfg in area_configs:
@@ -154,42 +138,12 @@ def _auto_layout(area_configs: list, columns: dict = None,
         col = columns.get(aid, 0)
         col_cfgs.setdefault(col, []).append(cfg)
 
-    # Build final column list via greedy bin-packing (spill-first, proposal §7.3).
-    # Each element of `final_cols` is a list of area configs for that visual column.
+    # One visual column per DAG column — no splitting.
     final_cols: list = []
     dag_col_indices = sorted(col_cfgs.keys())
 
     for dag_col in dag_col_indices:
-        areas = list(col_cfgs[dag_col])
-        # Per-column available height: at least as tall as the tallest single view in
-        # this column.  This prevents the initial document_size (which is just a floor
-        # hint) from artificially splitting small views into too many sub-columns while
-        # still allowing a genuinely large view (e.g. APB with 30+ sections) to spill
-        # into its own sub-column when mixed with smaller views.
-        max_item_h = max((_area_h(c) for c in areas), default=base_available_h)
-        available_h = max(base_available_h, max_item_h)
-
-        # Greedily fill bin(s) for this DAG column
-        current_bin: list = []
-        for cfg in areas:
-            trial = current_bin + [cfg]
-            if _col_stack_height(trial) <= available_h or not current_bin:
-                # Fits (or first item — always place it even if already tall)
-                current_bin.append(cfg)
-            else:
-                # Overflow: spill when bin already has ≥2 views (proposal §7.3:
-                # prefer split when 3+ views; allow scale only for 1-item bins).
-                if len(current_bin) >= 2:
-                    # Spill: commit current bin, start a new one with this view
-                    final_cols.append(current_bin)
-                    current_bin = [cfg]
-                else:
-                    # Only 1 view already — accept both in the same bin;
-                    # canvas will auto-expand to fit (no scaling applied).
-                    current_bin.append(cfg)
-
-        if current_bin:
-            final_cols.append(current_bin)
+        final_cols.append(list(col_cfgs[dag_col]))
 
     # Areas are NOT scaled down — each keeps its full estimated height so that
     # all sections can reach min_section_height.  The SVG canvas is expanded by
@@ -420,6 +374,23 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
         area_heights[vid] = _estimate_area_height(view_sections, area_style)
         area_font_sizes[vid] = float(area_style.get('font_size', 12))
 
+    # --- DAG-tree ordering: sort each column by (parent position, -source addr) ---
+    # Column 0 keeps JSON order; each subsequent column is ordered so that
+    # children of an earlier parent come first, and among siblings the view
+    # linked from the highest source-section address is placed at the top.
+    # Bin-packing then processes views in this order, so overflow boundaries
+    # fall between sibling groups rather than splitting them arbitrarily.
+    if links is not None and links.entries:
+        sec_mid_addrs = {
+            ac.get('id', ''): {
+                s.id: s.address + s.size / 2
+                for s in copy.deepcopy(resolve_view_sections(ac))
+            }
+            for ac in area_configurations
+        }
+        area_configurations = sort_by_dag_tree(
+            area_configurations, columns, links.entries, sec_mid_addrs)
+
     # --- Single layout pass ---
     area_configurations = _auto_layout(
         area_configurations, columns=columns, area_heights=area_heights,
@@ -447,7 +418,8 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
                 theme=theme,
             ))
 
-        col_order = order_within_column(graph, columns, area_views_for_order)
+        col_order = order_within_column(graph, columns, area_views_for_order,
+                                        link_entries=links.entries)
 
         # Group configs by x-position (same x = same visual bin)
         PADDING = 50

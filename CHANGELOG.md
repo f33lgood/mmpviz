@@ -22,6 +22,28 @@ Writing guide:
 
 ---
 
+## [2026-04-14]
+
+### Added
+- **`examples/link/column_order/`** — demonstrates the DAG-tree column ordering algorithm.
+
+### Changed
+- **`links` block — 3-segment geometry** — bands split into `source_seg`, `middle_seg`, `dest_seg`; each has `_shape`, `_lheight`, `_rheight`; source/dest additionally have `_width`. Breaking: `"shape": "curve"` → `"middle_seg_shape": "curve"`.
+- **`links` height-reference semantics** — `lheight`/`rheight` select the edge *span* only; vertical *center* is auto-aligned by segment (source_seg → source center; middle_seg → source→dest; dest_seg → dest center).
+- **Default link band visual** — zero source outreach, S-curve middle, 30 px Bézier dest taper, fill only.
+- **`themes/default.json` — complete link definition** — all link properties declared explicitly; serves as the authoritative baseline for inheritance.
+- **`themes/plantuml` — link geometry** — now uses `extends: "default"`; inherits S-curve + dest taper instead of the former polygon jog.
+- **Auto-layout: DAG-tree view ordering** — views in each column sorted by parent position and source-section address.
+- **Auto-layout: column placement** — one visual column per DAG level; bin-packing removed.
+- **Link-crossing minimisation** — source-section midpoints resolved by section ID, fixing crossings from multi-section links.
+- **`title-overlap` check** — extended to horizontal collision between adjacent-column titles; `check.py` uses the same layout as the renderer.
+- **Break section rendering** — size label suppressed; address labels communicate the range.
+
+### Removed
+- **`links.shape`** — superseded by `source_seg_shape`, `middle_seg_shape`, `dest_seg_shape`.
+
+---
+
 ## [2026-04-13]
 
 ### Added

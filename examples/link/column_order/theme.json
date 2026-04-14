@@ -2,8 +2,7 @@
   "schema_version": 1,
   "extends": "default",
   "links": {
-    "shape": "polygon",
-    "fill": "#4A7FA5",
+    "fill": "steelblue",
     "stroke": "none",
     "opacity": 0.35
   }

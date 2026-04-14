@@ -152,16 +152,32 @@
       },
       "unevaluatedProperties": false
     },
+    "seg_shape": {
+      "description": "Segment edge shape. 'polygon' uses straight lines; 'curve' uses cubic Bézier curves.",
+      "type": "string",
+      "enum": ["polygon", "curve"]
+    },
+    "seg_height": {
+      "description": "Span selector for a segment edge. 'source' = from.sections pixel span; 'destination' = to.sections pixel span. The vertical center of the edge is fixed automatically by segment position (source_seg→source center, dest_seg→dest center, middle_seg left→source center, middle_seg right→dest center); lheight/rheight only control the band width at that edge.",
+      "type": "string",
+      "enum": ["source", "destination"]
+    },
     "links_block": {
-      "description": "Style for cross-view zoom band connectors.",
+      "description": "Style for cross-view zoom band connectors. A band is divided into three segments: source_seg (outreach from source view), middle_seg (the connecting span), and dest_seg (outreach into destination view).",
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "shape": {
-          "description": "Band edge shape. 'polygon' uses straight diagonal lines; 'curve' uses cubic Bézier curves.",
-          "type": "string",
-          "enum": ["polygon", "curve"]
-        },
+        "source_seg_shape":   { "description": "Shape of the source outreach segment.", "$ref": "#/$defs/seg_shape" },
+        "source_seg_width":   { "description": "Width in pixels of the source outreach segment. 0 = no outreach.", "type": "number", "minimum": 0 },
+        "source_seg_lheight": { "description": "Height reference for the left (source-view) edge of the source segment.", "$ref": "#/$defs/seg_height" },
+        "source_seg_rheight": { "description": "Height reference for the right (junction) edge of the source segment.", "$ref": "#/$defs/seg_height" },
+        "middle_seg_shape":   { "description": "Shape of the middle connecting segment.", "$ref": "#/$defs/seg_shape" },
+        "middle_seg_lheight": { "description": "Height reference for the left edge of the middle segment.", "$ref": "#/$defs/seg_height" },
+        "middle_seg_rheight": { "description": "Height reference for the right edge of the middle segment.", "$ref": "#/$defs/seg_height" },
+        "dest_seg_shape":     { "description": "Shape of the destination outreach segment.", "$ref": "#/$defs/seg_shape" },
+        "dest_seg_width":     { "description": "Width in pixels of the destination outreach segment. 0 = no outreach.", "type": "number", "minimum": 0 },
+        "dest_seg_lheight":   { "description": "Height reference for the left (junction) edge of the destination segment.", "$ref": "#/$defs/seg_height" },
+        "dest_seg_rheight":   { "description": "Height reference for the right (dest-view) edge of the destination segment.", "$ref": "#/$defs/seg_height" },
         "fill": {
           "description": "Fill color for the band interior. Use 'none' for stroke-only.",
           "$ref": "#/$defs/color_string"

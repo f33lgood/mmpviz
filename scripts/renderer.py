@@ -108,7 +108,8 @@ class MapRenderer:
         group.append(self._make_name(section))
         group.append(self._make_address(section, is_64bit))
         group.append(self._make_end_address(section, is_64bit))
-        group.append(self._make_size_label(section))
+        if not section.is_break():
+            group.append(self._make_size_label(section))
 
         return group
 
@@ -462,72 +463,59 @@ class MapRenderer:
 
         return group
 
-    def _get_points_for_address(self, address, area_view, source_area=None,
-                                dest_address=None) -> list:
-        left = source_area if source_area is not None else self.area_views[0]
-        # Find the compressed subarea of the source area that contains this address
-        # so the band anchors to the correct pixel row after break compression.
-        left_sub = left
-        for sub in left.get_split_area_views():
-            if sub.start_address <= address <= sub.end_address:
-                left_sub = sub
-                break
-
-        lx = left.size_x + left.pos_x
-        lx2 = lx + 30
-        # Use address_to_py_actual so the band aligns with section boxes that have
-        # per-section size_y_override (non-proportional) heights.
-        ly = left_sub.pos_y + left_sub.address_to_py_actual(address)
-
-        rx = area_view.pos_x
-        # dest_address is the clamped address used for the destination-side y coordinate.
-        # When the source range extends beyond the destination view, the clamped value
-        # prevents the destination endpoint from going off-screen.
-        eff_dest = dest_address if dest_address is not None else address
-        ry = area_view.pos_y + area_view.address_to_py_actual(eff_dest)
-
-        # Outward jog only on the source side; connect straight into the detail stack.
-        return [(lx, ly), (lx2, ly), (rx, ry)]
-
-    # Minimum visible band opening (pixels) at the source or detail side.
+    # Minimum visible band opening (pixels) at the source or destination side.
     # Sections that are tiny relative to their stack would otherwise produce
     # a sub-pixel sliver.  We expand both endpoints symmetrically around the
     # midpoint so the band is always legible.
     _MIN_BAND_OPENING_PX = 4
 
-    def _enforce_min_opening(self, pts_start, pts_end):
-        """Expand source-side and detail-side openings to _MIN_BAND_OPENING_PX."""
+    def _enforce_min_opening(self, ly_src_t, ly_src_b, ry_dst_t, ry_dst_b):
+        """Expand source-side and destination-side openings to _MIN_BAND_OPENING_PX."""
         MIN = self._MIN_BAND_OPENING_PX
-        (lx, ly_s), (lx_j, _), (rx, ry_s) = pts_start
-        (_, ry_e), (lx_j2, _), (lx2, ly_e) = pts_end
+        # Source side: ly_src_t >= ly_src_b (start address maps to lower SVG y)
+        if ly_src_t - ly_src_b < MIN:
+            mid = (ly_src_t + ly_src_b) / 2
+            ly_src_t, ly_src_b = mid + MIN / 2, mid - MIN / 2
+        # Destination side
+        if ry_dst_t - ry_dst_b < MIN:
+            mid = (ry_dst_t + ry_dst_b) / 2
+            ry_dst_t, ry_dst_b = mid + MIN / 2, mid - MIN / 2
+        return ly_src_t, ly_src_b, ry_dst_t, ry_dst_b
 
-        # Source side: ly_s >= ly_e (start_address maps to lower SVG y than end_address)
-        if ly_s - ly_e < MIN:
-            mid = (ly_s + ly_e) / 2
-            ly_s, ly_e = mid + MIN / 2, mid - MIN / 2
-            pts_start = [(lx, ly_s), (lx_j, ly_s), (rx, ry_s)]
-            pts_end   = [(rx, ry_e), (lx_j2, ly_e), (lx2, ly_e)]
+    @staticmethod
+    def _seg_cmd(x1, x2, y1, y2, shape):
+        """One SVG path command traversing from (x1,y1) to (x2,y2).
 
-        # Detail side: ry_s >= ry_e (same SVG convention)
-        if ry_s - ry_e < MIN:
-            mid = (ry_s + ry_e) / 2
-            ry_s, ry_e = mid + MIN / 2, mid - MIN / 2
-            pts_start = [(lx, ly_s), (lx_j, ly_s), (rx, ry_s)]
-            pts_end   = [(rx, ry_e), (lx_j2, ly_e), (lx2, ly_e)]
-
-        return pts_start, pts_end
+        Returns an empty string for zero-width segments so callers can filter
+        them out with a simple truthiness check.
+        """
+        if x1 == x2:
+            return ''
+        mid_x = (x1 + x2) / 2
+        if shape == 'curve':
+            return f'C {mid_x},{y1} {mid_x},{y2} {x2},{y2}'
+        return f'L {x2},{y2}'
 
     def _make_poly(self, area_view, start_address, end_address, style: dict,
                    source_area=None, to_start=None, to_end=None) -> ET.Element:
-        def find_subarea(address, area):
+        def find_sub(address, area):
             for sub in area.get_split_area_views():
                 if sub.start_address <= address <= sub.end_address:
                     return sub
             return area
 
-        # Destination-side addresses: use the explicitly resolved to.sections range when
-        # provided; otherwise clamp the source range to the destination view's address range
-        # so the band never extends off-screen.
+        # Source pixel coordinates — use address_to_py_actual so the band aligns
+        # with section boxes that have per-section size_y_override heights.
+        left = source_area if source_area is not None else self.area_views[0]
+        src_t_sub = find_sub(start_address, left)
+        src_b_sub = find_sub(end_address, left)
+        lx = left.size_x + left.pos_x
+        ly_src_t = src_t_sub.pos_y + src_t_sub.address_to_py_actual(start_address)
+        ly_src_b = src_b_sub.pos_y + src_b_sub.address_to_py_actual(end_address)
+
+        # Destination address range: use the explicitly resolved to.sections range
+        # when provided; otherwise clamp the source range to the destination view's
+        # address range so the band never extends off-screen.
         if to_start is not None and to_end is not None:
             dest_lo = max(to_start, area_view.start_address)
             dest_hi = min(to_end, area_view.end_address)
@@ -535,16 +523,57 @@ class MapRenderer:
             dest_lo = max(start_address, area_view.start_address)
             dest_hi = min(end_address, area_view.end_address)
 
-        end_sub = find_subarea(dest_hi, area_view)
-        start_sub = find_subarea(dest_lo, area_view)
+        dst_t_sub = find_sub(dest_lo, area_view)
+        dst_b_sub = find_sub(dest_hi, area_view)
+        rx = area_view.pos_x
+        ry_dst_t = dst_t_sub.pos_y + dst_t_sub.address_to_py_actual(dest_lo)
+        ry_dst_b = dst_b_sub.pos_y + dst_b_sub.address_to_py_actual(dest_hi)
 
-        pts_start = self._get_points_for_address(
-            start_address, start_sub, source_area, dest_address=dest_lo)
-        pts_end = list(reversed(self._get_points_for_address(
-            end_address, end_sub, source_area, dest_address=dest_hi)))
-        pts_start, pts_end = self._enforce_min_opening(pts_start, pts_end)
+        ly_src_t, ly_src_b, ry_dst_t, ry_dst_b = self._enforce_min_opening(
+            ly_src_t, ly_src_b, ry_dst_t, ry_dst_b)
 
-        shape = _s(style, 'shape', 'polygon')
+        # Segment geometry
+        src_w = _s(style, 'source_seg_width', 30)
+        dst_w = _s(style, 'dest_seg_width', 0)
+        src_shape = _s(style, 'source_seg_shape', 'polygon')
+        mid_shape = _s(style, 'middle_seg_shape', 'polygon')
+        dst_shape = _s(style, 'dest_seg_shape', 'polygon')
+        src_lh = _s(style, 'source_seg_lheight', 'source')
+        src_rh = _s(style, 'source_seg_rheight', 'source')
+        mid_lh = _s(style, 'middle_seg_lheight', 'source')
+        mid_rh = _s(style, 'middle_seg_rheight', 'destination')
+        dst_lh = _s(style, 'dest_seg_lheight', 'destination')
+        dst_rh = _s(style, 'dest_seg_rheight', 'destination')
+
+        lx_j = lx + src_w
+        rx_j = rx - dst_w
+
+        # Edge height model: lheight/rheight selects the SPAN; the CENTER of each
+        # edge is fixed by which segment it belongs to:
+        #   source_seg edges  → centered on source region
+        #   dest_seg edges    → centered on destination region
+        #   middle_seg left   → centered on source region
+        #   middle_seg right  → centered on destination region
+        # This keeps each segment naturally aligned to its side while still
+        # allowing the span to reference either side's pixel height.
+        src_center = (ly_src_t + ly_src_b) / 2
+        dst_center = (ry_dst_t + ry_dst_b) / 2
+        src_span   = ly_src_t - ly_src_b
+        dst_span   = ry_dst_t - ry_dst_b
+
+        def edge(center, height_ref):
+            """(t, b) = (center + span/2, center − span/2) using the named span."""
+            span = src_span if height_ref == 'source' else dst_span
+            return center + span / 2, center - span / 2
+
+        sl_t, sl_b = edge(src_center, src_lh)   # source seg  left  edge  (at lx)
+        sr_t, sr_b = edge(src_center, src_rh)   # source seg  right edge  (at lx_j)
+        ml_t, ml_b = edge(src_center, mid_lh)   # middle seg  left  edge  (at lx_j)
+        mr_t, mr_b = edge(dst_center, mid_rh)   # middle seg  right edge  (at rx_j)
+        dl_t, dl_b = edge(dst_center, dst_lh)   # dest   seg  left  edge  (at rx_j)
+        dr_t, dr_b = edge(dst_center, dst_rh)   # dest   seg  right edge  (at rx)
+
+        # Visual style
         fill = _s(style, 'fill', 'none')
         stroke = _s(style, 'stroke', 'black')
         stroke_width = _s(style, 'stroke_width', 1)
@@ -557,11 +586,19 @@ class MapRenderer:
         g = self.svg.g()
 
         if has_fill:
-            d = self._band_path_closed(pts_start, pts_end, shape)
+            d = self._band_path_closed(
+                lx, lx_j, rx_j, rx,
+                sl_t, sr_t, ml_t, mr_t, dl_t, dr_t,
+                sl_b, sr_b, ml_b, mr_b, dl_b, dr_b,
+                src_shape, mid_shape, dst_shape)
             g.append(self.svg.path(d, fill=fill, stroke='none', opacity=opacity))
 
         if has_stroke:
-            top_d, bot_d = self._band_paths_open(pts_start, pts_end, shape)
+            top_d, bot_d = self._band_paths_open(
+                lx, lx_j, rx_j, rx,
+                sl_t, sr_t, ml_t, mr_t, dl_t, dr_t,
+                sl_b, sr_b, ml_b, mr_b, dl_b, dr_b,
+                src_shape, mid_shape, dst_shape)
             g.append(self.svg.path(top_d, fill='none', stroke=stroke,
                                    stroke_width=stroke_width,
                                    stroke_dasharray=stroke_dasharray,
@@ -573,33 +610,47 @@ class MapRenderer:
 
         return g
 
-    def _band_path_closed(self, pts_start, pts_end, shape: str) -> str:
-        """SVG path data for a closed filled band (all edges, no stroke)."""
-        (lx, ly_t), (lx_j, _), (rx, ry_t) = pts_start
-        (_, ry_b), (lx_j2, _), (lx2, ly_b) = pts_end
-        mid_x = (lx_j + rx) / 2
-        if shape == 'curve':
-            return (f'M {lx},{ly_t} L {lx_j},{ly_t} '
-                    f'C {mid_x},{ly_t} {mid_x},{ry_t} {rx},{ry_t} '
-                    f'L {rx},{ry_b} '
-                    f'C {mid_x},{ry_b} {mid_x},{ly_b} {lx_j2},{ly_b} '
-                    f'L {lx2},{ly_b} Z')
-        else:  # polygon
-            return (f'M {lx},{ly_t} L {lx_j},{ly_t} L {rx},{ry_t} '
-                    f'L {rx},{ry_b} L {lx_j2},{ly_b} L {lx2},{ly_b} Z')
+    def _band_path_closed(self,
+                          lx, lx_j, rx_j, rx,
+                          src_lh_t, src_rh_t, mid_lh_t, mid_rh_t, dst_lh_t, dst_rh_t,
+                          src_lh_b, src_rh_b, mid_lh_b, mid_rh_b, dst_lh_b, dst_rh_b,
+                          src_shape, mid_shape, dst_shape) -> str:
+        """SVG path data for a closed filled band."""
+        cmd = self._seg_cmd
+        parts = [f'M {lx},{src_lh_t}']
+        # Top edge: left to right
+        parts.append(cmd(lx,   lx_j, src_lh_t, src_rh_t, src_shape))
+        parts.append(cmd(lx_j, rx_j, mid_lh_t, mid_rh_t, mid_shape))
+        parts.append(cmd(rx_j, rx,   dst_lh_t, dst_rh_t, dst_shape))
+        # Cross to bottom of right edge
+        parts.append(f'L {rx},{dst_rh_b}')
+        # Bottom edge: right to left
+        parts.append(cmd(rx,   rx_j, dst_rh_b, dst_lh_b, dst_shape))
+        parts.append(cmd(rx_j, lx_j, mid_rh_b, mid_lh_b, mid_shape))
+        parts.append(cmd(lx_j, lx,   src_rh_b, src_lh_b, src_shape))
+        parts.append('Z')
+        return ' '.join(p for p in parts if p)
 
-    def _band_paths_open(self, pts_start, pts_end, shape: str):
+    def _band_paths_open(self,
+                         lx, lx_j, rx_j, rx,
+                         src_lh_t, src_rh_t, mid_lh_t, mid_rh_t, dst_lh_t, dst_rh_t,
+                         src_lh_b, src_rh_b, mid_lh_b, mid_rh_b, dst_lh_b, dst_rh_b,
+                         src_shape, mid_shape, dst_shape):
         """Two open SVG path data strings for top and bottom band edges (stroke-only)."""
-        (lx, ly_t), (lx_j, _), (rx, ry_t) = pts_start
-        (_, ry_b), (lx_j2, _), (lx2, ly_b) = pts_end
-        mid_x = (lx_j + rx) / 2
-        if shape == 'curve':
-            top = (f'M {lx},{ly_t} L {lx_j},{ly_t} '
-                   f'C {mid_x},{ly_t} {mid_x},{ry_t} {rx},{ry_t}')
-            bot = (f'M {lx2},{ly_b} L {lx_j2},{ly_b} '
-                   f'C {mid_x},{ly_b} {mid_x},{ry_b} {rx},{ry_b}')
-        else:  # polygon
-            top = f'M {lx},{ly_t} L {lx_j},{ly_t} L {rx},{ry_t}'
-            bot = f'M {lx2},{ly_b} L {lx_j2},{ly_b} L {rx},{ry_b}'
+        cmd = self._seg_cmd
+        # Top edge: left to right
+        top = ' '.join(p for p in [
+            f'M {lx},{src_lh_t}',
+            cmd(lx,   lx_j, src_lh_t, src_rh_t, src_shape),
+            cmd(lx_j, rx_j, mid_lh_t, mid_rh_t, mid_shape),
+            cmd(rx_j, rx,   dst_lh_t, dst_rh_t, dst_shape),
+        ] if p)
+        # Bottom edge: left to right
+        bot = ' '.join(p for p in [
+            f'M {lx},{src_lh_b}',
+            cmd(lx,   lx_j, src_lh_b, src_rh_b, src_shape),
+            cmd(lx_j, rx_j, mid_lh_b, mid_rh_b, mid_shape),
+            cmd(rx_j, rx,   dst_lh_b, dst_rh_b, dst_shape),
+        ] if p)
         return top, bot
 
