@@ -523,6 +523,8 @@ def main():
     links_style = theme.resolve_links()
     links = Links(links_config=links_config, style=links_style)
 
+    growth_arrow_style = theme.resolve_growth_arrow()
+
     # Build area views — auto-layout always runs
     area_views = get_area_views(base_style, diagram, theme, links=links)
     if not area_views:
@@ -553,6 +555,7 @@ def main():
         area_views=area_views,
         links=links,
         style=base_style,
+        growth_arrow=growth_arrow_style,
         size=document_size,
         origin=origin,
     ).draw()

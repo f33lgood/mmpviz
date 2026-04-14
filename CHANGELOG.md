@@ -25,14 +25,27 @@ Writing guide:
 ## [2026-04-14]
 
 ### Added
-- **`examples/link/column_order/`** — demonstrates the DAG-tree column ordering algorithm.
+- **`links[].id`** — required identifier on every link entry; used as a key in `theme.json` under `links.overrides` for per-link style overrides.
+- **`links.overrides[link_id]`** — per-link style override block in `theme.json` (`fill`, `opacity`, `stroke`, `stroke_width`, `stroke_dasharray`); consistent with how `views[view_id].sections[section_id]` overrides section style.
+- **`labels[].id`** — required identifier on every label entry within a view; used as a key in `theme.json` under `views[view_id].labels` for per-label style overrides.
+- **`views[view_id].labels[label_id]`** — per-label style override block in `theme.json` (`arrow_size`, `stroke`, `stroke_width`, `stroke_dasharray`, `font_size`, `font_family`, `text_fill`); consistent with the existing `views[view_id].sections[section_id]` pattern.
+- **`links.connector` format** — recommended nested link style: `source.width` / `destination.width` (trapezoid extents), `middle.width` + `middle.shape` (`"curve"` or `"straight"` center line), and a single `fill` / `opacity`.
+- **`labels.arrow_size`** — arrow head size multiplier now lives in the `labels` block alongside the leader-line stroke properties; replaces `base.label_arrow_size`.
+- **`labels` dedicated schema** — `labels` now has its own schema type (`labels_block`) that accepts only label-relevant properties: `arrow_size`, `stroke`, `stroke_width`, `stroke_dasharray`, `font_size`, `font_family`, `text_fill`. Previously it accepted the full `base_block` set.
+- **`growth_arrow` top-level block** — grows-up/grows-down arrow styling moved out of `base` into its own top-level block (`size`, `fill`, `stroke`), parallel to `links` and `labels`.
+- **`examples/layout/`** — new top-level folder for auto-layout algorithm examples: `column_order` (DAG-tree view ordering and crossing minimisation), `height_override` (per-section `min_height`/`max_height`), `height_global` (global `min_section_height` theme property).
+- **`examples/link/` style suite** — five focused link-style examples: `connector` (all connector properties explicit), `band_fill` (straight-edge fill), `band_stroke` (dashed stroke outline), `band_segments` (three explicit segments with numeric `sheight`/`dheight`), `per_link` (three individually-colored links via `links.overrides`).
+- **`examples/chips/` plantuml coverage** — `stm32f103`, `opentitan_earlgrey`, and `pulpissimo` now use the plantuml theme; `arm_coresight_dual_view`, `caliptra`, and `riscv64_virt` remain on the default theme.
 
 ### Changed
-- **`links` block — 3-segment geometry** — bands split into `source_seg`, `middle_seg`, `dest_seg`; each has `_shape`, `_lheight`, `_rheight`; source/dest additionally have `_width`. Breaking: `"shape": "curve"` → `"middle_seg_shape": "curve"`.
-- **`links` height-reference semantics** — `lheight`/`rheight` select the edge *span* only; vertical *center* is auto-aligned by segment (source_seg → source center; middle_seg → source→dest; dest_seg → dest center).
-- **Default link band visual** — zero source outreach, S-curve middle, 30 px Bézier dest taper, fill only.
-- **`themes/default.json` — complete link definition** — all link properties declared explicitly; serves as the authoritative baseline for inheritance.
-- **`themes/plantuml` — link geometry** — now uses `extends: "default"`; inherits S-curve + dest taper instead of the former polygon jog.
+- **`links.band` segment keys nested** — flat prefixed keys (`source_*`, `middle_*`, `dest_*`) replaced by `source`/`middle`/`destination` sub-objects, matching the `connector` structure for consistency. Breaking: keys move from `band.middle_sheight` to `band.middle.sheight`, etc.
+- **`links.band` segment renamed** — `dest` → `destination` throughout, matching the `connector` convention.
+- **`links.band` shape values unified** — `"polygon"` replaced by `"straight"` across all band segment `shape` fields, aligning with the `connector.middle.shape` vocabulary. Breaking: replace `"polygon"` with `"straight"` in existing band themes.
+- **`links` height-reference semantics** — `sheight`/`dheight` select the edge span; accepts `"source"`, `"destination"`, or a non-negative number (literal pixel span; `0` collapses the edge to a point). Vertical center is auto-aligned by segment position.
+- **`links` inheritance** — `connector` and `band` sub-objects merge shallowly through `extends`; a child theme can override a single nested key (e.g. `connector.fill`) without losing unmentioned parent keys. When both sub-objects are present in the resolved style, `band` takes priority.
+- **Default link band visual** — connector format: 25 px source + dest trapezoids, 10 px S-curve center line, light-gray fill.
+- **`themes/default.json`** — migrated to `connector` format; serves as the authoritative baseline for link inheritance. `label_arrow_size` moved to `labels.arrow_size`. Top-level `style` block renamed to `base`.
+- **`themes/plantuml`** — migrated to `connector` format; inherits trapezoid geometry from default, overrides fill and opacity. Top-level `style` block renamed to `base`.
 - **Auto-layout: DAG-tree view ordering** — views in each column sorted by parent position and source-section address.
 - **Auto-layout: column placement** — one visual column per DAG level; bin-packing removed.
 - **Link-crossing minimisation** — source-section midpoints resolved by section ID, fixing crossings from multi-section links.
@@ -40,7 +53,12 @@ Writing guide:
 - **Break section rendering** — size label suppressed; address labels communicate the range.
 
 ### Removed
-- **`links.shape`** — superseded by `source_seg_shape`, `middle_seg_shape`, `dest_seg_shape`.
+- **`links` flat top-level keys** — `source_seg_*`, `middle_seg_*`, `dest_seg_*` no longer exist at the `links` top level; use `links.band.*` (with renamed keys) or the new `links.connector` format.
+- **`base.label_arrow_size`** — superseded by `labels.arrow_size`.
+- **`base.growth_arrow_size/fill/stroke`** — superseded by `growth_arrow.size/fill/stroke`.
+- **Top-level `style` block** — renamed to `base`; all existing theme files must update the key.
+- **`examples/link/fill/`**, **`polygon/`**, **`stroke/`**, **`stroke_dashed/`**, **`three_segments/`** — five theme-variation examples on one identical diagram; superseded by the new style suite above.
+- **`examples/link/cortex_m3/`** — contrived diagram; superseded by `examples/chips/arm_coresight_dual_view/` and `examples/chips/arm_coresight_line_link/`.
 
 ---
 

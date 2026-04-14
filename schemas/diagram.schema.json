@@ -102,8 +102,13 @@
       "description": "Annotated leader line pointing to a specific address.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["address"],
+      "required": ["id", "address"],
       "properties": {
+        "id": {
+          "description": "Unique identifier within this view. Used as a key in theme.json under views[view_id].labels.",
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
+        },
         "address": {
           "description": "Memory address where the label points.",
           "$ref": "#/$defs/hex_or_int"
@@ -143,10 +148,15 @@
       "description": "Cross-view connection rendered as a zoom band.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["from", "to"],
+      "required": ["id", "from", "to"],
       "properties": {
+        "id":   {
+          "description": "Unique identifier across all links. Used as a key in theme.json under links.overrides.",
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$"
+        },
         "from": { "$ref": "#/$defs/link_endpoint" },
-        "to": { "$ref": "#/$defs/link_endpoint" }
+        "to":   { "$ref": "#/$defs/link_endpoint" }
       }
     },
     "link_endpoint": {

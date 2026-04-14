@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "extends": "default",
-  "style": {
+  "base": {
     "min_section_height": 40,
     "max_section_height": 80
   }

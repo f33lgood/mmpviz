@@ -1,5 +1,5 @@
 {
-  "style": {
+  "base": {
     "background": "#1a1a2e",
     "fill": "#16213e",
     "stroke": "#0f3460",
@@ -18,6 +18,6 @@
       }
     }
   },
-  "links": { "stroke": "lightgray", "fill": "gray", "opacity": 0.4 },
+  "links": { "connector": { "fill": "gray", "opacity": 0.4 } },
   "labels": { "stroke": "white", "stroke_dasharray": "4,2" }
 }

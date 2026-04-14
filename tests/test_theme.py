@@ -24,8 +24,7 @@ class TestThemeDefaults(unittest.TestCase):
         t = Theme()
         style = t.resolve('x')
         for key in ('background', 'fill', 'stroke', 'stroke_width', 'font_size',
-                    'font_family', 'text_fill', 'break_height',
-                    'growth_arrow_size'):
+                    'font_family', 'text_fill', 'break_height'):
             self.assertIn(key, style, f"Missing key: {key}")
 
 
@@ -67,17 +66,34 @@ class TestThemeFromFile(unittest.TestCase):
 
     def test_resolve_links(self):
         style = self.theme.resolve_links()
-        self.assertEqual(style['fill'], 'gray')
-        self.assertAlmostEqual(style['opacity'], 0.4)
+        connector = style.get('connector', {})
+        self.assertEqual(connector['fill'], 'gray')
+        self.assertAlmostEqual(connector['opacity'], 0.4)
 
     def test_resolve_labels(self):
         style = self.theme.resolve_labels()
         self.assertEqual(style['stroke'], 'white')
 
+    def test_resolve_growth_arrow(self):
+        t = Theme()
+        ga = t.resolve_growth_arrow()
+        self.assertIn('size',   ga)
+        self.assertIn('fill',   ga)
+        self.assertIn('stroke', ga)
+
     def test_section_key_not_in_area_style(self):
         # The 'sections' sub-dict should not appear in the resolved area style
         style = self.theme.resolve('flash-view')
         self.assertNotIn('sections', style)
+
+    def test_labels_key_not_in_area_style(self):
+        # The 'labels' sub-dict should not appear in the resolved area style
+        style = self.theme.resolve('flash-view')
+        self.assertNotIn('labels', style)
+
+    def test_resolve_label_overrides_returns_empty_for_unknown_view(self):
+        overrides = self.theme.resolve_label_overrides('nonexistent-view')
+        self.assertEqual(overrides, {})
 
 
 class TestThemeInheritance(unittest.TestCase):
@@ -95,7 +111,7 @@ class TestThemeInheritance(unittest.TestCase):
             child_path = self._write_tmp(d, {
                 "schema_version": 1,
                 "extends": "plantuml",
-                "style": {"stroke": "red"}
+                "base": {"stroke": "red"}
             })
             t = Theme(child_path)
             style = t.resolve('x')
@@ -107,13 +123,13 @@ class TestThemeInheritance(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             parent_path = self._write_tmp(d, {
                 "schema_version": 1,
-                "style": {"fill": "#parent"}
+                "base": {"fill": "#parent"}
             })
             parent_name = os.path.basename(parent_path)
             child_path = self._write_tmp(d, {
                 "schema_version": 1,
                 "extends": f"./{parent_name}",
-                "style": {"stroke": "#child"}
+                "base": {"stroke": "#child"}
             })
             t = Theme(child_path)
             style = t.resolve('x')
@@ -125,17 +141,17 @@ class TestThemeInheritance(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             gp_path = self._write_tmp(d, {
                 "schema_version": 1,
-                "style": {"fill": "#gp", "stroke": "#gp", "background": "#gp"}
+                "base": {"fill": "#gp", "stroke": "#gp", "background": "#gp"}
             })
             p_path = self._write_tmp(d, {
                 "schema_version": 1,
                 "extends": f"./{os.path.basename(gp_path)}",
-                "style": {"stroke": "#parent"}
+                "base": {"stroke": "#parent"}
             })
             c_path = self._write_tmp(d, {
                 "schema_version": 1,
                 "extends": f"./{os.path.basename(p_path)}",
-                "style": {"fill": "#child"}
+                "base": {"fill": "#child"}
             })
             t = Theme(c_path)
             style = t.resolve('x')
@@ -220,7 +236,7 @@ class TestThemeValidation(unittest.TestCase):
     def test_old_schema_version_warns(self):
         import logging
         with tempfile.TemporaryDirectory() as d:
-            path = self._write_tmp(d, {"schema_version": 0, "style": {"fill": "red"}})
+            path = self._write_tmp(d, {"schema_version": 0, "base": {"fill": "red"}})
             with self.assertLogs(level=logging.WARNING) as cm:
                 t = Theme(path)
             self.assertTrue(any("schema_version" in msg for msg in cm.output))
@@ -232,7 +248,7 @@ class TestThemeValidation(unittest.TestCase):
             path = self._write_tmp(d, {
                 "schema_version": 1,
                 "unknown_future_key": "ignored",
-                "style": {"fill": "blue"}
+                "base": {"fill": "blue"}
             })
             with self.assertLogs(level=logging.WARNING) as cm:
                 t = Theme(path)
@@ -241,14 +257,14 @@ class TestThemeValidation(unittest.TestCase):
 
     def test_style_wrong_type_raises(self):
         with tempfile.TemporaryDirectory() as d:
-            path = self._write_tmp(d, {"schema_version": 1, "style": ["oops"]})
+            path = self._write_tmp(d, {"schema_version": 1, "base": ["oops"]})
             with self.assertRaises(ThemeError):
                 Theme(path)
 
     def test_schema_version_absent_is_silent(self):
         # Legacy files with no schema_version load cleanly with no warning.
         with tempfile.TemporaryDirectory() as d:
-            path = self._write_tmp(d, {"style": {"fill": "#legacy"}})
+            path = self._write_tmp(d, {"base": {"fill": "#legacy"}})
             t = Theme(path)
             self.assertEqual(t.resolve('x')['fill'], '#legacy')
 

@@ -146,20 +146,50 @@ python scripts/mmpviz.py -d diagram.json --validate
 
 ## Examples index
 
+**Chip diagrams**
+
 | Example | Description |
 |---------|-------------|
 | `examples/chips/stm32f103/` | STM32F103 ARM Cortex-M3 — 5-panel map with APB peripheral detail |
-| `examples/chips/caliptra/` | Caliptra RoT RISC-V security subsystem |
+| `examples/chips/caliptra/` | Caliptra RoT RISC-V security subsystem — six color-coded panels |
 | `examples/chips/opentitan_earlgrey/` | OpenTitan Earl Grey TL-UL SoC (65+ peripherals) |
 | `examples/chips/pulpissimo/` | PULP RISC-V SoC — four-level zoom with µDMA channel detail |
-| `examples/themes/default/` | Default (neutral gray) theme |
-| `examples/themes/plantuml/` | PlantUML theme |
-| `examples/link/cortex_m3/` | Cortex-M3 link style reference |
+| `examples/chips/riscv64_virt/` | RISC-V 64-bit virtual machine memory map |
+| `examples/chips/arm_coresight_dual_view/` | ARM CoreSight — dual-initiator view with connector links |
+| `examples/chips/arm_coresight_line_link/` | ARM CoreSight — line-link variant |
+
+**Link style**
+
+| Example | Description |
+|---------|-------------|
+| `examples/link/connector/` | Connector format — trapezoid ends + S-curve center line |
+| `examples/link/band_fill/` | Band format — filled straight trapezoid |
+| `examples/link/band_stroke/` | Band format — dashed stroke outline, no fill |
+| `examples/link/band_segments/` | Band format — three explicit segments with matching junctions |
+| `examples/link/per_link/` | Per-link color overrides via `links.overrides` in `theme.json` |
+| `examples/link/anchor_addr_range/` | Explicit `["0xSTART", "0xEND"]` address-range anchors |
+| `examples/link/anchor_cross_addr/` | Cross-address mapping — band endpoints at different addresses |
+| `examples/link/anchor_to_section/` | `to.sections` pin — destination anchored independently of source |
+
+**Layout**
+
+| Example | Description |
+|---------|-------------|
+| `examples/layout/column_order/` | DAG-tree column ordering and crossing minimisation |
+| `examples/layout/height_override/` | Per-section `min_height` / `max_height` |
+| `examples/layout/height_global/` | Global `min_section_height` / `max_section_height` via `theme.json` |
+
+**Other features**
+
+| Example | Description |
+|---------|-------------|
 | `examples/break/` | Break section compression |
 | `examples/labels/` | Address label styles |
 | `examples/stack/basic/` | Basic Cortex-M SRAM layout — heap and stack with growth arrows |
 | `examples/stack/guard_page/` | MPU stack guard page — used/free split, no-access guard region |
 | `examples/stack/shadow_stack/` | Shadow stack — return-address-only region alongside the main call stack |
+| `examples/themes/default/` | Default (neutral gray) theme |
+| `examples/themes/plantuml/` | PlantUML theme |
 
 Built-in themes in `themes/`: `default.json` (auto-loaded), `plantuml.json`
 
@@ -171,7 +201,6 @@ Built-in themes in `themes/`: `default.json` (auto-loaded), `plantuml.json`
 |------|----------|
 | `references/create-diagram.md` | Step-by-step authoring guide |
 | `references/diagram-schema.md` | All `diagram.json` fields, types, and defaults |
-| `references/theme-schema.md` | All `theme.json` style properties |
 | `references/theme-schema.md` | All `theme.json` style properties; examples and tips |
 | `references/auto-layout-algorithm.md` | Auto-layout implementation reference and remaining work |
 | `references/check-rules.md` | Validation rules and remediation |

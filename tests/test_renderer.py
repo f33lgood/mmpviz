@@ -22,8 +22,7 @@ def default_style():
         'stroke_width': 1, 'font_size': 16, 'font_family': 'Helvetica',
         'text_fill': 'black', 'text_stroke': 'black', 'text_stroke_width': 0,
         'break_height': 20, 'opacity': 1,
-        'growth_arrow_size': 1, 'growth_arrow_fill': 'white', 'growth_arrow_stroke': 'black',
-        'label_arrow_size': 2, 'stroke_dasharray': '3,2',
+        'arrow_size': 2, 'stroke_dasharray': '3,2',
     }
 
 
@@ -164,8 +163,13 @@ class TestRendererSectionBandStyles(unittest.TestCase):
     """Tests for section band link shape and fill/stroke composability."""
 
     def _render_two_area(self, link_style: dict) -> str:
-        """Render a two-area diagram with a section link using the given link style."""
-        s_source = make_section(0x0, 0x30000, 'all')
+        """Render a two-area diagram with a section link.
+
+        link_style may be:
+        - ``{}`` to exercise renderer fallback defaults (no band/connector key)
+        - a band shorthand: 'shape' maps to middle.shape; fill/stroke/etc. are
+          passed through; the dict is wrapped under the 'band' key automatically
+        """
         s_a = make_section(0x0, 0x10000, 'Region A', name='Region A')
         s_b = make_section(0x10000, 0x10000, 'Region B', name='Region B')
         s_c = make_section(0x20000, 0x10000, 'Region C', name='Region C')
@@ -181,12 +185,26 @@ class TestRendererSectionBandStyles(unittest.TestCase):
             style=style,
             area_config={'id': 'detail', 'title': 'Zoomed', 'pos': [320, 155], 'size': [130, 200]},
         )
+
+        if link_style:
+            shape = link_style.get('shape', 'straight')
+            band = {
+                'middle': {'shape': shape, 'sheight': 'source', 'dheight': 'destination'},
+            }
+            for k in ('fill', 'stroke', 'stroke_width', 'stroke_dasharray', 'opacity'):
+                if k in link_style:
+                    band[k] = link_style[k]
+            normalized = {'band': band}
+        else:
+            normalized = {}
+
         links = Links(
             links_config=[{
+                'id':   'test-link',
                 'from': {'view': 'source', 'sections': ['Region B']},
-                'to': {'view': 'detail'},
+                'to':   {'view': 'detail'},
             }],
-            style=link_style,
+            style=normalized,
         )
         return MapRenderer(
             area_views=[source, detail],
@@ -260,10 +278,16 @@ class TestRendererSectionBandStyles(unittest.TestCase):
         )
         links = Links(
             links_config=[{
+                'id':   'test-link',
                 'from': {'view': 'source', 'sections': ['Region B']},
-                'to': {'view': 'detail'},
+                'to':   {'view': 'detail'},
             }],
-            style={'shape': 'polygon', 'fill': 'gray', 'stroke': 'none'},
+            style={'band': {
+                'source':  {'width': 30, 'sheight': 'source', 'dheight': 'source'},
+                'middle':  {'shape': 'straight', 'sheight': 'source', 'dheight': 'destination'},
+                'fill':    'gray',
+                'stroke':  'none',
+            }},
         )
         result = MapRenderer(
             area_views=[source, detail],

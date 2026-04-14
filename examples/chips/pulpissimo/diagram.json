@@ -5,65 +5,297 @@
       "id": "overview",
       "title": "PULPissimo SoC",
       "sections": [
-        { "id": "axi_plug",  "address": "0x10000000", "size": "0x00400000", "name": "AXI Plug"           },
-        { "id": "gap0",      "address": "0x10400000", "size": "0x09C00000", "name": "···",                "flags": ["break"] },
-        { "id": "boot_rom",  "address": "0x1A000000", "size": "0x00040000", "name": "Boot ROM"           },
-        { "id": "gap1",      "address": "0x1A040000", "size": "0x000C0000", "name": "···",                "flags": ["break"] },
-        { "id": "apb_bus",   "address": "0x1A100000", "size": "0x00040000", "name": "APB Peripheral Bus" },
-        { "id": "gap2",      "address": "0x1A140000", "size": "0x01EC0000", "name": "···",                "flags": ["break"] },
-        { "id": "l2_priv_0", "address": "0x1C000000", "size": "0x00008000", "name": "Private Bank 0"     },
-        { "id": "l2_priv_1", "address": "0x1C008000", "size": "0x00008000", "name": "Private Bank 1"     },
-        { "id": "l2_tcdm",   "address": "0x1C010000", "size": "0x00080000", "name": "Shared TCDM"        }
+        {
+          "id": "axi_plug",
+          "address": "0x10000000",
+          "size": "0x00400000",
+          "name": "AXI Plug"
+        },
+        {
+          "id": "gap0",
+          "address": "0x10400000",
+          "size": "0x09C00000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "boot_rom",
+          "address": "0x1A000000",
+          "size": "0x00040000",
+          "name": "Boot ROM"
+        },
+        {
+          "id": "gap1",
+          "address": "0x1A040000",
+          "size": "0x000C0000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "apb_bus",
+          "address": "0x1A100000",
+          "size": "0x00040000",
+          "name": "APB Peripheral Bus"
+        },
+        {
+          "id": "gap2",
+          "address": "0x1A140000",
+          "size": "0x01EC0000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "l2_priv_0",
+          "address": "0x1C000000",
+          "size": "0x00008000",
+          "name": "Private Bank 0"
+        },
+        {
+          "id": "l2_priv_1",
+          "address": "0x1C008000",
+          "size": "0x00008000",
+          "name": "Private Bank 1"
+        },
+        {
+          "id": "l2_tcdm",
+          "address": "0x1C010000",
+          "size": "0x00080000",
+          "name": "Shared TCDM"
+        }
       ]
     },
     {
       "id": "apb-view",
       "title": "APB Peripheral Bus",
       "sections": [
-        { "id": "fll",       "address": "0x1A100000", "size": "0x00001000", "name": "FLL"            },
-        { "id": "gpio",      "address": "0x1A101000", "size": "0x00001000", "name": "GPIO (48 pins)" },
-        { "id": "udma",      "address": "0x1A102000", "size": "0x00002000", "name": "uDMA"           },
-        { "id": "soc_ctrl",  "address": "0x1A104000", "size": "0x00001000", "name": "SoC Control"    },
-        { "id": "adv_timer", "address": "0x1A105000", "size": "0x00001000", "name": "Adv Timer"      },
-        { "id": "evt_gen",   "address": "0x1A106000", "size": "0x00001000", "name": "SoC Event Gen"  },
-        { "id": "apb_rsvd0", "address": "0x1A107000", "size": "0x00002000", "name": "Reserved",       "flags": ["break"] },
-        { "id": "eu",        "address": "0x1A109000", "size": "0x00002000", "name": "Event Unit"     },
-        { "id": "apb_timer", "address": "0x1A10B000", "size": "0x00001000", "name": "APB Timer"      },
-        { "id": "hwpe",      "address": "0x1A10C000", "size": "0x00001000", "name": "HWPE"           },
-        { "id": "apb_rsvd1", "address": "0x1A10D000", "size": "0x00002000", "name": "Reserved",       "flags": ["break"] },
-        { "id": "stdout",    "address": "0x1A10F000", "size": "0x00001000", "name": "Virtual Stdout" },
-        { "id": "debug",     "address": "0x1A110000", "size": "0x00010000", "name": "Debug Unit"     },
-        { "id": "chip_ctrl", "address": "0x1A120000", "size": "0x00020000", "name": "Chip Control",   "flags": ["break"] }
+        {
+          "id": "fll",
+          "address": "0x1A100000",
+          "size": "0x00001000",
+          "name": "FLL"
+        },
+        {
+          "id": "gpio",
+          "address": "0x1A101000",
+          "size": "0x00001000",
+          "name": "GPIO (48 pins)"
+        },
+        {
+          "id": "udma",
+          "address": "0x1A102000",
+          "size": "0x00002000",
+          "name": "uDMA"
+        },
+        {
+          "id": "soc_ctrl",
+          "address": "0x1A104000",
+          "size": "0x00001000",
+          "name": "SoC Control"
+        },
+        {
+          "id": "adv_timer",
+          "address": "0x1A105000",
+          "size": "0x00001000",
+          "name": "Adv Timer"
+        },
+        {
+          "id": "evt_gen",
+          "address": "0x1A106000",
+          "size": "0x00001000",
+          "name": "SoC Event Gen"
+        },
+        {
+          "id": "apb_rsvd0",
+          "address": "0x1A107000",
+          "size": "0x00002000",
+          "name": "Reserved",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "eu",
+          "address": "0x1A109000",
+          "size": "0x00002000",
+          "name": "Event Unit"
+        },
+        {
+          "id": "apb_timer",
+          "address": "0x1A10B000",
+          "size": "0x00001000",
+          "name": "APB Timer"
+        },
+        {
+          "id": "hwpe",
+          "address": "0x1A10C000",
+          "size": "0x00001000",
+          "name": "HWPE"
+        },
+        {
+          "id": "apb_rsvd1",
+          "address": "0x1A10D000",
+          "size": "0x00002000",
+          "name": "Reserved",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "stdout",
+          "address": "0x1A10F000",
+          "size": "0x00001000",
+          "name": "Virtual Stdout"
+        },
+        {
+          "id": "debug",
+          "address": "0x1A110000",
+          "size": "0x00010000",
+          "name": "Debug Unit"
+        },
+        {
+          "id": "chip_ctrl",
+          "address": "0x1A120000",
+          "size": "0x00020000",
+          "name": "Chip Control",
+          "flags": [
+            "break"
+          ]
+        }
       ]
     },
     {
       "id": "chip-ctrl-view",
       "title": "Chip Control",
       "sections": [
-        { "id": "fll_cfg", "address": "0x1A120000", "size": "0x00001000", "name": "FLL Config" },
-        { "id": "pad_cfg", "address": "0x1A121000", "size": "0x00001000", "name": "Pad Config" },
-        { "id": "cc_rsvd", "address": "0x1A122000", "size": "0x0001E000", "name": "···",        "flags": ["break"] }
+        {
+          "id": "fll_cfg",
+          "address": "0x1A120000",
+          "size": "0x00001000",
+          "name": "FLL Config"
+        },
+        {
+          "id": "pad_cfg",
+          "address": "0x1A121000",
+          "size": "0x00001000",
+          "name": "Pad Config"
+        },
+        {
+          "id": "cc_rsvd",
+          "address": "0x1A122000",
+          "size": "0x0001E000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        }
       ]
     },
     {
       "id": "udma-view",
       "title": "uDMA Channels",
       "sections": [
-        { "id": "udma_cfg",  "address": "0x1A102000", "size": "0x00000080", "name": "Global CG/Event" },
-        { "id": "uart",      "address": "0x1A102080", "size": "0x00000080", "name": "UART"            },
-        { "id": "spim",      "address": "0x1A102100", "size": "0x00000080", "name": "QSPI Master"     },
-        { "id": "i2c0",      "address": "0x1A102180", "size": "0x00000080", "name": "I2C0"            },
-        { "id": "i2c1",      "address": "0x1A102200", "size": "0x00000080", "name": "I2C1"            },
-        { "id": "udma_rsvd", "address": "0x1A102280", "size": "0x00000080", "name": "SDIO (n/a)"      },
-        { "id": "i2s",       "address": "0x1A102300", "size": "0x00000080", "name": "I2S"             },
-        { "id": "cpi",       "address": "0x1A102380", "size": "0x00000080", "name": "Camera (CPI)"    },
-        { "id": "udma_end",  "address": "0x1A102400", "size": "0x00001C00", "name": "···",             "flags": ["break"] }
+        {
+          "id": "udma_cfg",
+          "address": "0x1A102000",
+          "size": "0x00000080",
+          "name": "Global CG/Event"
+        },
+        {
+          "id": "uart",
+          "address": "0x1A102080",
+          "size": "0x00000080",
+          "name": "UART"
+        },
+        {
+          "id": "spim",
+          "address": "0x1A102100",
+          "size": "0x00000080",
+          "name": "QSPI Master"
+        },
+        {
+          "id": "i2c0",
+          "address": "0x1A102180",
+          "size": "0x00000080",
+          "name": "I2C0"
+        },
+        {
+          "id": "i2c1",
+          "address": "0x1A102200",
+          "size": "0x00000080",
+          "name": "I2C1"
+        },
+        {
+          "id": "udma_rsvd",
+          "address": "0x1A102280",
+          "size": "0x00000080",
+          "name": "SDIO (n/a)"
+        },
+        {
+          "id": "i2s",
+          "address": "0x1A102300",
+          "size": "0x00000080",
+          "name": "I2S"
+        },
+        {
+          "id": "cpi",
+          "address": "0x1A102380",
+          "size": "0x00000080",
+          "name": "Camera (CPI)"
+        },
+        {
+          "id": "udma_end",
+          "address": "0x1A102400",
+          "size": "0x00001C00",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        }
       ]
     }
   ],
   "links": [
-    { "from": { "view": "overview", "sections": ["apb_bus"] },   "to": { "view": "apb-view" } },
-    { "from": { "view": "apb-view", "sections": ["chip_ctrl"] }, "to": { "view": "chip-ctrl-view" } },
-    { "from": { "view": "apb-view", "sections": ["udma"] },      "to": { "view": "udma-view" } }
+    {
+      "id": "overview-apb-view",
+      "from": {
+        "view": "overview",
+        "sections": [
+          "apb_bus"
+        ]
+      },
+      "to": {
+        "view": "apb-view"
+      }
+    },
+    {
+      "id": "apb-view-chip-ctrl-view",
+      "from": {
+        "view": "apb-view",
+        "sections": [
+          "chip_ctrl"
+        ]
+      },
+      "to": {
+        "view": "chip-ctrl-view"
+      }
+    },
+    {
+      "id": "apb-view-udma-view",
+      "from": {
+        "view": "apb-view",
+        "sections": [
+          "udma"
+        ]
+      },
+      "to": {
+        "view": "udma-view"
+      }
+    }
   ]
 }

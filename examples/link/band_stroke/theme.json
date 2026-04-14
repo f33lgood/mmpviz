@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "extends": "default",
+  "links": {
+    "band": {
+      "middle":           { "shape": "straight", "sheight": "source", "dheight": "destination" },
+      "fill":             "none",
+      "stroke":           "#4A7FA5",
+      "stroke_width":     2,
+      "stroke_dasharray": "8,4"
+    }
+  }
+}

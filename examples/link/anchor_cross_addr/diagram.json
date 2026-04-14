@@ -1,29 +1,105 @@
 {
-  "title": "cross-address mapping — virtual-to-physical address layout",
+  "title": "cross-address mapping \u2014 virtual-to-physical address layout",
   "views": [
     {
       "id": "virtual",
       "title": "Virtual (Linker) View",
       "sections": [
-        { "id": "text",     "address": "0x00000000", "size": "0x00100000", "name": ".text\n(code)" },
-        { "id": "data",     "address": "0x00100000", "size": "0x00080000", "name": ".data\n(init)" },
-        { "id": "bss",      "address": "0x00180000", "size": "0x00040000", "name": ".bss"          },
-        { "id": "stack",    "address": "0x001C0000", "size": "0x00040000", "name": "Stack"         },
-        { "id": "brk_vgap", "address": "0x00200000", "size": "0x07E00000", "name": "···",           "flags": ["break"] }
+        {
+          "id": "text",
+          "address": "0x00000000",
+          "size": "0x00100000",
+          "name": ".text\n(code)"
+        },
+        {
+          "id": "data",
+          "address": "0x00100000",
+          "size": "0x00080000",
+          "name": ".data\n(init)"
+        },
+        {
+          "id": "bss",
+          "address": "0x00180000",
+          "size": "0x00040000",
+          "name": ".bss"
+        },
+        {
+          "id": "stack",
+          "address": "0x001C0000",
+          "size": "0x00040000",
+          "name": "Stack"
+        },
+        {
+          "id": "brk_vgap",
+          "address": "0x00200000",
+          "size": "0x07E00000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        }
       ]
     },
     {
       "id": "physical",
       "title": "Physical Memory",
       "sections": [
-        { "id": "flash",    "address": "0x08000000", "size": "0x00100000", "name": "Flash\n(XIP)" },
-        { "id": "brk_pgap", "address": "0x08100000", "size": "0x17F00000", "name": "···",          "flags": ["break"] },
-        { "id": "sram",     "address": "0x20000000", "size": "0x00040000", "name": "SRAM"         }
+        {
+          "id": "flash",
+          "address": "0x08000000",
+          "size": "0x00100000",
+          "name": "Flash\n(XIP)"
+        },
+        {
+          "id": "brk_pgap",
+          "address": "0x08100000",
+          "size": "0x17F00000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "sram",
+          "address": "0x20000000",
+          "size": "0x00040000",
+          "name": "SRAM"
+        }
       ]
     }
   ],
   "links": [
-    { "from": { "view": "virtual", "sections": ["text"] },                 "to": { "view": "physical", "sections": ["flash"] } },
-    { "from": { "view": "virtual", "sections": ["data", "bss", "stack"] }, "to": { "view": "physical", "sections": ["sram"] } }
+    {
+      "id": "virtual-physical",
+      "from": {
+        "view": "virtual",
+        "sections": [
+          "text"
+        ]
+      },
+      "to": {
+        "view": "physical",
+        "sections": [
+          "flash"
+        ]
+      }
+    },
+    {
+      "id": "virtual-physical-1",
+      "from": {
+        "view": "virtual",
+        "sections": [
+          "data",
+          "bss",
+          "stack"
+        ]
+      },
+      "to": {
+        "view": "physical",
+        "sections": [
+          "sram"
+        ]
+      }
+    }
   ]
 }

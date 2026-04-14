@@ -4,6 +4,6 @@
   "labels": {
     "stroke": "black",
     "stroke_dasharray": "4,2",
-    "label_arrow_size": 1
+    "arrow_size": 1
   }
 }

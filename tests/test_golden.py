@@ -294,26 +294,23 @@ class GoldenTest(unittest.TestCase):
     def test_labels(self):
         self._run_named('labels')
 
-    def test_link_column_order(self):
-        self._run_path('link', 'column_order')
+    def test_layout_column_order(self):
+        self._run_path('layout', 'column_order')
 
-    def test_link_cortex_m3(self):
-        self._run_path('link', 'cortex_m3')
+    def test_link_connector(self):
+        self._run_path('link', 'connector')
 
-    def test_link_fill(self):
-        self._run_path('link', 'fill')
+    def test_link_band_fill(self):
+        self._run_path('link', 'band_fill')
 
-    def test_link_stroke(self):
-        self._run_path('link', 'stroke')
+    def test_link_band_stroke(self):
+        self._run_path('link', 'band_stroke')
 
-    def test_link_stroke_dashed(self):
-        self._run_path('link', 'stroke_dashed')
+    def test_link_band_segments(self):
+        self._run_path('link', 'band_segments')
 
-    def test_link_polygon(self):
-        self._run_path('link', 'polygon')
-
-    def test_link_three_segments(self):
-        self._run_path('link', 'three_segments')
+    def test_link_per_link(self):
+        self._run_path('link', 'per_link')
 
     def test_stm32f103(self):
         self._run_path('chips', 'stm32f103')
@@ -333,11 +330,11 @@ class GoldenTest(unittest.TestCase):
     def test_theme_plantuml(self):
         self._run_path('themes', 'plantuml')
 
-    def test_height_override(self):
-        self._run_path('height', 'height_override')
+    def test_layout_height_override(self):
+        self._run_path('layout', 'height_override')
 
-    def test_height_global_theme(self):
-        self._run_path('height', 'global_theme')
+    def test_layout_height_global(self):
+        self._run_path('layout', 'height_global')
 
     def _run_named(self, name):
         d = os.path.join(EXAMPLES_DIR, name)

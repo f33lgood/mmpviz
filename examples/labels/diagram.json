@@ -4,17 +4,80 @@
       "id": "labels-view",
       "title": "Address Link Example",
       "labels": [
-        { "address": "0xE8043800", "text": "In direction",          "length": 150, "directions": ["in"],        "side": "right" },
-        { "address": "0xE8042800", "text": "No direction",          "length": 150, "side": "right" },
-        { "address": "0xE8041800", "text": "Out direction",         "length": 150, "directions": ["out"],       "side": "right" },
-        { "address": "0xE8041800", "text": "Label at left side",    "length": 40,  "directions": ["out"],       "side": "left" },
-        { "address": "0xE8040800", "text": "In and Out directions", "length": 150, "directions": ["in", "out"], "side": "right" }
+        {
+          "id": "lbl-e8043800",
+          "address": "0xE8043800",
+          "text": "In direction",
+          "length": 150,
+          "side": "right",
+          "directions": [
+            "in"
+          ]
+        },
+        {
+          "id": "lbl-e8042800",
+          "address": "0xE8042800",
+          "text": "No direction",
+          "length": 150,
+          "side": "right"
+        },
+        {
+          "id": "lbl-e8041800",
+          "address": "0xE8041800",
+          "text": "Out direction",
+          "length": 150,
+          "side": "right",
+          "directions": [
+            "out"
+          ]
+        },
+        {
+          "id": "lbl-e8041800-3",
+          "address": "0xE8041800",
+          "text": "Label at left side",
+          "length": 40,
+          "side": "left",
+          "directions": [
+            "out"
+          ]
+        },
+        {
+          "id": "lbl-e8040800",
+          "address": "0xE8040800",
+          "text": "In and Out directions",
+          "length": 150,
+          "side": "right",
+          "directions": [
+            "in",
+            "out"
+          ]
+        }
       ],
       "sections": [
-        { "id": "tpiu",         "address": "0xE8040000", "size": "0x00001000", "name": "TPIU" },
-        { "id": "etm",          "address": "0xE8041000", "size": "0x00001000", "name": "ETM" },
-        { "id": "external_ppb", "address": "0xE8042000", "size": "0x00001000", "name": "External PPB" },
-        { "id": "rom_table",    "address": "0xE8043000", "size": "0x00001000", "name": "ROM Table" }
+        {
+          "id": "tpiu",
+          "address": "0xE8040000",
+          "size": "0x00001000",
+          "name": "TPIU"
+        },
+        {
+          "id": "etm",
+          "address": "0xE8041000",
+          "size": "0x00001000",
+          "name": "ETM"
+        },
+        {
+          "id": "external_ppb",
+          "address": "0xE8042000",
+          "size": "0x00001000",
+          "name": "External PPB"
+        },
+        {
+          "id": "rom_table",
+          "address": "0xE8043000",
+          "size": "0x00001000",
+          "name": "ROM Table"
+        }
       ]
     }
   ]

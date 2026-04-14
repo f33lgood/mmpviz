@@ -130,9 +130,11 @@ correspondence:
 
 ```json
 "links": [
-  { "from": { "view": "flash-view", "sections": ["code"] }, "to": { "view": "code-detail-view" } }
+  { "id": "code-link", "from": { "view": "flash-view", "sections": ["code"] }, "to": { "view": "code-detail-view" } }
 ]
 ```
+
+The `id` field is required and must be unique across all links. It is used as a key in `theme.json` under `links.overrides[link_id]` for per-link style overrides.
 
 Each entry draws one band. `from.sections` specifies which sections define the
 vertical anchor on the source side; omit it to span the full source view.
@@ -209,9 +211,11 @@ Annotate a specific address with a label line:
 
 ```json
 "labels": [
-  { "address": "0x08009000", "text": "End of code", "length": 80, "side": "right", "directions": ["in"] }
+  { "id": "end-of-code", "address": "0x08009000", "text": "End of code", "length": 80, "side": "right", "directions": ["in"] }
 ]
 ```
+
+The `id` field is required and must be unique within its view. It is used as a key in `theme.json` under `views[view_id].labels[label_id]` for per-label style overrides.
 
 ---
 

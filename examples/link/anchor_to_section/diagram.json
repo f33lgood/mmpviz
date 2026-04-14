@@ -1,33 +1,119 @@
 {
-  "title": "to.sections — pinning the destination band to a specific sub-section",
+  "title": "to.sections \u2014 pinning the destination band to a specific sub-section",
   "views": [
     {
       "id": "overview",
       "title": "System Overview",
       "sections": [
-        { "id": "flash",    "address": "0x00000000", "size": "0x00080000", "name": "Flash" },
-        { "id": "brk_ftos", "address": "0x00080000", "size": "0x1FF80000", "name": "···",   "flags": ["break"] },
-        { "id": "sram",     "address": "0x20000000", "size": "0x00020000", "name": "SRAM"  },
-        { "id": "brk_stop", "address": "0x20020000", "size": "0x1FFE0000", "name": "···",   "flags": ["break"] },
-        { "id": "apb1",     "address": "0x40000000", "size": "0x00010000", "name": "APB1"  }
+        {
+          "id": "flash",
+          "address": "0x00000000",
+          "size": "0x00080000",
+          "name": "Flash"
+        },
+        {
+          "id": "brk_ftos",
+          "address": "0x00080000",
+          "size": "0x1FF80000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "sram",
+          "address": "0x20000000",
+          "size": "0x00020000",
+          "name": "SRAM"
+        },
+        {
+          "id": "brk_stop",
+          "address": "0x20020000",
+          "size": "0x1FFE0000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "apb1",
+          "address": "0x40000000",
+          "size": "0x00010000",
+          "name": "APB1"
+        }
       ]
     },
     {
       "id": "periph-detail",
       "title": "APB1 Peripherals",
       "sections": [
-        { "id": "uart0", "address": "0x40000000", "size": "0x00002000", "name": "UART0" },
-        { "id": "uart1", "address": "0x40002000", "size": "0x00002000", "name": "UART1" },
-        { "id": "spi0",  "address": "0x40004000", "size": "0x00002000", "name": "SPI0" },
-        { "id": "i2c0",  "address": "0x40006000", "size": "0x00002000", "name": "I2C0" },
-        { "id": "tim2",  "address": "0x40008000", "size": "0x00002000", "name": "TIM2" },
-        { "id": "pwr",   "address": "0x4000A000", "size": "0x00002000", "name": "PWR" },
-        { "id": "bkp",   "address": "0x4000C000", "size": "0x00002000", "name": "BKP" },
-        { "id": "rsvd",  "address": "0x4000E000", "size": "0x00002000", "name": "Reserved" }
+        {
+          "id": "uart0",
+          "address": "0x40000000",
+          "size": "0x00002000",
+          "name": "UART0"
+        },
+        {
+          "id": "uart1",
+          "address": "0x40002000",
+          "size": "0x00002000",
+          "name": "UART1"
+        },
+        {
+          "id": "spi0",
+          "address": "0x40004000",
+          "size": "0x00002000",
+          "name": "SPI0"
+        },
+        {
+          "id": "i2c0",
+          "address": "0x40006000",
+          "size": "0x00002000",
+          "name": "I2C0"
+        },
+        {
+          "id": "tim2",
+          "address": "0x40008000",
+          "size": "0x00002000",
+          "name": "TIM2"
+        },
+        {
+          "id": "pwr",
+          "address": "0x4000A000",
+          "size": "0x00002000",
+          "name": "PWR"
+        },
+        {
+          "id": "bkp",
+          "address": "0x4000C000",
+          "size": "0x00002000",
+          "name": "BKP"
+        },
+        {
+          "id": "rsvd",
+          "address": "0x4000E000",
+          "size": "0x00002000",
+          "name": "Reserved"
+        }
       ]
     }
   ],
   "links": [
-    { "from": { "view": "overview", "sections": ["apb1"] }, "to": { "view": "periph-detail", "sections": ["uart0", "uart1"] } }
+    {
+      "id": "overview-periph-detail",
+      "from": {
+        "view": "overview",
+        "sections": [
+          "apb1"
+        ]
+      },
+      "to": {
+        "view": "periph-detail",
+        "sections": [
+          "uart0",
+          "uart1"
+        ]
+      }
+    }
   ]
 }

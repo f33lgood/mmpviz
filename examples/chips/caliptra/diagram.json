@@ -5,68 +5,330 @@
       "id": "overview",
       "title": "Caliptra RoT",
       "sections": [
-        { "id": "rom",           "address": "0x00000000", "size": "0x00018000", "name": "ROM"              },
-        { "id": "ovgap0",        "address": "0x00018000", "size": "0x0FFE8000", "name": "···",              "flags": ["break"] },
-        { "id": "crypto",        "address": "0x10000000", "size": "0x00080000", "name": "Crypto Subsystem" },
-        { "id": "ovgap1",        "address": "0x10080000", "size": "0x0FF80000", "name": "···",              "flags": ["break"] },
-        { "id": "peripherals",   "address": "0x20000000", "size": "0x00008000", "name": "Peripherals"      },
-        { "id": "ovgap2",        "address": "0x20008000", "size": "0x0FFF8000", "name": "···",              "flags": ["break"] },
-        { "id": "soc_interface", "address": "0x30000000", "size": "0x00080000", "name": "SoC Interface"    },
-        { "id": "ovgap3",        "address": "0x30080000", "size": "0x0FF80000", "name": "···",              "flags": ["break"] },
-        { "id": "iccm",          "address": "0x40000000", "size": "0x00040000", "name": "ICCM"             },
-        { "id": "ovgap4",        "address": "0x40040000", "size": "0x0FFC0000", "name": "···",              "flags": ["break"] },
-        { "id": "dccm",          "address": "0x50000000", "size": "0x00040000", "name": "DCCM"             },
-        { "id": "ovgap5",        "address": "0x50040000", "size": "0x0FFC0000", "name": "···",              "flags": ["break"] },
-        { "id": "pic",           "address": "0x60000000", "size": "0x10000000", "name": "PIC"              }
+        {
+          "id": "rom",
+          "address": "0x00000000",
+          "size": "0x00018000",
+          "name": "ROM"
+        },
+        {
+          "id": "ovgap0",
+          "address": "0x00018000",
+          "size": "0x0FFE8000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "crypto",
+          "address": "0x10000000",
+          "size": "0x00080000",
+          "name": "Crypto Subsystem"
+        },
+        {
+          "id": "ovgap1",
+          "address": "0x10080000",
+          "size": "0x0FF80000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "peripherals",
+          "address": "0x20000000",
+          "size": "0x00008000",
+          "name": "Peripherals"
+        },
+        {
+          "id": "ovgap2",
+          "address": "0x20008000",
+          "size": "0x0FFF8000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "soc_interface",
+          "address": "0x30000000",
+          "size": "0x00080000",
+          "name": "SoC Interface"
+        },
+        {
+          "id": "ovgap3",
+          "address": "0x30080000",
+          "size": "0x0FF80000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "iccm",
+          "address": "0x40000000",
+          "size": "0x00040000",
+          "name": "ICCM"
+        },
+        {
+          "id": "ovgap4",
+          "address": "0x40040000",
+          "size": "0x0FFC0000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "dccm",
+          "address": "0x50000000",
+          "size": "0x00040000",
+          "name": "DCCM"
+        },
+        {
+          "id": "ovgap5",
+          "address": "0x50040000",
+          "size": "0x0FFC0000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "pic",
+          "address": "0x60000000",
+          "size": "0x10000000",
+          "name": "PIC"
+        }
       ]
     },
     {
       "id": "soc-ifc-view",
       "title": "SoC Interface",
       "sections": [
-        { "id": "socgap0",     "address": "0x30000000", "size": "0x00020000", "name": "···",          "flags": ["break"] },
-        { "id": "mailboxcsr",  "address": "0x30020000", "size": "0x00001000", "name": "Mailbox CSR"  },
-        { "id": "sha512accel", "address": "0x30021000", "size": "0x00001000", "name": "SHA512 Accel" },
-        { "id": "axidma",      "address": "0x30022000", "size": "0x00001000", "name": "AXI DMA"      },
-        { "id": "socmid",      "address": "0x30023000", "size": "0x0000D000", "name": "···",          "flags": ["break"] },
-        { "id": "socifccsr",   "address": "0x30030000", "size": "0x00010000", "name": "SoC IFC CSR"  },
-        { "id": "mailboxsram", "address": "0x30040000", "size": "0x00040000", "name": "Mailbox SRAM" }
+        {
+          "id": "socgap0",
+          "address": "0x30000000",
+          "size": "0x00020000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "mailboxcsr",
+          "address": "0x30020000",
+          "size": "0x00001000",
+          "name": "Mailbox CSR"
+        },
+        {
+          "id": "sha512accel",
+          "address": "0x30021000",
+          "size": "0x00001000",
+          "name": "SHA512 Accel"
+        },
+        {
+          "id": "axidma",
+          "address": "0x30022000",
+          "size": "0x00001000",
+          "name": "AXI DMA"
+        },
+        {
+          "id": "socmid",
+          "address": "0x30023000",
+          "size": "0x0000D000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "socifccsr",
+          "address": "0x30030000",
+          "size": "0x00010000",
+          "name": "SoC IFC CSR"
+        },
+        {
+          "id": "mailboxsram",
+          "address": "0x30040000",
+          "size": "0x00040000",
+          "name": "Mailbox SRAM"
+        }
       ]
     },
     {
       "id": "periph-view",
       "title": "Peripherals",
       "sections": [
-        { "id": "perigap0",   "address": "0x20000000", "size": "0x00002000", "name": "···",            "flags": ["break"] },
-        { "id": "csrng",      "address": "0x20002000", "size": "0x00001000", "name": "CSRNG"          },
-        { "id": "entropysrc", "address": "0x20003000", "size": "0x00001000", "name": "Entropy Source" },
-        { "id": "periend",    "address": "0x20004000", "size": "0x00004000", "name": "···",            "flags": ["break"] }
+        {
+          "id": "perigap0",
+          "address": "0x20000000",
+          "size": "0x00002000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "csrng",
+          "address": "0x20002000",
+          "size": "0x00001000",
+          "name": "CSRNG"
+        },
+        {
+          "id": "entropysrc",
+          "address": "0x20003000",
+          "size": "0x00001000",
+          "name": "Entropy Source"
+        },
+        {
+          "id": "periend",
+          "address": "0x20004000",
+          "size": "0x00004000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        }
       ]
     },
     {
       "id": "crypto-view",
       "title": "Crypto Subsystem",
       "sections": [
-        { "id": "doe",       "address": "0x10000000", "size": "0x00008000", "name": "DOE"           },
-        { "id": "ecc",       "address": "0x10008000", "size": "0x00008000", "name": "ECC (Secp384)" },
-        { "id": "hmac512",   "address": "0x10010000", "size": "0x00001000", "name": "HMAC512"       },
-        { "id": "aes",       "address": "0x10011000", "size": "0x00001000", "name": "AES"           },
-        { "id": "crgap0",    "address": "0x10012000", "size": "0x00006000", "name": "···",           "flags": ["break"] },
-        { "id": "keyvault",  "address": "0x10018000", "size": "0x00002000", "name": "Key Vault"     },
-        { "id": "pcrvault",  "address": "0x1001A000", "size": "0x00002000", "name": "PCR Vault"     },
-        { "id": "datavault", "address": "0x1001C000", "size": "0x00002000", "name": "Data Vault"    },
-        { "id": "crgap1",    "address": "0x1001E000", "size": "0x00002000", "name": "···",           "flags": ["break"] },
-        { "id": "sha512",    "address": "0x10020000", "size": "0x00008000", "name": "SHA512"        },
-        { "id": "sha256",    "address": "0x10028000", "size": "0x00008000", "name": "SHA256"        },
-        { "id": "mldsa",     "address": "0x10030000", "size": "0x00010000", "name": "MLDSA/MLKEM"   },
-        { "id": "sha3",      "address": "0x10040000", "size": "0x00001000", "name": "SHA3"          },
-        { "id": "crend",     "address": "0x10041000", "size": "0x0003F000", "name": "···",           "flags": ["break"] }
+        {
+          "id": "doe",
+          "address": "0x10000000",
+          "size": "0x00008000",
+          "name": "DOE"
+        },
+        {
+          "id": "ecc",
+          "address": "0x10008000",
+          "size": "0x00008000",
+          "name": "ECC (Secp384)"
+        },
+        {
+          "id": "hmac512",
+          "address": "0x10010000",
+          "size": "0x00001000",
+          "name": "HMAC512"
+        },
+        {
+          "id": "aes",
+          "address": "0x10011000",
+          "size": "0x00001000",
+          "name": "AES"
+        },
+        {
+          "id": "crgap0",
+          "address": "0x10012000",
+          "size": "0x00006000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "keyvault",
+          "address": "0x10018000",
+          "size": "0x00002000",
+          "name": "Key Vault"
+        },
+        {
+          "id": "pcrvault",
+          "address": "0x1001A000",
+          "size": "0x00002000",
+          "name": "PCR Vault"
+        },
+        {
+          "id": "datavault",
+          "address": "0x1001C000",
+          "size": "0x00002000",
+          "name": "Data Vault"
+        },
+        {
+          "id": "crgap1",
+          "address": "0x1001E000",
+          "size": "0x00002000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        },
+        {
+          "id": "sha512",
+          "address": "0x10020000",
+          "size": "0x00008000",
+          "name": "SHA512"
+        },
+        {
+          "id": "sha256",
+          "address": "0x10028000",
+          "size": "0x00008000",
+          "name": "SHA256"
+        },
+        {
+          "id": "mldsa",
+          "address": "0x10030000",
+          "size": "0x00010000",
+          "name": "MLDSA/MLKEM"
+        },
+        {
+          "id": "sha3",
+          "address": "0x10040000",
+          "size": "0x00001000",
+          "name": "SHA3"
+        },
+        {
+          "id": "crend",
+          "address": "0x10041000",
+          "size": "0x0003F000",
+          "name": "\u00b7\u00b7\u00b7",
+          "flags": [
+            "break"
+          ]
+        }
       ]
     }
   ],
   "links": [
-    { "from": { "view": "overview", "sections": ["crypto"] },        "to": { "view": "crypto-view" } },
-    { "from": { "view": "overview", "sections": ["peripherals"] },   "to": { "view": "periph-view" } },
-    { "from": { "view": "overview", "sections": ["soc_interface"] }, "to": { "view": "soc-ifc-view" } }
+    {
+      "id": "overview-crypto-view",
+      "from": {
+        "view": "overview",
+        "sections": [
+          "crypto"
+        ]
+      },
+      "to": {
+        "view": "crypto-view"
+      }
+    },
+    {
+      "id": "overview-periph-view",
+      "from": {
+        "view": "overview",
+        "sections": [
+          "peripherals"
+        ]
+      },
+      "to": {
+        "view": "periph-view"
+      }
+    },
+    {
+      "id": "overview-soc-ifc-view",
+      "from": {
+        "view": "overview",
+        "sections": [
+          "soc_interface"
+        ]
+      },
+      "to": {
+        "view": "soc-ifc-view"
+      }
+    }
   ]
 }

@@ -23,7 +23,7 @@ python scripts/mmpviz.py -d diagram.json -t themes/plantuml.json -o map.svg  # b
 | `default` | `themes/default.json` | Neutral black/white/gray palette. **Loaded automatically when `-t` is omitted.** |
 | `plantuml` | `themes/plantuml.json` | PlantUML-style pastel fills with red outlines. |
 
-`themes/default.json` defines the complete set of all `style`, `links`, and `labels` properties; it is the authoritative baseline for link configuration. `themes/plantuml.json` uses `extends: "default"` and overrides only the visual appearance (fill, stroke, opacity, font) while inheriting the link geometry. Both themes have no view- or section-specific overrides, so they work with any `diagram.json` without modification.
+`themes/default.json` defines the complete set of all `base`, `links`, `labels`, and `growth_arrow` properties; it is the authoritative baseline for link configuration. `themes/plantuml.json` uses `extends: "default"` and overrides only the visual appearance (fill, stroke, opacity, font) while inheriting the link geometry. Both themes have no view- or section-specific overrides, so they work with any `diagram.json` without modification.
 
 ---
 
@@ -33,22 +33,25 @@ python scripts/mmpviz.py -d diagram.json -t themes/plantuml.json -o map.svg  # b
 theme.json
 ├── schema_version   → integer; theme file format generation (optional)
 ├── extends          → built-in name or path to inherit from (optional)
-├── style            → global baseline (applies to everything)
+├── base             → global baseline (cascade vocabulary: fill, stroke, font, …)
 ├── views
 │   └── <view-id>    → overrides for a specific view (by id from diagram.json)
-│       └── sections
-│           └── <section-id>  → overrides for a specific section within that view
-├── links            → style for cross-view connection bands
-└── labels           → style for address annotation lines
+│       ├── sections
+│       │   └── <section-id>  → overrides for a specific section within that view
+│       └── labels
+│           └── <label-id>    → overrides for a specific label within that view
+├── links            → feature: cross-view connection bands + per-link overrides
+├── labels           → feature: address annotation leader lines
+└── growth_arrow     → feature: grows-up/grows-down arrow styling
 ```
 
-**Resolution order for `style` properties** (later overrides earlier):
+**Resolution order for `base` properties** (later overrides earlier):
 1. Built-in fallback defaults (`Theme.DEFAULT` in `theme.py`)
-2. `theme.style` (global baseline from the loaded theme file, or its `extends` ancestor)
+2. `theme.base` (global baseline from the loaded theme file, or its `extends` ancestor)
 3. `theme.views[view_id]`
 4. `theme.views[view_id].sections[section_id]`
 
-**Resolution order for `links` properties** — resolved solely through the `extends` chain: the merged `links` block across all ancestors, with child values overriding parent. `themes/default.json` defines the complete baseline; any theme using `extends: "default"` (directly or transitively) inherits all link properties.
+**Resolution order for `links` properties** — resolved through the `extends` chain with two-level merging: `connector` and `band` sub-objects are merged shallowly, so a child can override individual keys (e.g. `connector.fill`) without losing keys it did not mention. When both `connector` and `band` are present in the resolved style, `band` takes priority. `themes/default.json` defines the complete `connector` baseline; themes using `extends: "default"` inherit it and need only override what changes.
 
 ---
 
@@ -58,7 +61,7 @@ An optional integer at the top level. Tracks theme file format generation,
 independent of mmpviz's semantic version.
 
 ```json
-{ "schema_version": 1, "style": { ... } }
+{ "schema_version": 1, "base": { ... } }
 ```
 
 | Value | Behaviour |
@@ -80,7 +83,7 @@ Inherit all settings from another theme and override only what changes:
 {
   "schema_version": 1,
   "extends": "plantuml",
-  "style": { "stroke": "#cc2200" }
+  "base": { "stroke": "#cc2200" }
 }
 ```
 
@@ -90,8 +93,9 @@ The `extends` value is resolved in order:
 3. An absolute path → used as-is
 
 **Merge semantics:**
-- `style`, `links`, `labels` — shallow merge; child values override parent
-- `views` — two-level merge (view properties, then section properties within each view)
+- `base`, `labels`, `growth_arrow` — shallow merge; child values override parent
+- `links` — two-level merge: `connector`, `band`, and `overrides` sub-objects are merged shallowly, so a child can override `connector.fill` without losing `connector.source.width` inherited from the parent; individual `overrides[link_id]` entries are merged by key
+- `views` — two-level merge (view properties, then `sections[section_id]` and `labels[label_id]` entries within each view)
 - `schema_version` and `extends` are stripped from the merged result
 
 **Circular or missing references** raise `ThemeError` at load time.
@@ -149,93 +153,215 @@ Controls how pixel height is distributed across subareas (regions between break 
 
 **Label-conflict inflation (automatic, no setting required):** the renderer also detects when a section's size label (top-left) and name label (centred) would overlap on the x-axis, and inflates that section's height just enough to separate them vertically. This applies independently of `min_section_height`.
 
-### Growth Arrows
+---
+
+## `growth_arrow` — Grows-up/Grows-down Arrow Style
+
+The `growth_arrow` block controls the visual style of the directional arrows rendered on sections marked with the `grows-up` or `grows-down` flag. It is a top-level block parallel to `links` and `labels`.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `growth_arrow_size` | number | `1` | Arrow size multiplier |
-| `growth_arrow_fill` | color string | `"white"` | Arrow fill color |
-| `growth_arrow_stroke` | color string | `"black"` | Arrow outline color |
+| `size`   | number ≥ 0 | `1` | Arrow size multiplier |
+| `fill`   | color string | `"#e8e8e8"` | Arrow body fill color |
+| `stroke` | color string | `"#555555"` | Arrow outline color |
 
-### Labels and Links
+```json
+"growth_arrow": {
+  "size":   1,
+  "fill":   "#e8e8e8",
+  "stroke": "#555555"
+}
+```
+
+---
+
+## `labels` — Address Annotation Style
+
+The `labels` block owns all label-specific styling: the leader line, arrow head, and optional text overrides. It is merged on top of the global `base` (so `font_size`, `text_fill`, etc. inherit from there unless overridden here).
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `label_arrow_size` | number | `2` | Arrow head size multiplier for labels |
+| `arrow_size` | number ≥ 0 | `2` | Arrow head size multiplier |
+| `stroke` | color string | `"#555555"` | Leader line color |
+| `stroke_width` | number ≥ 0 | `1` | Leader line thickness in pixels |
+| `stroke_dasharray` | string | `"4,2"` | SVG dash pattern for the leader line |
+| `font_size` | number \| string | *(inherited)* | Override label text font size |
+| `font_family` | string | *(inherited)* | Override label text font family |
+| `text_fill` | color string | *(inherited)* | Override label text color |
+
+```json
+"labels": {
+  "arrow_size":       2,
+  "stroke":           "#555555",
+  "stroke_width":     1,
+  "stroke_dasharray": "4,2"
+}
+```
 
 ---
 
 ## `links` — Section Band Style
 
-The `links` block controls the visual style of section band connectors drawn between the source stack and detail stacks.
+The `links` block controls the visual style of section band connectors drawn between the source stack and detail stacks. It has two sub-formats: **`connector`** (recommended) and **`band`** (legacy). Define one or both; when both are present `band` takes priority.
 
-A band is composed of three independent segments:
+---
+
+### `connector` — Recommended Format
+
+The connector is a two-trapezoid + center-line design:
 
 ```
-source view                                           dest view
-    │  ←─ source_seg ──→│←────── middle_seg ────────→│←─ dest_seg ─→  │
-    │      (src_w px)    │       (fills remainder)     │   (dst_w px)   │
+source view       source end     middle line     dest end    dest view
+    │        ╔══╗                ─────────      ╔══╗         │
+    │        ║  ╚━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛  ║         │
+    │        ╚══╝                               ╚══╝         │
+    │←─ src.width ─→│←──────────────────────────→│←dst.width─→│
 ```
 
-Each segment has a configurable shape, and independently configurable heights for its left and right edges.
+- The **source trapezoid** fans out from the middle-line width (`middle.width`) to the full source region span.
+- The **middle line** is a stroked centerline of constant perpendicular thickness.
+- The **destination trapezoid** tapers from the destination region span back to the middle-line width.
+- A single `fill` color applies to both trapezoid fills and the middle line stroke.
 
-**Center alignment (automatic):** The vertical center of every edge is fixed by which segment it belongs to — no configuration needed:
+```json
+"links": {
+  "connector": {
+    "source":      { "width": 25 },
+    "destination": { "width": 25 },
+    "middle":      { "width": 10, "shape": "curve" },
+    "fill":        "#e8e8e8",
+    "opacity":     0.7
+  }
+}
+```
 
-| Segment | Left edge center | Right edge center |
-|---------|-----------------|------------------|
-| `source_seg` | source region center | source region center |
-| `middle_seg` | source region center | destination region center |
-| `dest_seg` | destination region center | destination region center |
-
-**Height references** (`lheight` / `rheight`) select the **span** (pixel height) of the band at that edge:
-- `"source"` — band spans the `from.sections` pixel height
-- `"destination"` — band spans the `to.sections` pixel height (or clamped full dest view when `to.sections` is absent)
-
-The edge y-coordinates are then: `center ± span/2`. This lets the band maintain source width through the curve while naturally shifting its center to align with the destination.
-
-### Segment properties
-
-The **Default** column shows the values defined in `themes/default.json`, which is the authoritative baseline for link configuration. Custom themes that use `extends: "default"` inherit all these values and only need to set the keys that differ.
+#### `connector` properties
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `source_seg_shape` | `"polygon"` \| `"curve"` | `"polygon"` | Edge shape of the source outreach segment |
-| `source_seg_width` | number ≥ 0 | `0` | Width in pixels of the source outreach; `0` = no outreach |
-| `source_seg_lheight` | `"source"` \| `"destination"` | `"source"` | Height at the source-view edge of this segment |
-| `source_seg_rheight` | `"source"` \| `"destination"` | `"source"` | Height at the junction with the middle segment |
-| `middle_seg_shape` | `"polygon"` \| `"curve"` | `"curve"` | Edge shape of the middle connecting segment |
-| `middle_seg_lheight` | `"source"` \| `"destination"` | `"source"` | Height at the left edge of the middle segment |
-| `middle_seg_rheight` | `"source"` \| `"destination"` | `"source"` | Height at the right edge of the middle segment |
-| `dest_seg_shape` | `"polygon"` \| `"curve"` | `"curve"` | Edge shape of the destination outreach segment |
-| `dest_seg_width` | number ≥ 0 | `30` | Width in pixels of the destination outreach; `0` = no outreach |
-| `dest_seg_lheight` | `"source"` \| `"destination"` | `"source"` | Height at the junction with the middle segment |
-| `dest_seg_rheight` | `"source"` \| `"destination"` | `"destination"` | Height at the destination-view edge of this segment |
+| `connector.source.width` | number ≥ 0 | `25` | Horizontal extent in pixels of the source trapezoid |
+| `connector.destination.width` | number ≥ 0 | `25` | Horizontal extent in pixels of the destination trapezoid |
+| `connector.middle.width` | number ≥ 0 | `10` | Stroke width of the middle line in pixels |
+| `connector.middle.shape` | `"curve"` \| `"straight"` | `"curve"` | `"curve"` draws a cubic Bézier S-curve (line cap: butt); `"straight"` draws a direct line (line cap: round) |
+| `connector.fill` | color string | `"#e8e8e8"` | Color applied to both trapezoid fills and the middle line stroke |
+| `connector.opacity` | number 0–1 | `0.7` | Overall connector opacity |
 
-### Visual properties
+**Overriding only a subset** (e.g. just fill and opacity) works naturally through the `extends` chain — unmentioned keys are inherited from the parent theme:
+
+```json
+{
+  "schema_version": 1,
+  "extends": "default",
+  "links": {
+    "connector": { "fill": "#4A7FA5", "opacity": 0.5 }
+  }
+}
+```
+
+---
+
+### `band` — Full Three-Segment Format
+
+Full three-segment control with independent fill/stroke. Use when you need shapes the connector cannot express (e.g. a plain filled trapezoid with no source/dest taper, or a dashed stroke outline). Mirrors the `connector` nested structure: segments (`source`, `middle`, `destination`) are sub-objects, with shared visual properties at the top level.
+
+```
+source view                                              dest view
+    │  ←─ source ──→│←──────── middle ────────────→│←── destination ──→  │
+    │   (.width)    │        (fills remainder)       │      (.width)       │
+```
+
+Each segment has an independently configurable `shape` and heights for its source-side (`sheight`) and destination-side (`dheight`) edges. **`sheight`/`dheight` are directional relative to the whole link** — `sheight` is always the edge closer to the source view, `dheight` always the edge closer to the destination view.
+
+**Center alignment (automatic):** the vertical center of every edge is fixed by segment position:
+
+| Segment | Source-side edge center | Destination-side edge center |
+|---------|------------------------|------------------------------|
+| `source` | source region center | source region center |
+| `middle` | source region center | destination region center |
+| `destination` | destination region center | destination region center |
+
+**Height references** (`sheight` / `dheight`) select the **span** at that edge:
+- `"source"` — spans the `from.sections` pixel height
+- `"destination"` — spans the `to.sections` pixel height
+- `<number>` — literal pixel span; `0` collapses the edge to a point
+
+#### `band` segment sub-object properties
+
+| Sub-object | Property | Type | Default | Description |
+|------------|----------|------|---------|-------------|
+| `source` | `shape` | `"straight"` \| `"curve"` | `"straight"` | Edge shape of the source outreach segment |
+| `source` | `width` | number ≥ 0 | `0` | Width in pixels; `0` = no outreach |
+| `source` | `sheight` | height ref | `"source"` | Height at the source-view (outer) edge |
+| `source` | `dheight` | height ref | `"source"` | Height at the junction (inner) edge |
+| `middle` | `shape` | `"straight"` \| `"curve"` | `"straight"` | Edge shape of the middle connecting segment |
+| `middle` | `sheight` | height ref | `"source"` | Height at the source-side edge |
+| `middle` | `dheight` | height ref | `"destination"` | Height at the destination-side edge |
+| `destination` | `shape` | `"straight"` \| `"curve"` | `"straight"` | Edge shape of the destination outreach segment |
+| `destination` | `width` | number ≥ 0 | `0` | Width in pixels; `0` = no outreach |
+| `destination` | `sheight` | height ref | `"destination"` | Height at the junction (inner) edge |
+| `destination` | `dheight` | height ref | `"destination"` | Height at the destination-view (outer) edge |
+
+#### `band` top-level properties
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `fill` | color string \| `"none"` | `"#e8e8e8"` | Fill color for the band interior. Set to `"none"` for stroke-only |
-| `stroke` | color string \| `"none"` | `"none"` | Stroke color for the top and bottom band edges. Set to a color to draw edges |
+| `fill` | color string \| `"none"` | `"none"` | Fill color for the band interior |
+| `stroke` | color string \| `"none"` | `"none"` | Stroke color for the top and bottom band edges |
 | `stroke_width` | number | `1` | Stroke thickness in pixels |
-| `stroke_dasharray` | string | *(unset)* | SVG dash pattern for stroke edges, e.g. `"8,4"`. Omit for solid stroke |
-| `opacity` | number 0–1 | `0.7` | Overall opacity of the band |
+| `stroke_dasharray` | string | *(unset)* | SVG dash pattern for stroke edges, e.g. `"8,4"` |
+| `opacity` | number 0–1 | `1` | Overall band opacity |
 
-**Composing styles:** `fill` and `stroke` are independent. Setting both draws a filled closed band plus stroked top/bottom edges. The stroked edges are drawn as open paths (no right vertical) so they never overlap the detail stack's own border.
+**Composing `fill` and `stroke`:** both are independent. Setting both draws a filled closed band plus stroked top/bottom open paths. Continuity: set `source.dheight == middle.sheight` and `middle.dheight == destination.sheight` for seamless junctions.
 
-**Continuity:** for a seamless band, adjacent segment heights should match at their shared junction — e.g. `source_seg_rheight` should equal `middle_seg_lheight`.
+#### `band` example configurations
 
-**Example configurations** (all assume `extends: "default"` as base):
+```json
+{
+  "schema_version": 1,
+  "extends": "default",
+  "links": {
+    "band": {
+      "middle":  { "shape": "straight", "sheight": "source", "dheight": "destination" },
+      "fill":    "#4A7FA5",
+      "stroke":  "none",
+      "opacity": 0.5
+    }
+  }
+}
+```
 
-| Style | Key overrides | Visual result |
-|-------|--------------|---------------|
-| **Default theme** | see `themes/default.json` | S-curve + 30 px Bézier dest taper, light-gray fill |
-| Fill style | `"fill": "<color>", "stroke": "none"` | Base shape (S-curve + dest taper) in a custom fill color |
-| Stroke only | `"fill": "none", "stroke": "<color>", "stroke_width": 2` | Base shape, edges only |
-| Dashed stroke | `"fill": "none", "stroke": "<color>", "stroke_width": 2, "stroke_dasharray": "8,4"` | Base shape, dashed edges |
-| Polygon middle | `"middle_seg_shape": "polygon", "middle_seg_rheight": "destination", "dest_seg_width": 0` | Straight trapezoidal connector; contrasts the default S-curve |
-| All three segments | `"source_seg_shape": "polygon", "source_seg_width": 20, "middle_seg_shape": "polygon", "middle_seg_rheight": "destination", "dest_seg_shape": "polygon", "dest_seg_width": 20` | Three polygon segments; zigzag kinks mark each boundary on both edges |
-| Sankey | `"middle_seg_lheight": "source", "middle_seg_rheight": "source", "dest_seg_width": 0` | Constant-width S-curve; band width proportional to source section size |
+| Style | What to set | Visual result |
+|-------|-------------|---------------|
+| Plain trapezoid (fill) | `middle: {sheight: "source", dheight: "destination"}`, `fill: <color>` | Filled trapezoid, straight or Bézier edges |
+| Stroke only | Same + `fill: "none"`, `stroke: <color>`, `stroke_width: 2` | Outlined trapezoid, no fill |
+| Dashed stroke | Add `stroke_dasharray: "8,4"` | Dashed outline |
+| Three segments | Set `source: {width: 20, …}`, `destination: {width: 20, …}` with matching heights | Three distinct segments with visible junctions |
+
+---
+
+### `links.overrides` — Per-Link Style Overrides
+
+Override the visual style of individual links by their `id` from `diagram.json`. Entries are merged on top of the resolved `connector` or `band` style.
+
+```json
+"links": {
+  "overrides": {
+    "flash-link":  { "fill": "#3B82F6", "opacity": 0.7 },
+    "periph-link": { "fill": "#F97316", "opacity": 0.7 },
+    "dma-link":    { "fill": "#22C55E", "opacity": 0.7 }
+  }
+}
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `fill` | color string | Override connector/band fill for this specific link |
+| `opacity` | number 0–1 | Override opacity for this specific link |
+| `stroke` | color string | Override stroke color (band format) |
+| `stroke_width` | number | Override stroke thickness (band format) |
+| `stroke_dasharray` | string | Override dash pattern (band format) |
+
+Any key omitted from the override is inherited from the global `connector` or `band` style.
 
 ---
 
@@ -252,15 +378,14 @@ Any valid SVG color string is accepted:
 
 | Example | What it shows |
 |---------|---------------|
-| `examples/themes/default/theme.json` | Minimal override of `default` — global `style`, `links`, `labels` |
-| `examples/themes/plantuml/theme.json` | `extends` with no other overrides — inherit a built-in unchanged |
+| `examples/link/connector/theme.json` | `connector` — all properties explicit: source/dest widths, middle width and shape, fill, opacity |
+| `examples/link/band_fill/theme.json` | `band` — filled straight trapezoid spanning source→destination, no source/dest outreach |
+| `examples/link/band_stroke/theme.json` | `band` — dashed stroke outline, no fill |
+| `examples/link/band_segments/theme.json` | `band` — three explicit segments with matching heights at junctions |
+| `examples/link/per_link/theme.json` | `links.overrides` — three individually colored links keyed by link `id` |
 | `examples/stack/basic/theme.json` | `extends` + per-view `sections` overrides — section-level fills |
-| `examples/link/cortex_m3/theme.json` | `extends` + `links` visual override (fill + opacity) |
-| `examples/link/fill/theme.json` | Default shape (S-curve + dest taper) with fill style |
-| `examples/link/stroke/theme.json` | Default shape with stroke-only style |
-| `examples/link/stroke_dashed/theme.json` | Default shape with dashed stroke style |
-| `examples/link/polygon/theme.json` | Polygon middle (straight trapezoid, no outreach) — contrasts the default S-curve |
-| `examples/link/three_segments/theme.json` | All three polygon segments visible: flat source jog → tapered middle → flat dest jog; kinks mark the boundaries |
+| `examples/chips/stm32f103/theme.json` | `extends: "plantuml"` + per-view overrides — multi-panel chip diagram |
+| `examples/chips/caliptra/theme.json` | Per-section colors via `views[id].sections[id]` — six independently styled panels |
 
 ---
 

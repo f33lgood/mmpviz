@@ -79,6 +79,7 @@ displayed in that view.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
+| `id` | string | Yes | — | Unique identifier within this view. **Format: `[a-z0-9_-]` only**. Used as a key in `theme.json` under `views[view_id].labels[label_id]` for per-label style overrides. |
 | `address` | hex string or int | Yes | — | Memory address where the label points |
 | `text` | string | No | `"Label"` | Label text |
 | `length` | int | No | `20` | Length of the annotation line in pixels |
@@ -94,19 +95,20 @@ to a destination view with a rendered band (trapezoid or curve).
 
 ```json
 "links": [
-  {"from": {"view": "overview",  "sections": ["flash"]},          "to": {"view": "flash-view"}},
-  {"from": {"view": "overview",  "sections": ["peripherals"]},    "to": {"view": "apb-view"}},
-  {"from": {"view": "apb-view",  "sections": ["dma"]},            "to": {"view": "dma-view"}},
-  {"from": {"view": "overview",  "sections": ["0x4000", "0x5000"]}, "to": {"view": "detail-view"}}
+  {"id": "flash-link",   "from": {"view": "overview",  "sections": ["flash"]},          "to": {"view": "flash-view"}},
+  {"id": "periph-link",  "from": {"view": "overview",  "sections": ["peripherals"]},    "to": {"view": "apb-view"}},
+  {"id": "dma-link",     "from": {"view": "apb-view",  "sections": ["dma"]},            "to": {"view": "dma-view"}},
+  {"id": "detail-link",  "from": {"view": "overview",  "sections": ["0x4000", "0x5000"]}, "to": {"view": "detail-view"}}
 ]
 ```
 
 ### Link Entry Object
 
-Each entry has two required fields:
+Each entry has three required fields:
 
 | Field | Required | Description |
 |-------|----------|-------------|
+| `id` | Yes | Unique identifier across all links. **Format: `[a-z0-9_-]` only**. Used as a key in `theme.json` under `links.overrides[link_id]` for per-link style overrides. |
 | `from` | Yes | Source endpoint (see below) |
 | `to` | Yes | Destination endpoint (see below) |
 
@@ -143,8 +145,8 @@ To map two source views to the same detail view, add two entries with the same
 
 ```json
 "links": [
-  {"from": {"view": "cpu-view",      "sections": ["sysperiph"]}, "to": {"view": "periph-detail"}},
-  {"from": {"view": "debugger-view", "sections": ["sysperiph"]}, "to": {"view": "periph-detail"}}
+  {"id": "cpu-periph",   "from": {"view": "cpu-view",      "sections": ["sysperiph"]}, "to": {"view": "periph-detail"}},
+  {"id": "dbg-periph",   "from": {"view": "debugger-view", "sections": ["sysperiph"]}, "to": {"view": "periph-detail"}}
 ]
 ```
 
@@ -159,6 +161,7 @@ positions. This is useful for address aliases, remaps, or DMA channel mappings:
 ```json
 "links": [
   {
+    "id":   "alias-link",
     "from": {"view": "overview", "sections": ["itcm_alias"]},
     "to":   {"view": "overview", "sections": ["flash"]}
   }
@@ -167,8 +170,7 @@ positions. This is useful for address aliases, remaps, or DMA channel mappings:
 
 ### Visual Style
 
-Band style (shape, fill, stroke, dash pattern) is controlled in `theme.json`
-under `links`. See `theme-schema.md` for the full property list.
+Band style (shape, fill, stroke, dash pattern) is controlled in `theme.json` under `links`. Global defaults live in `links.connector` or `links.band`. Per-link overrides are placed in `links.overrides[link_id]`, where `link_id` matches the `id` field here. See `theme-schema.md` for the full property list.
 
 ---
 

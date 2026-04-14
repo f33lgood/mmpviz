@@ -24,10 +24,12 @@ class MapRenderer:
     """
 
     def __init__(self, area_views: list, links, style: dict,
+                 growth_arrow: dict = None,
                  size=DefaultAppValues.DOCUMENT_SIZE, origin=(0, 0)):
         self.area_views = area_views
         self.links = links
         self.style = style
+        self.growth_arrow = growth_arrow or {}
         self.size = size
         self.origin = origin
         ox, oy = origin
@@ -221,8 +223,8 @@ class MapRenderer:
 
     def _make_growth(self, section: Section) -> ET.Element:
         group = self.svg.g()
-        style = section.style
-        multiplier = _s(style, 'growth_arrow_size', 1)
+        ga = self.growth_arrow
+        multiplier = _s(ga, 'size', 1)
         mid_x = (section.pos_x + section.size_x) / 2
         arrow_head_width = 5 * multiplier
         arrow_head_height = 10 * multiplier
@@ -241,9 +243,9 @@ class MapRenderer:
             ]
             group.append(self.svg.polyline(
                 pts,
-                stroke=_s(style, 'growth_arrow_stroke', 'black'),
+                stroke=_s(ga, 'stroke', 'black'),
                 stroke_width=1,
-                fill=_s(style, 'growth_arrow_fill', 'white')))
+                fill=_s(ga, 'fill', 'white')))
 
         if section.is_grow_up():
             make_arrow(section.pos_y, 1)
@@ -274,7 +276,7 @@ class MapRenderer:
         angle = angle_map.get(direction, 180)
 
         style = label.style
-        label_arrow_size = _s(style, 'label_arrow_size', 2)
+        label_arrow_size = _s(style, 'arrow_size', 2)
         arrow_head_width = 5 * label_arrow_size
         arrow_head_height = 10 * label_arrow_size
 
@@ -407,6 +409,66 @@ class MapRenderer:
             return None
         return [min(starts), max(ends)]
 
+    @staticmethod
+    def _normalize_link_style(links_style: dict) -> dict:
+        """Translate connector or band format to the internal flat style keys.
+
+        Priority: band > connector (an explicit 'band' key overrides an
+        inherited 'connector' so child themes can switch rendering modes).
+        """
+        band = links_style.get('band')
+        if band is not None:
+            src = band.get('source',      {})
+            mid = band.get('middle',      {})
+            dst = band.get('destination', {})
+
+            def _shape(seg: dict, default: str = 'straight') -> str:
+                v = seg.get('shape', default)
+                return 'curve' if v == 'curve' else 'polygon'
+
+            return {
+                'source_seg_shape':   _shape(src),
+                'source_seg_width':   src.get('width',   0),
+                'source_seg_lheight': src.get('sheight', 'source'),
+                'source_seg_rheight': src.get('dheight', 'source'),
+                'middle_seg_shape':   _shape(mid),
+                'middle_seg_lheight': mid.get('sheight', 'source'),
+                'middle_seg_rheight': mid.get('dheight', 'destination'),
+                'dest_seg_shape':     _shape(dst),
+                'dest_seg_width':     dst.get('width',   0),
+                'dest_seg_lheight':   dst.get('sheight', 'destination'),
+                'dest_seg_rheight':   dst.get('dheight', 'destination'),
+                'fill':               band.get('fill',             'none'),
+                'stroke':             band.get('stroke',           'none'),
+                'stroke_width':       band.get('stroke_width',     1),
+                'stroke_dasharray':   band.get('stroke_dasharray', None),
+                'opacity':            band.get('opacity',          1),
+            }
+
+        connector = links_style.get('connector')
+        if connector is not None:
+            src        = connector.get('source',      {})
+            dst        = connector.get('destination', {})
+            mid        = connector.get('middle',      {})
+            fill       = connector.get('fill',        'none')
+            opacity    = connector.get('opacity',     1)
+            mid_width  = mid.get('width', 10)
+            mid_shape  = mid.get('shape', 'curve')
+            seg_shape  = 'curve' if mid_shape == 'curve' else 'polygon'
+            line_cap   = 'butt'  if mid_shape == 'curve' else 'round'
+            return {
+                '_connector_mode':       True,
+                'source_seg_width':      src.get('width', 25),
+                'dest_seg_width':        dst.get('width', 25),
+                'middle_seg_shape':      seg_shape,
+                'middle_seg_line_width': mid_width,
+                'middle_seg_line_cap':   line_cap,
+                'fill':                  fill,
+                'opacity':               opacity,
+            }
+
+        return links_style
+
     def _draw_link_bands(self) -> ET.Element:
         """
         Draw all link bands from ``self.links.entries``.
@@ -418,10 +480,14 @@ class MapRenderer:
         full destination view when ``to.sections`` is absent).
         """
         group = self.svg.g()
-        link_style = self.links.style if self.links else {}
+        links_style = self.links.style if self.links else {}
+        base_link_style = self._normalize_link_style(links_style)
+        link_overrides = links_style.get('overrides', {})
         av_by_id = {av.view_id: av for av in self.area_views}
 
         for entry in self.links.entries:
+            override = link_overrides.get(entry.get('id', ''), {})
+            link_style = {**base_link_style, **override}
             from_view_id = entry['from_view']
             to_view_id = entry['to_view']
 
@@ -532,6 +598,24 @@ class MapRenderer:
         ly_src_t, ly_src_b, ry_dst_t, ry_dst_b = self._enforce_min_opening(
             ly_src_t, ly_src_b, ry_dst_t, ry_dst_b)
 
+        src_center = (ly_src_t + ly_src_b) / 2
+        dst_center = (ry_dst_t + ry_dst_b) / 2
+        src_span   = ly_src_t - ly_src_b
+        dst_span   = ry_dst_t - ry_dst_b
+
+        # Connector mode: render source trapezoid + middle line + dest trapezoid
+        # as three independent elements so each shape is geometrically exact.
+        # A single connected polygon cannot represent this correctly because the
+        # source/dest junction heights (mid_width) and the middle-segment heights
+        # (0, collapsed) differ at the same x, causing discontinuities in the path.
+        if _s(style, '_connector_mode'):
+            return self._render_connector(
+                lx, lx_j=lx + _s(style, 'source_seg_width', 25),
+                rx_j=rx - _s(style, 'dest_seg_width', 25), rx=rx,
+                src_center=src_center, dst_center=dst_center,
+                src_span=src_span, dst_span=dst_span,
+                style=style)
+
         # Segment geometry
         src_w = _s(style, 'source_seg_width', 30)
         dst_w = _s(style, 'dest_seg_width', 0)
@@ -556,14 +640,21 @@ class MapRenderer:
         #   middle_seg right  → centered on destination region
         # This keeps each segment naturally aligned to its side while still
         # allowing the span to reference either side's pixel height.
-        src_center = (ly_src_t + ly_src_b) / 2
-        dst_center = (ry_dst_t + ry_dst_b) / 2
-        src_span   = ly_src_t - ly_src_b
-        dst_span   = ry_dst_t - ry_dst_b
 
         def edge(center, height_ref):
-            """(t, b) = (center + span/2, center − span/2) using the named span."""
-            span = src_span if height_ref == 'source' else dst_span
+            """(t, b) = (center + span/2, center − span/2) using the named span.
+
+            height_ref may be:
+              'source'      – use the source-side pixel span
+              'destination' – use the destination-side pixel span
+              <number>      – literal span in pixels (0 collapses the edge to a point)
+            """
+            if isinstance(height_ref, (int, float)):
+                span = float(height_ref)
+            elif height_ref == 'source':
+                span = src_span
+            else:
+                span = dst_span
             return center + span / 2, center - span / 2
 
         sl_t, sl_b = edge(src_center, src_lh)   # source seg  left  edge  (at lx)
@@ -579,6 +670,7 @@ class MapRenderer:
         stroke_width = _s(style, 'stroke_width', 1)
         stroke_dasharray = _s(style, 'stroke_dasharray', None)
         opacity = _s(style, 'opacity', 1)
+        mid_stroke_w = _s(style, 'middle_seg_line_width', None)
 
         has_fill = fill not in (None, 'none')
         has_stroke = stroke not in (None, 'none')
@@ -607,6 +699,78 @@ class MapRenderer:
                                    stroke_width=stroke_width,
                                    stroke_dasharray=stroke_dasharray,
                                    opacity=opacity))
+
+        # Middle segment centerline stroke — constant perpendicular width along
+        # the curve, avoiding the apparent thinning that a vertical-offset filled
+        # band shows at the steepest point of an S-curve.
+        if mid_stroke_w:
+            center_l = (ml_t + ml_b) / 2
+            center_r = (mr_t + mr_b) / 2
+            cmd = self._seg_cmd(lx_j, rx_j, center_l, center_r, mid_shape)
+            if cmd:
+                center_color = _s(style, 'middle_seg_line_stroke',
+                                  fill if has_fill else stroke)
+                mid_cap = _s(style, 'middle_seg_line_cap', 'round')
+                mid_d = f'M {lx_j},{center_l} {cmd}'
+                g.append(self.svg.path(
+                    mid_d, fill='none',
+                    stroke=center_color,
+                    stroke_width=mid_stroke_w,
+                    stroke_linecap=mid_cap,
+                    stroke_dasharray=stroke_dasharray,
+                    opacity=opacity))
+
+        return g
+
+    def _render_connector(self, lx, lx_j, rx_j, rx,
+                          src_center, dst_center, src_span, dst_span,
+                          style: dict) -> ET.Element:
+        """Render a connector as three independent elements.
+
+        Source trapezoid (filled polygon) + middle line (stroke) + dest
+        trapezoid (filled polygon).  Keeping them separate avoids the
+        continuity mismatch that occurs when trying to join the source/dest
+        junction edges (height = mid_width) with the collapsed zero-height
+        middle segment inside a single closed polygon.
+        """
+        fill      = _s(style, 'fill', 'none')
+        opacity   = _s(style, 'opacity', 1)
+        mid_w     = _s(style, 'middle_seg_line_width', 10)
+        mid_shape = _s(style, 'middle_seg_shape', 'curve')
+        mid_cap   = _s(style, 'middle_seg_line_cap', 'butt')
+
+        # Source trapezoid: outer edge = source span, inner edge = mid_width
+        sl_t = src_center + src_span / 2
+        sl_b = src_center - src_span / 2
+        sr_t = src_center + mid_w / 2
+        sr_b = src_center - mid_w / 2
+
+        # Dest trapezoid: inner edge = mid_width, outer edge = dest span
+        dl_t = dst_center + mid_w / 2
+        dl_b = dst_center - mid_w / 2
+        dr_t = dst_center + dst_span / 2
+        dr_b = dst_center - dst_span / 2
+
+        g = self.svg.g()
+        has_fill = fill not in (None, 'none')
+
+        if has_fill:
+            d_src = (f'M {lx},{sl_t} L {lx_j},{sr_t} '
+                     f'L {lx_j},{sr_b} L {lx},{sl_b} Z')
+            g.append(self.svg.path(d_src, fill=fill, stroke='none', opacity=opacity))
+
+            d_dst = (f'M {rx_j},{dl_t} L {rx},{dr_t} '
+                     f'L {rx},{dr_b} L {rx_j},{dl_b} Z')
+            g.append(self.svg.path(d_dst, fill=fill, stroke='none', opacity=opacity))
+
+        # Middle line: stroke centered between src_center and dst_center
+        cmd = self._seg_cmd(lx_j, rx_j, src_center, dst_center, mid_shape)
+        if cmd and mid_w:
+            mid_d = f'M {lx_j},{src_center} {cmd}'
+            g.append(self.svg.path(
+                mid_d, fill='none', stroke=fill,
+                stroke_width=mid_w, stroke_linecap=mid_cap,
+                opacity=opacity))
 
         return g
 

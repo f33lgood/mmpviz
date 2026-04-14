@@ -42,6 +42,8 @@ def render_chip(chip_name: str, theme_path: str, output_dir: str) -> str:
     links_style = theme.resolve_links()
     links = Links(links_config=links_config, style=links_style)
 
+    growth_arrow_style = theme.resolve_growth_arrow()
+
     area_views = get_area_views(base_style, diagram, theme, links=links)
     if not area_views:
         print(f"  [skip] {chip_name}: no area views produced")
@@ -56,6 +58,7 @@ def render_chip(chip_name: str, theme_path: str, output_dir: str) -> str:
         area_views=area_views,
         links=links,
         style=base_style,
+        growth_arrow=growth_arrow_style,
         size=document_size,
         origin=origin,
     ).draw()

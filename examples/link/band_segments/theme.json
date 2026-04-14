@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "extends": "default",
+  "links": {
+    "band": {
+      "source":      { "shape": "straight", "width": 20, "sheight": "source", "dheight": 10 },
+      "middle":      { "shape": "curve",    "sheight": 10, "dheight": 10 },
+      "destination": { "shape": "straight", "width": 20, "sheight": 10, "dheight": "destination" },
+      "fill":        "#4A7FA5",
+      "stroke":      "none",
+      "opacity":     0.6
+    }
+  }
+}

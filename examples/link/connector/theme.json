@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "extends": "default",
+  "links": {
+    "connector": {
+      "source":      { "width": 25 },
+      "destination": { "width": 25 },
+      "middle":      { "width": 10, "shape": "curve" },
+      "fill":        "#4A7FA5",
+      "opacity":     0.7
+    }
+  }
+}

@@ -13,9 +13,9 @@
       "description": "Built-in theme name ('default', 'plantuml') or path to inherit from.",
       "type": "string"
     },
-    "style": {
-      "description": "Global baseline styles applied to all views and sections.",
-      "$ref": "#/$defs/style_block"
+    "base": {
+      "description": "Global baseline styles applied to all views and sections. View and section overrides build on top of this.",
+      "$ref": "#/$defs/base_block"
     },
     "views": {
       "description": "Per-view style overrides. Keys are view IDs from diagram.json.",
@@ -27,8 +27,12 @@
       "$ref": "#/$defs/links_block"
     },
     "labels": {
-      "description": "Style for address annotation leader lines.",
-      "$ref": "#/$defs/style_block"
+      "description": "Style for address annotation labels (leader lines and text).",
+      "$ref": "#/$defs/labels_block"
+    },
+    "growth_arrow": {
+      "description": "Style for grows-up/grows-down arrow indicators on sections.",
+      "$ref": "#/$defs/growth_arrow_block"
     }
   },
   "$defs": {
@@ -36,7 +40,7 @@
       "description": "Any valid SVG color: named ('white'), hex ('#caf0f8'), rgb('rgb(33,43,56)'), or 'none'.",
       "type": "string"
     },
-    "style_props": {
+    "base_props": {
       "description": "All visual style properties. Used as a mixin via allOf.",
       "properties": {
         "background": {
@@ -110,34 +114,18 @@
             { "type": "null" }
           ]
         },
-        "growth_arrow_size": {
-          "description": "Arrow size multiplier for grows-up/grows-down sections.",
-          "type": "number"
-        },
-        "growth_arrow_fill": {
-          "description": "Fill color of the growth arrow body.",
-          "$ref": "#/$defs/color_string"
-        },
-        "growth_arrow_stroke": {
-          "description": "Outline color of the growth arrow.",
-          "$ref": "#/$defs/color_string"
-        },
-        "label_arrow_size": {
-          "description": "Arrow head size multiplier for address annotation labels.",
-          "type": "number"
-        }
       }
     },
-    "style_block": {
+    "base_block": {
       "description": "Style properties block with no extra keys allowed.",
       "type": "object",
-      "allOf": [{ "$ref": "#/$defs/style_props" }],
+      "allOf": [{ "$ref": "#/$defs/base_props" }],
       "unevaluatedProperties": false
     },
     "view_override": {
-      "description": "Style overrides for a single view panel. Accepts all style properties plus a 'sections' map.",
+      "description": "Style overrides for a single view panel. Accepts all style properties plus 'sections' and 'labels' maps.",
       "type": "object",
-      "allOf": [{ "$ref": "#/$defs/style_props" }],
+      "allOf": [{ "$ref": "#/$defs/base_props" }],
       "properties": {
         "sections": {
           "description": "Per-section style overrides within this view. Keys are section IDs from diagram.json.",
@@ -145,60 +133,167 @@
           "additionalProperties": {
             "description": "Style overrides for one section.",
             "type": "object",
-            "allOf": [{ "$ref": "#/$defs/style_props" }],
+            "allOf": [{ "$ref": "#/$defs/base_props" }],
             "unevaluatedProperties": false
           }
+        },
+        "labels": {
+          "description": "Per-label style overrides within this view. Keys are label IDs from diagram.json.",
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/labels_block" }
         }
       },
       "unevaluatedProperties": false
     },
-    "seg_shape": {
-      "description": "Segment edge shape. 'polygon' uses straight lines; 'curve' uses cubic Bézier curves.",
-      "type": "string",
-      "enum": ["polygon", "curve"]
-    },
     "seg_height": {
-      "description": "Span selector for a segment edge. 'source' = from.sections pixel span; 'destination' = to.sections pixel span. The vertical center of the edge is fixed automatically by segment position (source_seg→source center, dest_seg→dest center, middle_seg left→source center, middle_seg right→dest center); lheight/rheight only control the band width at that edge.",
-      "type": "string",
-      "enum": ["source", "destination"]
+      "description": "Span selector for a segment edge. 'source' = from.sections pixel span; 'destination' = to.sections pixel span; a non-negative number = literal pixel span (0 collapses the edge to a point). The vertical center is fixed by segment position; sheight/dheight only control the band width at that edge.",
+      "oneOf": [
+        { "type": "string", "enum": ["source", "destination"] },
+        { "type": "number", "minimum": 0 }
+      ]
     },
-    "links_block": {
-      "description": "Style for cross-view zoom band connectors. A band is divided into three segments: source_seg (outreach from source view), middle_seg (the connecting span), and dest_seg (outreach into destination view).",
+    "connector_block": {
+      "description": "Connector-style link: two trapezoidal ends joined by a center line. The source trapezoid widens from the middle-line width to the source region span; the destination trapezoid narrows from the destination region span back to the line width.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "source_seg_shape":   { "description": "Shape of the source outreach segment.", "$ref": "#/$defs/seg_shape" },
-        "source_seg_width":   { "description": "Width in pixels of the source outreach segment. 0 = no outreach.", "type": "number", "minimum": 0 },
-        "source_seg_lheight": { "description": "Height reference for the left (source-view) edge of the source segment.", "$ref": "#/$defs/seg_height" },
-        "source_seg_rheight": { "description": "Height reference for the right (junction) edge of the source segment.", "$ref": "#/$defs/seg_height" },
-        "middle_seg_shape":   { "description": "Shape of the middle connecting segment.", "$ref": "#/$defs/seg_shape" },
-        "middle_seg_lheight": { "description": "Height reference for the left edge of the middle segment.", "$ref": "#/$defs/seg_height" },
-        "middle_seg_rheight": { "description": "Height reference for the right edge of the middle segment.", "$ref": "#/$defs/seg_height" },
-        "dest_seg_shape":     { "description": "Shape of the destination outreach segment.", "$ref": "#/$defs/seg_shape" },
-        "dest_seg_width":     { "description": "Width in pixels of the destination outreach segment. 0 = no outreach.", "type": "number", "minimum": 0 },
-        "dest_seg_lheight":   { "description": "Height reference for the left (junction) edge of the destination segment.", "$ref": "#/$defs/seg_height" },
-        "dest_seg_rheight":   { "description": "Height reference for the right (dest-view) edge of the destination segment.", "$ref": "#/$defs/seg_height" },
+        "source": {
+          "description": "Source-end trapezoid.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "width": { "description": "Horizontal extent in pixels of the source trapezoid.", "type": "number", "minimum": 0 }
+          }
+        },
+        "destination": {
+          "description": "Destination-end trapezoid.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "width": { "description": "Horizontal extent in pixels of the destination trapezoid.", "type": "number", "minimum": 0 }
+          }
+        },
+        "middle": {
+          "description": "Middle line connecting the two trapezoids.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "width": { "description": "Stroke width in pixels of the middle line.", "type": "number", "minimum": 0 },
+            "shape": {
+              "description": "'curve' draws a cubic Bézier S-curve (line cap: butt); 'straight' draws a direct line (line cap: round).",
+              "type": "string",
+              "enum": ["straight", "curve"]
+            }
+          }
+        },
         "fill": {
-          "description": "Fill color for the band interior. Use 'none' for stroke-only.",
+          "description": "Color applied to both trapezoid fills and the middle line stroke.",
           "$ref": "#/$defs/color_string"
-        },
-        "stroke": {
-          "description": "Stroke color for the band edges. Use 'none' for fill-only.",
-          "$ref": "#/$defs/color_string"
-        },
-        "stroke_width": {
-          "description": "Stroke thickness in pixels.",
-          "type": "number"
-        },
-        "stroke_dasharray": {
-          "description": "SVG dash pattern for band edges, e.g. '8,4'.",
-          "type": "string"
         },
         "opacity": {
-          "description": "Overall band opacity.",
+          "description": "Overall connector opacity.",
           "type": "number",
           "minimum": 0,
           "maximum": 1
+        }
+      }
+    },
+    "band_seg_shape": {
+      "description": "Segment edge shape for band mode. 'straight' uses straight lines; 'curve' uses cubic Bézier curves.",
+      "type": "string",
+      "enum": ["straight", "curve"]
+    },
+    "band_block": {
+      "description": "Band-style link: three independently shaped segments (source outreach, middle span, destination outreach) with full fill/stroke control.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "description": "Source-end outreach segment.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "shape":   { "description": "Edge shape of the source segment.", "$ref": "#/$defs/band_seg_shape" },
+            "width":   { "description": "Width in pixels of the source outreach. 0 = no outreach.", "type": "number", "minimum": 0 },
+            "sheight": { "description": "Height at the source-view (outer) edge.", "$ref": "#/$defs/seg_height" },
+            "dheight": { "description": "Height at the junction (inner) edge.", "$ref": "#/$defs/seg_height" }
+          }
+        },
+        "middle": {
+          "description": "Middle connecting segment.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "shape":   { "description": "Edge shape of the middle segment.", "$ref": "#/$defs/band_seg_shape" },
+            "sheight": { "description": "Height at the source-side edge of the middle segment.", "$ref": "#/$defs/seg_height" },
+            "dheight": { "description": "Height at the destination-side edge of the middle segment.", "$ref": "#/$defs/seg_height" }
+          }
+        },
+        "destination": {
+          "description": "Destination-end outreach segment.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "shape":   { "description": "Edge shape of the destination segment.", "$ref": "#/$defs/band_seg_shape" },
+            "width":   { "description": "Width in pixels of the destination outreach. 0 = no outreach.", "type": "number", "minimum": 0 },
+            "sheight": { "description": "Height at the junction (inner) edge.", "$ref": "#/$defs/seg_height" },
+            "dheight": { "description": "Height at the destination-view (outer) edge.", "$ref": "#/$defs/seg_height" }
+          }
+        },
+        "fill":           { "description": "Fill color for the band interior. Use 'none' for stroke-only.", "$ref": "#/$defs/color_string" },
+        "stroke":         { "description": "Stroke color for the band edges. Use 'none' for fill-only.", "$ref": "#/$defs/color_string" },
+        "stroke_width":   { "description": "Stroke thickness in pixels.", "type": "number" },
+        "stroke_dasharray": { "description": "SVG dash pattern for band edges, e.g. '8,4'.", "type": "string" },
+        "opacity":        { "description": "Overall band opacity.", "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "growth_arrow_block": {
+      "description": "Style for the grows-up/grows-down arrow indicators on flagged sections.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "size":   { "description": "Arrow size multiplier.", "type": "number", "minimum": 0 },
+        "fill":   { "description": "Arrow body fill color.", "$ref": "#/$defs/color_string" },
+        "stroke": { "description": "Arrow outline color.", "$ref": "#/$defs/color_string" }
+      }
+    },
+    "link_style_override_block": {
+      "description": "Per-link visual overrides keyed by link id in links.overrides. Applied on top of the global connector/band style.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fill":             { "description": "Override fill color.", "$ref": "#/$defs/color_string" },
+        "opacity":          { "description": "Override opacity.", "type": "number", "minimum": 0, "maximum": 1 },
+        "stroke":           { "description": "Override stroke color (band mode only).", "$ref": "#/$defs/color_string" },
+        "stroke_width":     { "description": "Override stroke width in pixels (band mode only).", "type": "number", "minimum": 0 },
+        "stroke_dasharray": { "description": "Override SVG dash pattern (band mode only).", "type": "string" }
+      }
+    },
+    "labels_block": {
+      "description": "Style for address annotation labels: leader lines, arrow heads, and text.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "arrow_size":       { "description": "Arrow head size multiplier. Default 2.", "type": "number", "minimum": 0 },
+        "stroke":           { "description": "Leader line color.", "$ref": "#/$defs/color_string" },
+        "stroke_width":     { "description": "Leader line thickness in pixels.", "type": "number", "minimum": 0 },
+        "stroke_dasharray": { "description": "SVG dash pattern for the leader line, e.g. '4,2'.", "type": "string" },
+        "font_size":        { "description": "Label text font size in pixels.", "oneOf": [{ "type": "number" }, { "type": "string" }] },
+        "font_family":      { "description": "Label text font family.", "type": "string" },
+        "text_fill":        { "description": "Label text color.", "$ref": "#/$defs/color_string" }
+      }
+    },
+    "links_block": {
+      "description": "Style for cross-view zoom band connectors. Define 'connector' (recommended) or 'band', plus optional per-link overrides under 'overrides'.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "connector": { "$ref": "#/$defs/connector_block" },
+        "band":      { "$ref": "#/$defs/band_block" },
+        "overrides": {
+          "description": "Per-link style overrides. Keys are link ids from diagram.json.",
+          "type": "object",
+          "additionalProperties": { "$ref": "#/$defs/link_style_override_block" }
         }
       }
     }

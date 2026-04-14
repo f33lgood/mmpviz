@@ -35,6 +35,7 @@ class Links:
     Validated entries are stored in ``self.entries`` as a list of dicts::
 
         {
+          'id':            str,
           'from_view':     str,
           'from_sections': list[str] | None,   # None = whole view
           'to_view':       str,
@@ -87,16 +88,23 @@ class Links:
                     f"Link entry {i}: 'to.view' must be a non-empty string, skipping")
                 continue
 
+            link_id = entry.get('id')
+            if not isinstance(link_id, str) or not link_id:
+                logger.warning(
+                    f"Link entry {i}: 'id' must be a non-empty string, skipping")
+                continue
+
             from_sections = self._validate_sections_spec(
                 from_obj.get('sections'), f"Link entry {i} from.sections")
             to_sections = self._validate_sections_spec(
                 to_obj.get('sections'), f"Link entry {i} to.sections")
 
             self.entries.append({
-                'from_view': from_view,
+                'id':            link_id,
+                'from_view':     from_view,
                 'from_sections': from_sections,
-                'to_view': to_view,
-                'to_sections': to_sections,
+                'to_view':       to_view,
+                'to_sections':   to_sections,
             })
 
     def _validate_sections_spec(self, sections, context: str):

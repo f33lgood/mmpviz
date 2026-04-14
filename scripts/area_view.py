@@ -55,7 +55,13 @@ class AreaView:
             default=DefaultAppValues.SIZE_Y)
 
         label_style = theme.resolve_labels() if theme else style
-        self.labels = Labels(safe_element_dict_get(self.area, 'labels', []), label_style)
+        view_id = safe_element_dict_get(self.area, 'id', '')
+        label_overrides = theme.resolve_label_overrides(view_id) if theme else {}
+        self.labels = Labels(
+            safe_element_dict_get(self.area, 'labels', []),
+            label_style,
+            label_overrides,
+        )
         self.title = safe_element_dict_get(self.area, 'title', DefaultAppValues.TITLE)
         self.address_to_pxl = (self.end_address - self.start_address) / self.size_y
 

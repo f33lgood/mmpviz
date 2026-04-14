@@ -16,7 +16,7 @@ _THEMES_DIR = os.path.normpath(os.path.join(_HERE, '..', 'themes'))
 _MAX_INHERITANCE_DEPTH = 10
 _KNOWN_TOP_LEVEL_KEYS = frozenset({
     "schema_version", "extends",
-    "style", "views", "links", "labels"
+    "base", "views", "links", "labels", "growth_arrow"
 })
 
 
@@ -30,7 +30,7 @@ class Theme:
 
     Style resolution order (later overrides earlier):
       1. DEFAULT (built-in baseline)
-      2. theme["style"] (user global overrides)
+      2. theme["base"] (user global overrides)
       3. theme["views"][view_id] (view-level overrides, minus the 'sections' subkey)
       4. theme["views"][view_id]["sections"][section_id] (section-level overrides)
 
@@ -54,10 +54,6 @@ class Theme:
         "text_stroke_width": 0,
         "opacity": 1,
         "break_height": 20,
-        "growth_arrow_size": 1,
-        "growth_arrow_fill": "white",
-        "growth_arrow_stroke": "black",
-        "label_arrow_size": 2,
     }
 
     def __init__(self, path: str = None):
@@ -158,7 +154,7 @@ class Theme:
         for key in raw:
             if key not in _KNOWN_TOP_LEVEL_KEYS:
                 logger.warning(f"Theme '{path}': unrecognized top-level key '{key}' (ignored)")
-        for block in ("style", "views", "links", "labels"):
+        for block in ("base", "views", "links", "labels", "growth_arrow"):
             val = raw.get(block)
             if val is not None and not isinstance(val, dict):
                 raise ThemeError(
@@ -170,15 +166,55 @@ class Theme:
     # ------------------------------------------------------------------
 
     @staticmethod
+    def _merge_links(p_links: dict, c_links: dict) -> dict:
+        """Merge two links dicts.
+
+        connector and band sub-objects are merged two levels deep so that a
+        child theme can override individual nested keys (e.g. connector.fill)
+        without losing keys it did not mention (e.g. connector.source.width).
+        overrides is merged shallowly per link id.
+        """
+        result = {}
+        for mode in ('connector', 'band'):
+            p = p_links.get(mode, {})
+            c = c_links.get(mode, {})
+            if not p and not c:
+                continue
+            merged = dict(p)
+            for k, v in c.items():
+                if isinstance(v, dict) and isinstance(merged.get(k), dict):
+                    merged[k] = {**merged[k], **v}
+                else:
+                    merged[k] = v
+            result[mode] = merged
+
+        # overrides: shallow merge per link id
+        p_ov = p_links.get('overrides', {})
+        c_ov = c_links.get('overrides', {})
+        if p_ov or c_ov:
+            merged_ov = {}
+            for lid in set(p_ov) | set(c_ov):
+                merged_ov[lid] = {**p_ov.get(lid, {}), **c_ov.get(lid, {})}
+            result['overrides'] = merged_ov
+
+        return result
+
+    @staticmethod
     def _merge(parent, child):
         """Deep-merge child onto parent. Child values win. Returns a new dict."""
         result = {}
 
         # Shallow-merge flat blocks
-        for block in ("style", "links", "labels"):
+        for block in ("base", "labels", "growth_arrow"):
             merged = {**parent.get(block, {}), **child.get(block, {})}
             if merged:
                 result[block] = merged
+
+        # Links: two-level merge (connector/band sub-objects merged shallowly)
+        p_links = parent.get("links", {})
+        c_links = child.get("links", {})
+        if p_links or c_links:
+            result["links"] = Theme._merge_links(p_links, c_links)
 
         # Views: two-level merge
         p_views = parent.get("views", {})
@@ -194,15 +230,25 @@ class Theme:
         for vid in set(p_views) | set(c_views):
             p = p_views.get(vid, {})
             c = c_views.get(vid, {})
+            # merge sections map: shallow merge per section id
             p_secs = p.get("sections", {})
             c_secs = c.get("sections", {})
             merged_secs = {}
             for sid in set(p_secs) | set(c_secs):
                 merged_secs[sid] = {**p_secs.get(sid, {}), **c_secs.get(sid, {})}
-            merged = {k: v for k, v in p.items() if k != "sections"}
-            merged.update({k: v for k, v in c.items() if k != "sections"})
+            # merge labels map: shallow merge per label id
+            p_labs = p.get("labels", {})
+            c_labs = c.get("labels", {})
+            merged_labs = {}
+            for lid in set(p_labs) | set(c_labs):
+                merged_labs[lid] = {**p_labs.get(lid, {}), **c_labs.get(lid, {})}
+            # flat view-level style (exclude sub-maps)
+            merged = {k: v for k, v in p.items() if k not in ("sections", "labels")}
+            merged.update({k: v for k, v in c.items() if k not in ("sections", "labels")})
             if merged_secs:
                 merged["sections"] = merged_secs
+            if merged_labs:
+                merged["labels"] = merged_labs
             result[vid] = merged
         return result
 
@@ -211,21 +257,30 @@ class Theme:
     # ------------------------------------------------------------------
 
     def _base(self) -> dict:
-        """Merge built-in defaults with theme-level style."""
-        return {**self.DEFAULT, **{k: v for k, v in self._data.get('style', {}).items()}}
+        """Merge built-in defaults with the theme's base block."""
+        return {**self.DEFAULT, **self._data.get('base', {})}
 
     def resolve(self, view_id: str, section_id: str = None) -> dict:
         """Resolve and return a merged style dict for the given view (and optionally section)."""
         base = self._base()
 
         area_data = self._data.get('views', {}).get(view_id, {})
-        area_style = {k: v for k, v in area_data.items() if k != 'sections'}
+        area_style = {k: v for k, v in area_data.items() if k not in ('sections', 'labels')}
 
         section_style = {}
         if section_id:
             section_style = area_data.get('sections', {}).get(section_id, {})
 
         return {**base, **area_style, **section_style}
+
+    def resolve_label_overrides(self, view_id: str) -> dict:
+        """Return per-label style overrides for a view, keyed by label id."""
+        area_data = self._data.get('views', {}).get(view_id, {})
+        return area_data.get('labels', {})
+
+    def resolve_growth_arrow(self) -> dict:
+        """Return the resolved growth arrow style dict."""
+        return self._data.get('growth_arrow', {})
 
     def resolve_links(self) -> dict:
         """Return the resolved links style dict.

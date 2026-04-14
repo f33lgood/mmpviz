@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "style": {
+  "base": {
     "background": "#ffffff",
     "fill": "#e8e8e8",
     "break_fill": "#ffffff",
@@ -13,33 +13,27 @@
     "text_stroke_width": 0,
     "opacity": 1,
     "break_height": 20,
-    "growth_arrow_size": 1,
-    "growth_arrow_fill": "#e8e8e8",
-    "growth_arrow_stroke": "#555555",
     "min_section_height": 20,
-    "max_section_height": 300,
-    "label_arrow_size": 2
+    "max_section_height": 300
   },
   "links": {
-    "source_seg_shape":   "polygon",
-    "source_seg_width":   0,
-    "source_seg_lheight": "source",
-    "source_seg_rheight": "source",
-    "middle_seg_shape":   "curve",
-    "middle_seg_lheight": "source",
-    "middle_seg_rheight": "source",
-    "dest_seg_shape":     "curve",
-    "dest_seg_width":     30,
-    "dest_seg_lheight":   "source",
-    "dest_seg_rheight":   "destination",
-    "fill":               "#e8e8e8",
-    "stroke":             "none",
-    "stroke_width":       1,
-    "opacity":            0.7
+    "connector": {
+      "source":      { "width": 25 },
+      "destination": { "width": 25 },
+      "middle":      { "width": 10, "shape": "curve" },
+      "fill":        "#e8e8e8",
+      "opacity":     0.7
+    }
+  },
+  "growth_arrow": {
+    "size":   1,
+    "fill":   "#e8e8e8",
+    "stroke": "#555555"
   },
   "labels": {
-    "stroke": "#555555",
-    "stroke_width": 1,
+    "arrow_size":       2,
+    "stroke":           "#555555",
+    "stroke_width":     1,
     "stroke_dasharray": "4,2"
   }
 }
