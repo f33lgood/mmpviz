@@ -33,20 +33,9 @@ Each entry in `views` defines one memory view panel in the SVG diagram. A view o
 
 ### Auto-layout
 
-The auto-layout engine always runs — view positions and canvas size are computed
-automatically:
-
-1. **Link graph** — a DAG is built from the `links` array (one directed edge per
-   entry, `from.view → to.view`). When `links` is absent or empty, all views have
-   no edges and are placed in a single column.
-2. **Column assignment** — BFS from roots (views with no incoming edges) assigns
-   each view to a layout column (`column = max depth from any root`).
-3. **Bin-packing** — within each DAG column, views are greedily stacked until
-   the column would overflow; excess views spill into a new sub-column.
-4. **Height estimation** — each view's height is set to
-   `Σ max(min_section_height, section.min_height) + n_breaks × (break_height + 4) + 20`,
-   guaranteeing all sections can reach their effective minimum height.
-5. **Canvas sizing** — the SVG canvas is sized to exactly contain all placed views.
+View positions and canvas size are computed automatically — `pos`, `size`, and the
+diagram-level `size` field are deprecated and ignored. See
+`references/auto-layout-algorithm.md` for the full layout algorithm description.
 
 ---
 

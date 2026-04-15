@@ -121,7 +121,7 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `font_size` | number or string | `16` | Font size in px (number or `"16px"`) |
+| `font_size` | number or string | `13` ¹ | Font size in px (number or `"16px"`) |
 | `font_family` | string | `"Helvetica"` | Font family |
 | `text_fill` | color string | `"black"` | Text color for the section **name** label inside the box. Address labels outside the box always use the view-level `text_fill`, so a dark-background section with `"text_fill": "#ffffff"` does not turn its boundary address labels white. |
 | `text_stroke` | color string | `"black"` | Text outline color |
@@ -143,7 +143,7 @@ Controls how pixel height is distributed across subareas (regions between break 
 | `min_section_height` | number | `20` ¹ | Guarantees every visible section renders at least this many pixels tall. The renderer redistributes height so that the smallest visible section meets this threshold. |
 | `max_section_height` | number | `300` ¹ | Caps the pixel height of any single section so it cannot crowd out neighbors. |
 
-¹ Default values come from `themes/default.json`.
+¹ Default values come from `themes/default.json`, which is auto-loaded when `-t` is omitted. This includes `font_size: 13`, `min_section_height: 20`, and `max_section_height: 300`.
 
 **How they interact:**
 - When neither is set, sections are sized strictly proportional to their byte range.

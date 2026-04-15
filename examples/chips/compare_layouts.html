@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Layout algorithm comparison — chips</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #f4f4f4; margin: 0; padding: 16px; }
+  h1 { margin: 0 0 4px; font-size: 1.3rem; }
+  p.note { margin: 0 0 20px; color: #555; font-size: 0.85rem; }
+  .chip-section { margin-bottom: 48px; }
+  .chip-section h2 { font-size: 1.1rem; margin: 0 0 8px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+  .side-by-side { display: flex; gap: 24px; align-items: flex-start; }
+  .col { flex: 1; min-width: 0; }
+  .col h3 { margin: 0 0 6px; font-size: 0.9rem; color: #333; }
+  .col .meta { font-size: 0.78rem; color: #777; margin-bottom 6px; }
+  .svg-frame { background: white; border: 1px solid #ddd; border-radius: 4px;
+               overflow: auto; max-height: 600px; padding: 8px; }
+  .svg-frame img { display: block; max-width: 100%; height: auto; }
+  .unchanged { opacity: 0.5; font-style: italic; }
+</style>
+</head>
+<body>
+<h1>Layout algorithm comparison — chips examples</h1>
+<p class="note">
+  <b>algo1</b>: one visual column per DAG level (original behaviour) &nbsp;|&nbsp;
+  <b>algo2</b>: height-rebalancing with outlier extraction + trailing overflow
+  &nbsp;|&nbsp; Dimmed rows had identical output from both algorithms.
+</p>
+
+<div class="chip-section">
+  <h2>stm32f103 &nbsp;<small style="color:#c00">algo1: 740×1812 (H/W 2.45) → algo2: 1090×1062 (H/W 0.97)</small></h2>
+  <div class="side-by-side">
+    <div class="col">
+      <h3>algo1 (original)</h3>
+      <div class="svg-frame"><img src="stm32f103/algo1.svg" alt="stm32f103 algo1"></div>
+    </div>
+    <div class="col">
+      <h3>algo2 (rebalanced)</h3>
+      <div class="svg-frame"><img src="stm32f103/algo2.svg" alt="stm32f103 algo2"></div>
+    </div>
+  </div>
+</div>
+
+<div class="chip-section">
+  <h2>opentitan_earlgrey &nbsp;<small style="color:#c00">algo1: 740×1558 (H/W 2.11) → algo2: 1090×890 (H/W 0.82)</small></h2>
+  <div class="side-by-side">
+    <div class="col">
+      <h3>algo1 (original)</h3>
+      <div class="svg-frame"><img src="opentitan_earlgrey/algo1.svg" alt="opentitan algo1"></div>
+    </div>
+    <div class="col">
+      <h3>algo2 (rebalanced)</h3>
+      <div class="svg-frame"><img src="opentitan_earlgrey/algo2.svg" alt="opentitan algo2"></div>
+    </div>
+  </div>
+</div>
+
+<div class="chip-section unchanged">
+  <h2>caliptra &nbsp;<small style="color:#888">unchanged — 746×902 (H/W 1.21) already within target</small></h2>
+  <div class="side-by-side">
+    <div class="col">
+      <h3>algo1 / algo2 (identical)</h3>
+      <div class="svg-frame"><img src="caliptra/algo1.svg" alt="caliptra"></div>
+    </div>
+  </div>
+</div>
+
+<div class="chip-section unchanged">
+  <h2>pulpissimo &nbsp;<small style="color:#888">unchanged — 1090×544 (H/W 0.50) already within target</small></h2>
+  <div class="side-by-side">
+    <div class="col">
+      <h3>algo1 / algo2 (identical)</h3>
+      <div class="svg-frame"><img src="pulpissimo/algo1.svg" alt="pulpissimo"></div>
+    </div>
+  </div>
+</div>
+
+<div class="chip-section unchanged">
+  <h2>riscv64_virt &nbsp;<small style="color:#888">unchanged — 876×540 (H/W 0.62) already within target</small></h2>
+  <div class="side-by-side">
+    <div class="col">
+      <h3>algo1 / algo2 (identical)</h3>
+      <div class="svg-frame"><img src="riscv64_virt/algo1.svg" alt="riscv64_virt"></div>
+    </div>
+  </div>
+</div>
+
+<div class="chip-section unchanged">
+  <h2>arm_coresight_dual_view &nbsp;<small style="color:#888">unchanged — 746×700 (H/W 0.94) already within target</small></h2>
+  <div class="side-by-side">
+    <div class="col">
+      <h3>algo1 / algo2 (identical)</h3>
+      <div class="svg-frame"><img src="arm_coresight_dual_view/algo1.svg" alt="arm_coresight_dual_view"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

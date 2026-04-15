@@ -59,7 +59,7 @@ Full TL-UL crossbar SoC with 71 sections across four panels. Auto-layout fits th
 
 ## Key features
 
-- **Auto-layout** — omit `pos`/`size` entirely. The tool builds a containment graph, assigns panels to columns by depth, and sizes each panel so every section is readable. Canvas grows to fit.
+- **Auto-layout** — omit `pos`/`size` entirely. The tool builds a containment graph, assigns panels to columns by depth, and sizes each panel so every section is readable. Canvas grows to fit. Two layout algorithms are available via `--layout algo1|algo2` (algo2 is the default; it rebalances column heights to keep the canvas aspect ratio near 1:1).
 - **Multi-level zoom** — link panels together with address-matched zoom bands. Drill from a 4GB overview down to 128-byte register blocks.
 - **Break compression** — mark sparse address gaps as `"break"` sections. They collapse to a thin separator; the remaining panel height is redistributed proportionally.
 - **Growth arrows** — annotate stack/heap regions with directional arrows via `"grows-up"` / `"grows-down"` flags.
@@ -137,10 +137,7 @@ Two inputs, one output:
 
 The `id` field in `diagram.json` sections is the key that connects data to theme overrides. Sections without a theme entry use the area default, which falls back to the global default.
 
-**Validate before rendering:**
-```bash
-python scripts/mmpviz.py -d diagram.json --validate
-```
+Schema validation and layout checks run automatically before every render. `[ERROR]` issues abort the render; `[WARNING]` issues are printed but SVG is still written.
 
 ---
 
@@ -211,7 +208,7 @@ Built-in themes in `themes/`: `default.json` (auto-loaded), `plantuml.json`
 | `references/create-diagram.md` | Step-by-step authoring guide |
 | `references/diagram-schema.md` | All `diagram.json` fields, types, and defaults |
 | `references/theme-schema.md` | All `theme.json` style properties; examples and tips |
-| `references/auto-layout-algorithm.md` | Auto-layout implementation reference and remaining work |
+| `references/auto-layout-algorithm.md` | Auto-layout implementation reference: algo1 (one column per DAG level) and algo2 (height-rebalancing, default) |
 | `references/check-rules.md` | Validation rules and remediation |
 
 ---

@@ -13,7 +13,9 @@ It is authoritative for understanding and maintaining the code.
 4. [Column Assignment](#4-column-assignment)
 5. [View Ordering Within a Column](#5-view-ordering-within-a-column)
 6. [View Height Estimation](#6-view-height-estimation)
-7. [DAG Column Placement](#7-dag-column-placement)
+7. [Layout Algorithms](#7-layout-algorithms)
+   - [7.1 Algo-1: One Visual Column per DAG Level](#71-algo-1-one-visual-column-per-dag-level)
+   - [7.2 Algo-2: Height-Rebalancing (default)](#72-algo-2-height-rebalancing-default)
 8. [Column Width and Inter-Column Spacing](#8-column-width-and-inter-column-spacing)
 9. [Canvas Sizing](#9-canvas-sizing)
 10. [Link Band Endpoint Positioning](#10-link-band-endpoint-positioning)
@@ -35,10 +37,18 @@ get_area_views()
     ├─ assign_columns()               # auto_layout.py — BFS depth → column index
     ├─ _estimate_area_height()        # mmpviz.py — quick height estimate per view
     ├─ sort_by_dag_tree()             # auto_layout.py — DAG-tree ordering pre-sort
+    ├─ rebalance_columns()            # auto_layout.py — algo-2 only: height rebalancing
     ├─ _auto_layout()                 # mmpviz.py — DAG column placement, assigns pos + size
     ├─ order_within_column()          # auto_layout.py — crossing minimisation post-sort
     └─ AreaView(...)                  # area_view.py — section height algorithm per view
 ```
+
+The layout algorithm is selected with the `--layout` CLI flag:
+
+| Flag | Algorithm | Default |
+|------|-----------|---------|
+| `--layout algo1` | One visual column per DAG level | |
+| `--layout algo2` | Height-rebalancing with outlier extraction | ✓ |
 
 When `links` is absent or empty, all views get an empty adjacency list (all
 column 0), and auto-layout stacks them vertically in a single column.
@@ -308,8 +318,9 @@ It remains active as a correctness backstop.
 
 **Location:** `_estimate_area_height()` in `scripts/mmpviz.py`
 
-A lightweight estimate used by `_auto_layout()` for bin-packing and initial
-size assignment.  Does not run the full section-height algorithm.
+A lightweight estimate used by `_auto_layout()` and `rebalance_columns()` for
+column height decisions and initial size assignment.  Does not run the full
+section-height algorithm.
 
 ```python
 for each visible section s:
@@ -328,44 +339,14 @@ height increase is absorbed by canvas auto-expansion (§9).
 
 ---
 
-## 7. DAG Column Placement
+## 7. Layout Algorithms
 
-**Location:** `_auto_layout()` in `scripts/mmpviz.py`
+**Shared entry point:** `_auto_layout()` in `scripts/mmpviz.py` receives a
+`columns` dict and assigns pixel `pos` and `size` to every view.  Both
+algorithms ultimately feed into `_auto_layout()`; they differ only in which
+`columns` dict is passed.
 
-### 7.1 Grouping by DAG column
-
-```python
-col_cfgs = {dag_col: [area_configs in that column]}
-```
-
-### 7.2 One visual column per DAG level
-
-All views assigned to the same DAG column are placed in a single visual column —
-no height-based splitting or bin-packing is applied.  The SVG canvas expands
-vertically via `_auto_canvas_size()` to accommodate all stacked views.
-
-```python
-final_cols = []
-for dag_col in sorted(col_cfgs.keys()):
-    final_cols.append(list(col_cfgs[dag_col]))
-```
-
-Views are never scaled down: each keeps its full estimated height so all
-sections can reach their effective minimum.
-
-### 7.3 Position assignment
-
-```python
-for col_idx, bin_cfgs in enumerate(final_cols):
-    x = x_starts[col_idx]   # cumulative, accounting for per-column gap
-    y = TITLE_SPACE
-    for cfg in bin_cfgs:
-        cfg['pos']  = [x, y]
-        cfg['size'] = [col_width, estimated_height]
-        y += estimated_height + PADDING
-```
-
-**Layout constants:**
+**Layout constants (shared by both):**
 
 | Constant              | Value   | Purpose                                           |
 |-----------------------|---------|---------------------------------------------------|
@@ -373,7 +354,120 @@ for col_idx, bin_cfgs in enumerate(final_cols):
 | `TITLE_SPACE`         | 60 px   | Vertical space above views (titles)               |
 | `MAX_COL_WIDTH`       | 230 px  | Maximum box width (readability cap)               |
 | Title render offset   | −20 px  | Title text y-position relative to panel `pos_y`  |
-| `_TITLE_CLEARANCE_PX` | 25 px   | Vertical clearance zone above each panel checked by `check.py` for `title-overlap`; derived from title render offset + cap-height margin |
+| `_TITLE_CLEARANCE_PX` | 25 px   | Vertical clearance zone above each panel checked by `check.py` for `title-overlap` |
+
+---
+
+### 7.1 Algo-1: One Visual Column per DAG Level
+
+**Location:** `_auto_layout()` in `scripts/mmpviz.py`; selected with `--layout algo1`.
+
+All views assigned to the same DAG column are placed in a single visual column.
+No height-based splitting is applied; the SVG canvas expands vertically to fit.
+
+```python
+col_cfgs = {dag_col: [area_configs in that column]}
+final_cols = [col_cfgs[c] for c in sorted(col_cfgs)]
+
+for col_idx, bin_cfgs in enumerate(final_cols):
+    x = x_starts[col_idx]
+    y = TITLE_SPACE
+    for cfg in bin_cfgs:
+        cfg['pos']  = [x, y]
+        cfg['size'] = [col_width, estimated_height]
+        y += estimated_height + PADDING
+```
+
+Views are never scaled down: each keeps its full estimated height so all
+sections reach their effective minimum.
+
+**Characteristic behaviour:** when a single DAG column contains many or very
+tall views (e.g. a star topology where one child view has 40+ sections), the
+resulting canvas can be very tall relative to its width (H/W > 2).
+
+---
+
+### 7.2 Algo-2: Height-Rebalancing (default)
+
+**Location:** `rebalance_columns()` in `scripts/auto_layout.py`;
+selected with `--layout algo2` (the default).
+
+`rebalance_columns()` runs after `sort_by_dag_tree()` and before `_auto_layout()`.
+It takes the initial DAG column assignment and adjusts visual column indices so
+that no column's stacked height exceeds `target_ratio × canvas_width` (default 1.3).
+The resulting column dict is then handed to `_auto_layout()` unchanged.
+
+#### Target height and rolling budget
+
+```python
+target_h = canvas_width() * target_ratio   # recomputed after every column addition
+canvas_width = CANVAS_LEFT + n_cols * col_width + (n_cols - 1) * col_gap
+```
+
+Because adding a column widens the canvas, the target height grows with each
+split.  Subsequent columns therefore get a larger budget — later splits are
+conservative and only happen when the column is genuinely too tall.
+
+#### Per-column loop
+
+Columns are processed left to right.  For each column whose height exceeds
+`target_h` and which has more than one view:
+
+**Pass 1 — outlier extraction**
+
+A view is an outlier if its estimated height exceeds
+`outlier_factor × column_average` (default 1.5×).  The tallest outlier is
+moved to visual column `C + 1`; the column is re-evaluated (another outlier
+may now exist).  This handles a single dominant view sitting in the middle of
+an otherwise short column.
+
+```
+avg = mean(heights in column C)
+if any view height > 1.5 × avg:
+    move tallest such view to column C+1
+    → re-evaluate column C
+```
+
+**Pass 2 — trailing overflow**
+
+When no outlier exists but the column is still over budget, the bottom view in
+tree order is moved to column `C + 1`.  This handles the case where several
+moderately sized views collectively overflow.
+
+```
+if no outlier found and col_height > target_h:
+    move last view (in tree order) to column C+1
+    → re-evaluate column C
+```
+
+#### Descendant propagation
+
+Whenever a view V moves from column N to column N+1, every descendant
+currently at column ≤ N+1 is recursively pushed to column N+2+, preserving
+`visual_col[child] > visual_col[parent]`:
+
+```python
+def _push_descendants(vid, min_col):
+    for child in children[vid]:
+        if vis_col[child] < min_col:
+            vis_col[child] = min_col
+            _push_descendants(child, min_col + 1)
+```
+
+#### Non-adjacent links
+
+A view extracted to column N+1 has its parent in column N−1, making that
+link non-adjacent (spanning over column N).  The renderer draws the band
+spanning the full horizontal distance; this is visually acceptable for
+memory-map diagrams and no special routing is applied.
+
+#### Effect on example diagrams
+
+| Diagram | Algo-1 | Algo-2 |
+|---------|--------|--------|
+| `chips/stm32f103` | 740×1812 H/W=2.45 | 1090×1062 H/W=0.97 |
+| `chips/opentitan_earlgrey` | 740×1558 H/W=2.11 | 1090×890 H/W=0.82 |
+| All other examples | — | identical (already within target) |
 
 ---
 
@@ -498,7 +592,6 @@ decisions, and superseded approaches have been removed.
 
 | Topic | Current state | Notes |
 |-------|---------------|-------|
-| **Smarter column splitting** | Pure DAG: one visual column per DAG level; canvas grows vertically to fit | When a single DAG column contains many tall views, the result may be very tall. A future algorithm could split a DAG column into sub-columns by grouping sibling views (e.g. by parent, or by height budget), while still keeping each sibling group contiguous. |
 | **View height computation** | `_estimate_area_height()`: sums per-section `max(global_min_h, section.min_height)` + break budget; returns `max(200.0, estimated)` | Estimate still under-counts label-conflict inflation; canvas over-expansion absorbs the difference. Replace with exact per-section computation using the Phase 1 algorithm. |
 | **Minimum view height** | `max(200.0, estimated)` — hardcoded 200 px floor | Replace with principled formula: `max(H_view, 3 × min_h)`. |
 | **Box width from label length** | Fixed `MAX_COL_WIDTH = 230 px` | Long section names clip silently; compute during height pre-pass using `max(120, longest_name × font × 0.55)`. |

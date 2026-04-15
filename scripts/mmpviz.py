@@ -20,7 +20,8 @@ import sys
 
 from area_view import AreaView
 from auto_layout import (build_link_graph_from_links, assign_columns,
-                         sort_by_dag_tree, order_within_column)
+                         sort_by_dag_tree, order_within_column,
+                         rebalance_columns)
 from helpers import safe_element_list_get, safe_element_dict_get, DefaultAppValues
 from links import Links
 from fmt_diagram import format_diagram
@@ -64,6 +65,12 @@ def parse_arguments():
                              '(or as a standalone operation when -o is omitted).',
                         action='store_true',
                         default=False)
+    parser.add_argument('--layout',
+                        choices=['algo1', 'algo2'],
+                        default='algo2',
+                        help=('Auto-layout algorithm: '
+                              'algo1 = one visual column per DAG level; '
+                              'algo2 = height-rebalancing with outlier extraction (default).'))
     parser.add_argument('--version', '-v',
                         action='version',
                         version=f'mmpviz {__version__}')
@@ -321,7 +328,7 @@ def _estimate_area_height(sections: list, style: dict) -> float:
 
 
 def get_area_views(base_style: dict, diagram: dict, theme: Theme,
-                   links=None) -> list:
+                   links=None, layout_algo: str = 'algo2') -> list:
     """
     Build AreaView objects from diagram config.
 
@@ -390,6 +397,15 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
         }
         area_configurations = sort_by_dag_tree(
             area_configurations, columns, links.entries, sec_mid_addrs)
+
+    # --- Algo-2: height-rebalancing column reassignment (optional) ---
+    if layout_algo == 'algo2' and links is not None and links.entries:
+        columns = rebalance_columns(
+            columns=columns,
+            area_configs=area_configurations,
+            area_heights=area_heights,
+            link_entries=links.entries,
+        )
 
     # --- Single layout pass ---
     area_configurations = _auto_layout(
@@ -526,7 +542,8 @@ def main():
     growth_arrow_style = theme.resolve_growth_arrow()
 
     # Build area views — auto-layout always runs
-    area_views = get_area_views(base_style, diagram, theme, links=links)
+    area_views = get_area_views(base_style, diagram, theme, links=links,
+                                layout_algo=args.layout)
     if not area_views:
         print("Error: no area views could be created. Check diagram.json configuration.")
         sys.exit(1)

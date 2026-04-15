@@ -82,12 +82,12 @@ Browse these for patterns before authoring from scratch:
 | Directory | What it demonstrates |
 |-----------|----------------------|
 | `examples/chips/` | Real chip memory maps (STM32, RISC-V, ARM CoreSight, etc.) |
-| `examples/link/` | Link band styles (polygon, curve) and anchor variants |
+| `examples/link/` | Link band styles (connector, band) and anchor variants |
 | `examples/stack/` | Stack and guard-page layout patterns |
-| `examples/break/` | Break section usage for large address gaps |
-| `examples/labels/` | Address label annotations |
-| `examples/height/` | Per-section and global height overrides |
-| `examples/themes/` | Theme variations (default, plantuml) |
+| `examples/diagram/break/` | Break section usage for large address gaps |
+| `examples/diagram/labels/` | Address label annotations |
+| `examples/layout/` | Per-section and global height overrides; column ordering |
+| `examples/themes/` | Per-section and per-link style overrides |
 
 Each example contains a `diagram.json` and a `golden.svg`.
 
