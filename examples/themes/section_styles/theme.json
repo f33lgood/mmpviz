@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "extends": "default",
+  "views": {
+    "soc": {
+      "sections": {
+        "flash":    { "fill": "#aed6f1" },
+        "sram":     { "fill": "#a9dfbf" },
+        "periph":   { "fill": "#fdebd0" },
+        "reserved": { "fill": "#d5d8dc" }
+      }
+    }
+  }
+}

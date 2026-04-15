@@ -22,6 +22,21 @@ Writing guide:
 
 ---
 
+## [2026-04-15]
+
+### Added
+- **`examples/themes/section_styles/`** — demonstrates per-section `fill` overrides via `views[id].sections[id]` in `theme.json`; four-region SoC map (Flash, SRAM, Peripherals, Reserved) with semantic coloring.
+- **`examples/themes/per_link/`** — demonstrates per-link `fill`/`opacity` overrides via `links.overrides` in `theme.json`; three individually-colored connectors on a three-region overview-to-detail map.
+
+### Changed
+- **`examples/diagram/`** — new folder for core diagram primitive demos; `examples/break/` and `examples/labels/` moved here.
+
+### Removed
+- **`examples/chips/arm_coresight_line_link/`** — became identical to `examples/chips/arm_coresight_dual_view/` once its connector-color theme override was removed; superseded by it.
+- **`examples/themes/default/`**, **`examples/themes/plantuml/`** — theme-preview examples superseded by the chip examples that already demonstrate both built-in themes on real hardware maps.
+
+---
+
 ## [2026-04-14]
 
 ### Added

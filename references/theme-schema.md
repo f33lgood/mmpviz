@@ -382,8 +382,8 @@ Any valid SVG color string is accepted:
 | `examples/link/band_fill/theme.json` | `band` — filled straight trapezoid spanning source→destination, no source/dest outreach |
 | `examples/link/band_stroke/theme.json` | `band` — dashed stroke outline, no fill |
 | `examples/link/band_segments/theme.json` | `band` — three explicit segments with matching heights at junctions |
-| `examples/link/per_link/theme.json` | `links.overrides` — three individually colored links keyed by link `id` |
-| `examples/stack/basic/theme.json` | `extends` + per-view `sections` overrides — section-level fills |
+| `examples/themes/per_link/theme.json` | `links.overrides` — three individually colored links keyed by link `id` |
+| `examples/themes/section_styles/theme.json` | `extends` + per-view `sections` overrides — section-level fills |
 | `examples/chips/stm32f103/theme.json` | `extends: "plantuml"` + per-view overrides — multi-panel chip diagram |
 | `examples/chips/caliptra/theme.json` | Per-section colors via `views[id].sections[id]` — six independently styled panels |
 

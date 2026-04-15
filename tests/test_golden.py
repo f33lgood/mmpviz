@@ -288,11 +288,11 @@ class GoldenTest(unittest.TestCase):
     def test_stack_shadow_stack(self):
         self._run_path('stack', 'shadow_stack')
 
-    def test_break(self):
-        self._run_named('break')
+    def test_diagram_break(self):
+        self._run_path('diagram', 'break')
 
-    def test_labels(self):
-        self._run_named('labels')
+    def test_diagram_labels(self):
+        self._run_path('diagram', 'labels')
 
     def test_layout_column_order(self):
         self._run_path('layout', 'column_order')
@@ -327,8 +327,23 @@ class GoldenTest(unittest.TestCase):
     def test_chip_riscv64_virt(self):
         self._run_path('chips', 'riscv64_virt')
 
-    def test_theme_plantuml(self):
-        self._run_path('themes', 'plantuml')
+    def test_theme_section_styles(self):
+        self._run_path('themes', 'section_styles')
+
+    def test_theme_per_link(self):
+        self._run_path('themes', 'per_link')
+
+    def test_chip_arm_coresight_dual_view(self):
+        self._run_path('chips', 'arm_coresight_dual_view')
+
+    def test_link_anchor_addr_range(self):
+        self._run_path('link', 'anchor_addr_range')
+
+    def test_link_anchor_cross_addr(self):
+        self._run_path('link', 'anchor_cross_addr')
+
+    def test_link_anchor_to_section(self):
+        self._run_path('link', 'anchor_to_section')
 
     def test_layout_height_override(self):
         self._run_path('layout', 'height_override')

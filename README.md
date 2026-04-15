@@ -156,7 +156,6 @@ python scripts/mmpviz.py -d diagram.json --validate
 | `examples/chips/pulpissimo/` | PULP RISC-V SoC — four-level zoom with µDMA channel detail |
 | `examples/chips/riscv64_virt/` | RISC-V 64-bit virtual machine memory map |
 | `examples/chips/arm_coresight_dual_view/` | ARM CoreSight — dual-initiator view with connector links |
-| `examples/chips/arm_coresight_line_link/` | ARM CoreSight — line-link variant |
 
 **Link style**
 
@@ -179,17 +178,27 @@ python scripts/mmpviz.py -d diagram.json --validate
 | `examples/layout/height_override/` | Per-section `min_height` / `max_height` |
 | `examples/layout/height_global/` | Global `min_section_height` / `max_section_height` via `theme.json` |
 
-**Other features**
+**Diagram primitives**
 
 | Example | Description |
 |---------|-------------|
-| `examples/break/` | Break section compression |
-| `examples/labels/` | Address label styles |
+| `examples/diagram/break/` | Break section compression |
+| `examples/diagram/labels/` | Address label styles — `in`, `out`, and bidirectional arrows on both sides |
+
+**Stack layout**
+
+| Example | Description |
+|---------|-------------|
 | `examples/stack/basic/` | Basic Cortex-M SRAM layout — heap and stack with growth arrows |
 | `examples/stack/guard_page/` | MPU stack guard page — used/free split, no-access guard region |
 | `examples/stack/shadow_stack/` | Shadow stack — return-address-only region alongside the main call stack |
-| `examples/themes/default/` | Default (neutral gray) theme |
-| `examples/themes/plantuml/` | PlantUML theme |
+
+**Themes**
+
+| Example | Description |
+|---------|-------------|
+| `examples/themes/section_styles/` | Per-section `fill` overrides via `views[id].sections[id]` in `theme.json` |
+| `examples/themes/per_link/` | Per-link `fill`/`opacity` overrides via `links.overrides` in `theme.json` |
 
 Built-in themes in `themes/`: `default.json` (auto-loaded), `plantuml.json`
 
