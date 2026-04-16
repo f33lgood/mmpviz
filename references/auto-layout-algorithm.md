@@ -16,6 +16,7 @@ It is authoritative for understanding and maintaining the code.
 7. [Layout Algorithms](#7-layout-algorithms)
    - [7.1 Algo-1: One Visual Column per DAG Level](#71-algo-1-one-visual-column-per-dag-level)
    - [7.2 Algo-2: Height-Rebalancing (default)](#72-algo-2-height-rebalancing-default)
+   - [7.3 Algo-3: Routing Lanes for Non-Adjacent Links](#73-algo-3-routing-lanes-for-non-adjacent-links)
 8. [Column Width and Inter-Column Spacing](#8-column-width-and-inter-column-spacing)
 9. [Canvas Sizing](#9-canvas-sizing)
 10. [Link Band Endpoint Positioning](#10-link-band-endpoint-positioning)
@@ -37,18 +38,24 @@ get_area_views()
     ├─ assign_columns()               # auto_layout.py — BFS depth → column index
     ├─ _estimate_area_height()        # mmpviz.py — quick height estimate per view
     ├─ sort_by_dag_tree()             # auto_layout.py — DAG-tree ordering pre-sort
-    ├─ rebalance_columns()            # auto_layout.py — algo-2 only: height rebalancing
+    ├─ rebalance_columns()            # auto_layout.py — algo-2/3: height rebalancing
     ├─ _auto_layout()                 # mmpviz.py — DAG column placement, assigns pos + size
     ├─ order_within_column()          # auto_layout.py — crossing minimisation post-sort
-    └─ AreaView(...)                  # area_view.py — section height algorithm per view
+    ├─ AreaView(...)                  # area_view.py — section height algorithm per view
+    └─ plan_routing_lanes()           # auto_layout.py — algo-3 only: routing lane planning
 ```
+
+`get_area_views()` returns a 2-tuple `(area_views, routing_lanes)`.  `routing_lanes`
+is an empty dict for algo1/algo2; for algo3 it maps each link entry index to the list
+of lane dicts computed by `plan_routing_lanes()`.
 
 The layout algorithm is selected with the `--layout` CLI flag:
 
 | Flag | Algorithm | Default |
 |------|-----------|---------|
 | `--layout algo1` | One visual column per DAG level | |
-| `--layout algo2` | Height-rebalancing with outlier extraction | ✓ |
+| `--layout algo2` | Height-rebalancing with outlier extraction | |
+| `--layout algo3` | Algo-2 + routing lanes for non-adjacent links | ✓ |
 
 When `links` is absent or empty, all views get an empty adjacency list (all
 column 0), and auto-layout stacks them vertically in a single column.
@@ -341,12 +348,22 @@ height increase is absorbed by canvas auto-expansion (§9).
 
 ## 7. Layout Algorithms
 
-**Shared entry point:** `_auto_layout()` in `scripts/mmpviz.py` receives a
-`columns` dict and assigns pixel `pos` and `size` to every view.  Both
-algorithms ultimately feed into `_auto_layout()`; they differ only in which
-`columns` dict is passed.
+#### Effect on example diagrams
 
-**Layout constants (shared by both):**
+| Diagram | Algo-1 | Algo-2 | Algo-3 |
+|---------|--------|--------|--------|
+| `chips/stm32f103` | 740×1812 H/W=2.45 | 1090×1062 H/W=0.97 | 1090×1062 (routed, no crossings) |
+| `chips/opentitan_earlgrey` | 740×1558 H/W=2.11 | 1090×890 H/W=0.82 | 1090×890 (routed, no crossings) |
+| All other examples | — | identical (already within target) | identical to algo-2 (no non-adjacent links) |
+
+---
+
+**Shared entry point:** `_auto_layout()` in `scripts/mmpviz.py` receives a
+`columns` dict and assigns pixel `pos` and `size` to every view.  All three
+algorithms ultimately feed into `_auto_layout()`; they differ in which
+`columns` dict is passed and whether routing lanes are computed afterwards.
+
+**Layout constants (shared by all):**
 
 | Constant              | Value   | Purpose                                           |
 |-----------------------|---------|---------------------------------------------------|
@@ -387,10 +404,10 @@ resulting canvas can be very tall relative to its width (H/W > 2).
 
 ---
 
-### 7.2 Algo-2: Height-Rebalancing (default)
+### 7.2 Algo-2: Height-Rebalancing
 
 **Location:** `rebalance_columns()` in `scripts/auto_layout.py`;
-selected with `--layout algo2` (the default).
+selected with `--layout algo2`.
 
 `rebalance_columns()` runs after `sort_by_dag_tree()` and before `_auto_layout()`.
 It takes the initial DAG column assignment and adjusts visual column indices so
@@ -457,17 +474,138 @@ def _push_descendants(vid, min_col):
 #### Non-adjacent links
 
 A view extracted to column N+1 has its parent in column N−1, making that
-link non-adjacent (spanning over column N).  The renderer draws the band
-spanning the full horizontal distance; this is visually acceptable for
-memory-map diagrams and no special routing is applied.
+link non-adjacent (spanning over column N).  With algo-2 the renderer draws
+the band spanning the full horizontal distance.  Algo-3 routes these links
+through a crossing-free bridge line in the intermediate column (see §7.3).
 
-#### Effect on example diagrams
+---
 
-| Diagram | Algo-1 | Algo-2 |
-|---------|--------|--------|
-| `chips/stm32f103` | 740×1812 H/W=2.45 | 1090×1062 H/W=0.97 |
-| `chips/opentitan_earlgrey` | 740×1558 H/W=2.11 | 1090×890 H/W=0.82 |
-| All other examples | — | identical (already within target) |
+### 7.3 Algo-3: Routing Lanes for Non-Adjacent Links (default)
+
+**Location:** `plan_routing_lanes()` in `scripts/auto_layout.py`;
+selected with `--layout algo3` (the default).
+
+Algo-3 runs algo-2's height-rebalancing first, then post-processes any
+non-adjacent links (links whose source column and destination column differ
+by more than one after rebalancing) by planning a routing lane — a horizontal
+bridge line — in each skipped intermediate column.
+
+The rendered connector is an S-curve from the source trapezoid to the bridge
+entry, a straight horizontal segment across the bridge, and a second S-curve
+from the bridge exit to the destination trapezoid.
+
+#### Identifying non-adjacent links
+
+After `rebalance_columns()` and `_auto_layout()`, a link entry `(A → B)` is
+non-adjacent when `|vis_col[B] − vis_col[A]| > 1`.  The intermediate columns
+are the columns strictly between `vis_col[A]` and `vis_col[B]`.
+
+#### Zero-crossing interval (ZCI)
+
+For each non-adjacent link L and each intermediate column C, a crossing-free
+y-range is derived from the adjacent links (direct neighbours in C) whose
+source-section midpoints **bracket** L's source midpoint.
+
+```
+adjacent = links whose source views are in vis_col[A] and destination
+           views are in column C, sorted by source-section midpoint (ascending)
+
+find the pair (L_lo, L_hi) that brackets L's source midpoint:
+    y_lo = destination-band y of L_lo   (top constraint)
+    y_hi = destination-band y of L_hi   (bottom constraint)
+    ZCI  = [y_lo, y_hi]
+```
+
+Placing the bridge within ZCI guarantees zero additional link-band crossings
+with the adjacent connectors.
+
+If no adjacent links exist for column C, the full column height is used as
+the ZCI (unconstrained).
+
+#### Gap selection
+
+Valid bridge positions are gaps between views in column C that overlap the ZCI
+and have enough height for the bridge (≥ `lane_height + 2 × lane_padding`).
+
+`_col_gaps(c)` builds the gap list from the merged view extents in column C.
+It always produces three kinds of gaps:
+
+1. **Leading gap** — from `title_space` (60 px) to the top edge of the first
+   view.  Present only when the first view starts below the title space.
+2. **Between-view gaps** — from the bottom edge of one view to the top edge
+   of the next, for every pair of consecutive views.  Present only when the
+   inter-view space exceeds 0.5 px.
+3. **Trailing gap** — from the bottom edge of the last view downward (open-ended;
+   represented as `last_bottom + 2000 px`).  Always present.  This is the gap
+   used by **bracket case C** (source y below all adjacent destinations), which
+   wants to route the lane below every view in the column.
+
+```
+gaps = []
+if first_view.top > title_space + 0.5:
+    gaps.append((title_space, first_view.top))        # leading gap
+for each consecutive pair (view_i, view_{i+1}):
+    if view_{i+1}.top > view_i.bottom + 0.5:
+        gaps.append((view_i.bottom, view_{i+1}.top))  # between-view gap
+gaps.append((last_view.bottom, last_view.bottom + 2000))  # trailing gap
+
+valid_gaps = [g for g in gaps
+              if g.height >= lane_height + 2*lane_padding
+              and g overlaps ZCI]
+
+if valid_gaps:
+    gap = the valid gap whose centre is closest to the ZCI midpoint
+    lane_y = clamp(ZCI_mid, gap.top + lane_padding + lane_height/2,
+                            gap.bottom - lane_padding - lane_height/2)
+else:
+    lane_y = ZCI_mid           # fallback: centre of ZCI, no gap constraint
+```
+
+**Bracket case C** specifically: when the non-adjacent link's source y is below
+all adjacent destination y values, ZCI is `[adj_last.dst_y, +∞)`.  The only
+gap overlapping this half-open interval is the trailing gap; `_col_gaps` always
+provides it, so the lane is placed just below the last view in the column.
+Without the trailing gap entry this case silently fell back to `lane_y = ZCI_mid`,
+which placed the bridge through the middle of an existing view.
+
+#### Lane dictionary
+
+```python
+{
+    'col':    C,           # intermediate visual column index
+    'x_left': col_x,       # left edge of the source column's section width (col_x = PADDING + ... )
+    'x_right': col_x + col_width,  # right edge (col_width = 230 px)
+    'y':      lane_y,      # vertical centre of the bridge line
+    'height': lane_height, # 20 px default
+}
+```
+
+`plan_routing_lanes()` returns `{entry_idx: [lane_dict, ...]}` — one list per
+non-adjacent link entry.
+
+#### Rendering
+
+`MapRenderer._render_routed_connector()` is called in place of
+`_render_connector()` when `routing_lanes` is non-empty for a link entry.
+It draws:
+
+1. **Source trapezoid** — same shape as the unrouted connector.
+2. **Destination trapezoid** — same shape as the unrouted connector.
+3. **Middle path** — a sequence of waypoints:
+   `[(src_right, src_center), (lane_x_left, lane_y), (lane_x_right, lane_y), (dst_left, dst_center)]`
+
+   Each consecutive pair of waypoints is connected by an S-curve Bézier
+   (`C mx,y1 mx,y2 x2,y2`, where `mx = (x1 + x2) / 2`) if the endpoints
+   differ vertically, or a straight line segment if they are at the same height.
+
+**Bridge constants:**
+
+| Parameter | Value |
+|-----------|-------|
+| `lane_height` | 20 px |
+| `lane_padding` | 5 px (clearance above/below bridge within its gap) |
+| `title_space` | 60 px (top margin; bridges can use this gap too) |
+| Bridge x-span | `col_width` (230 px) — bridge width equals one section panel width |
 
 ---
 

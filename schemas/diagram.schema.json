@@ -5,6 +5,11 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "_comment": {
+      "description": "Optional human-readable notes for authors; ignored by the renderer and layout engine.",
+      "type": "array",
+      "items": { "type": "string" }
+    },
     "title": {
       "description": "Document title (informational only).",
       "type": "string"

@@ -14,6 +14,7 @@ The machine-readable contract for this format lives in `schemas/diagram.schema.j
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
+| `_comment` | array of strings | No | — | Optional documentation for humans; each string is one line of commentary. Ignored by mmpviz (not rendered). |
 | `title` | string | No | `""` | Document title (informational only) |
 | `views` | array | Yes | — | Display viewport definitions — each view declares its own sections |
 | `links` | array | No | `[]` | Cross-view connections |

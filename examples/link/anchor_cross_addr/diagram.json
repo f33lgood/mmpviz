@@ -1,36 +1,46 @@
 {
-  "title": "cross-address mapping \u2014 virtual-to-physical address layout",
+  "_comment": [
+    "What this shows: the same logical memory can be drawn in two panels that use",
+    "different numeric bases (Layout A vs Layout B). The bands still connect matching",
+    "byte ranges even though the addresses on the page do not line up vertically.",
+    "First link: one source section id maps to one destination section id.",
+    "Second link: several adjacent source section ids in from.sections are merged",
+    "into one contiguous address span on the left; that whole span maps to one",
+    "destination section on the right (many ids, one combined source band).",
+    "Names are neutral placeholders."
+  ],
+  "title": "cross-address mapping \u2014 band endpoints at different addresses",
   "views": [
     {
-      "id": "virtual",
-      "title": "Virtual (Linker) View",
+      "id": "layout_a",
+      "title": "Layout A",
       "sections": [
         {
-          "id": "text",
+          "id": "seg_a0",
           "address": "0x00000000",
           "size": "0x00100000",
-          "name": ".text\n(code)"
+          "name": "Segment A0\n(desc)"
         },
         {
-          "id": "data",
+          "id": "seg_a1",
           "address": "0x00100000",
           "size": "0x00080000",
-          "name": ".data\n(init)"
+          "name": "Segment A1\n(desc)"
         },
         {
-          "id": "bss",
+          "id": "seg_a2",
           "address": "0x00180000",
           "size": "0x00040000",
-          "name": ".bss"
+          "name": "Segment A2"
         },
         {
-          "id": "stack",
+          "id": "seg_a3",
           "address": "0x001C0000",
           "size": "0x00040000",
-          "name": "Stack"
+          "name": "Segment A3"
         },
         {
-          "id": "brk_vgap",
+          "id": "gap_a",
           "address": "0x00200000",
           "size": "0x07E00000",
           "name": "\u00b7\u00b7\u00b7",
@@ -41,17 +51,17 @@
       ]
     },
     {
-      "id": "physical",
-      "title": "Physical Memory",
+      "id": "layout_b",
+      "title": "Layout B",
       "sections": [
         {
-          "id": "flash",
+          "id": "seg_b0",
           "address": "0x08000000",
           "size": "0x00100000",
-          "name": "Flash\n(XIP)"
+          "name": "Segment B0\n(desc)"
         },
         {
-          "id": "brk_pgap",
+          "id": "gap_b",
           "address": "0x08100000",
           "size": "0x17F00000",
           "name": "\u00b7\u00b7\u00b7",
@@ -60,44 +70,44 @@
           ]
         },
         {
-          "id": "sram",
+          "id": "seg_b1",
           "address": "0x20000000",
-          "size": "0x00040000",
-          "name": "SRAM"
+          "size": "0x00100000",
+          "name": "Segment B1"
         }
       ]
     }
   ],
   "links": [
     {
-      "id": "virtual-physical",
+      "id": "layout_a-b-0",
       "from": {
-        "view": "virtual",
+        "view": "layout_a",
         "sections": [
-          "text"
+          "seg_a0"
         ]
       },
       "to": {
-        "view": "physical",
+        "view": "layout_b",
         "sections": [
-          "flash"
+          "seg_b0"
         ]
       }
     },
     {
-      "id": "virtual-physical-1",
+      "id": "layout_a-b-1",
       "from": {
-        "view": "virtual",
+        "view": "layout_a",
         "sections": [
-          "data",
-          "bss",
-          "stack"
+          "seg_a1",
+          "seg_a2",
+          "seg_a3"
         ]
       },
       "to": {
-        "view": "physical",
+        "view": "layout_b",
         "sections": [
-          "sram"
+          "seg_b1"
         ]
       }
     }

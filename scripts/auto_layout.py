@@ -13,6 +13,7 @@ sort_by_dag_tree(area_configs, columns, link_entries, sec_mid_addrs)
 order_within_column(graph, columns, area_views, link_entries)
                                                 → {col: [view_id, ...]}
 rebalance_columns(columns, area_configs, ...)   → {view_id: visual_col_int}
+plan_routing_lanes(vis_col, link_entries, ...)  → {entry_idx: [lane_dict, ...]}
 """
 from collections import defaultdict, deque
 
@@ -521,3 +522,291 @@ def rebalance_columns(
         # Re-evaluate column c (don't advance c yet).
 
     return vis_col
+
+
+# ---------------------------------------------------------------------------
+# Algo-3: routing lane planning for non-adjacent links
+# ---------------------------------------------------------------------------
+
+def plan_routing_lanes(
+    vis_col: dict,
+    link_entries: list,
+    area_views: list,
+    col_width: float = 230.0,
+    lane_height: float = 20.0,
+    lane_padding: float = 5.0,
+    title_space: float = 60.0,
+) -> dict:
+    """
+    Algo-3: plan horizontal routing lanes for non-adjacent links.
+
+    When ``rebalance_columns()`` moves a view so that a link spans
+    col N-1 → col N+1 (skipping col N), the middle Bezier crosses all of
+    col N's content.  This function computes a horizontal routing lane in
+    each skipped column so the link can be re-routed around it.
+
+    **Algorithm (per intermediate column col_i)**
+
+    1. Collect all *adjacent* links col_{i-1} → col_i, sorted by source y.
+    2. Find the bracket pair whose source y straddles the non-adjacent link's
+       source y.  Their destination y values define the *zero-crossing
+       interval* (ZCI) — placing the lane within this interval guarantees the
+       routed path crosses none of the adjacent connectors.
+    3. Enumerate gaps between views in col_i that overlap the ZCI and are
+       tall enough for ``lane_height + 2*lane_padding``.
+    4. Pick the gap whose best valid position is closest to the ideal y
+       (interpolated from ZCI bounds).
+    5. For multiple non-adjacent links sharing the same intermediate column,
+       requests are sorted by ideal y and assigned greedily so they do not
+       overlap.
+
+    Parameters
+    ----------
+    vis_col : dict  {view_id: col_int}
+        Visual column assignment after ``rebalance_columns()``.
+    link_entries : list of dict
+        From ``Links.entries``; each entry has ``from_view``, ``to_view``,
+        ``from_sections``, ``to_sections`` keys.
+    area_views : list of AreaView
+        After ``_auto_layout()``; used to look up pixel positions and
+        section midpoints.
+    col_width : float
+        View width in pixels (default 230).
+    lane_height : float
+        Height of the routing lane rectangle (default 20).
+    lane_padding : float
+        Vertical padding around each lane (default 5).
+    title_space : float
+        Y reserved above views for column titles (default 60).
+
+    Returns
+    -------
+    dict  {entry_index: [lane_dict, ...]}
+        Keyed by 0-based index into ``link_entries``.  Each lane dict::
+
+            {'col': int, 'x_left': float, 'x_right': float,
+             'y': float, 'height': float}
+
+        Multiple dicts per entry when the link skips more than one column.
+        Entries without non-adjacent routing lanes are absent from the dict.
+    """
+    if not link_entries or not area_views:
+        return {}
+
+    av_by_id = {av.view_id: av for av in area_views}
+
+    # ------------------------------------------------------------------
+    # Per-link pixel y (absolute SVG coordinates)
+    # ------------------------------------------------------------------
+    def _abs_y(av, sections):
+        rel = _find_link_midpoint_by_sections(av, sections)
+        if rel is None:
+            return av.pos_y + av.size_y / 2
+        return av.pos_y + rel
+
+    src_y = {}  # entry_idx → float
+    dst_y = {}
+    for idx, entry in enumerate(link_entries):
+        src_av = av_by_id.get(entry.get('from_view', ''))
+        dst_av = av_by_id.get(entry.get('to_view', ''))
+        src_y[idx] = _abs_y(src_av, entry.get('from_sections')) if src_av else None
+        dst_y[idx] = _abs_y(dst_av, entry.get('to_sections')) if dst_av else None
+
+    # ------------------------------------------------------------------
+    # Column geometry helpers
+    # ------------------------------------------------------------------
+    col_to_views = defaultdict(list)
+    for av in area_views:
+        c = vis_col.get(av.view_id)
+        if c is not None:
+            col_to_views[c].append(av)
+
+    def _col_x_bounds(c):
+        views = col_to_views.get(c, [])
+        if not views:
+            return None, None
+        return (min(av.pos_x for av in views),
+                max(av.pos_x + av.size_x for av in views))
+
+    def _col_gaps(c):
+        """Return list of (gap_top, gap_bottom) intervals in column c."""
+        views = col_to_views.get(c, [])
+        if not views:
+            return []
+        intervals = sorted((av.pos_y, av.pos_y + av.size_y) for av in views)
+        # Merge overlapping view intervals.
+        merged = [list(intervals[0])]
+        for a, b in intervals[1:]:
+            if a <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], b)
+            else:
+                merged.append([a, b])
+        gaps = []
+        if merged[0][0] > title_space + 0.5:
+            gaps.append((title_space, merged[0][0]))
+        for i in range(len(merged) - 1):
+            gt, gb = merged[i][1], merged[i + 1][0]
+            if gb > gt + 0.5:
+                gaps.append((gt, gb))
+        # Trailing gap below the bottommost view (needed for bracket case C).
+        gaps.append((merged[-1][1], merged[-1][1] + 2000))
+        return gaps
+
+    # ------------------------------------------------------------------
+    # Adjacent links grouped by (from_col, to_col)
+    # ------------------------------------------------------------------
+    col_pair_links = defaultdict(list)  # {(fc, tc): [(idx, entry), ...]}
+    for idx, entry in enumerate(link_entries):
+        fc = vis_col.get(entry.get('from_view', ''))
+        tc = vis_col.get(entry.get('to_view', ''))
+        if fc is not None and tc is not None:
+            col_pair_links[(fc, tc)].append((idx, entry))
+
+    # ------------------------------------------------------------------
+    # Find non-adjacent links and compute routing requests per column
+    # ------------------------------------------------------------------
+    # lane_requests[col_i] = list of (entry_idx, y_ideal, zci_lo, zci_hi)
+    lane_requests = defaultdict(list)
+
+    for idx, entry in enumerate(link_entries):
+        fc = vis_col.get(entry.get('from_view', ''))
+        tc = vis_col.get(entry.get('to_view', ''))
+        if fc is None or tc is None or tc <= fc + 1:
+            continue  # not non-adjacent
+        y_src = src_y.get(idx)
+        if y_src is None:
+            continue
+
+        for col_i in range(fc + 1, tc):
+            # Adjacent links from col_{i-1} to col_i
+            adj_raw = col_pair_links.get((col_i - 1, col_i), [])
+            adj = [
+                (aidx, sy, dy)
+                for aidx, e in adj_raw
+                for sy, dy in [(src_y.get(aidx), dst_y.get(aidx))]
+                if sy is not None and dy is not None
+            ]
+            adj.sort(key=lambda t: t[1])  # sort by source y
+
+            INF = float('inf')
+            if not adj:
+                zci_lo, zci_hi, y_ideal = -INF, INF, y_src
+            elif y_src <= adj[0][1]:
+                zci_lo, zci_hi = -INF, adj[0][2]
+                y_ideal = adj[0][2] - lane_height
+            elif y_src >= adj[-1][1]:
+                zci_lo, zci_hi = adj[-1][2], INF
+                y_ideal = adj[-1][2] + lane_height
+            else:
+                # Find bracket
+                zci_lo = zci_hi = None
+                for k in range(len(adj) - 1):
+                    if adj[k][1] <= y_src <= adj[k + 1][1]:
+                        # Normalise so zci_lo ≤ zci_hi regardless of dst order
+                        d0, d1 = adj[k][2], adj[k + 1][2]
+                        zci_lo, zci_hi = min(d0, d1), max(d0, d1)
+                        s0, s1 = adj[k][1], adj[k + 1][1]
+                        t = ((y_src - s0) / (s1 - s0)) if s1 > s0 else 0.5
+                        y_ideal = d0 + t * (d1 - d0)
+                        break
+                if zci_lo is None:
+                    zci_lo, zci_hi, y_ideal = -INF, INF, y_src
+
+            lane_requests[col_i].append((idx, y_ideal, zci_lo, zci_hi))
+
+    if not lane_requests:
+        return {}
+
+    # ------------------------------------------------------------------
+    # Assign lane positions within each column
+    # ------------------------------------------------------------------
+    needed = lane_height + 2 * lane_padding
+    col_lane_assignments = defaultdict(list)  # {col_i: [(entry_idx, y), ...]}
+
+    for col_i, requests in lane_requests.items():
+        requests.sort(key=lambda r: r[1])  # sort by y_ideal
+        x_left, x_right = _col_x_bounds(col_i)
+        if x_left is None:
+            continue
+        gaps = _col_gaps(col_i)
+        assigned = []  # [(y_center, height), ...] already placed in this col
+
+        for entry_idx, y_ideal, zci_lo, zci_hi in requests:
+            INF = float('inf')
+            best_y = None
+            best_dist = INF
+
+            for gap_top, gap_bot in gaps:
+                if gap_bot - gap_top < needed:
+                    continue
+                # Gap must overlap ZCI
+                if zci_hi != INF and gap_top >= zci_hi:
+                    continue
+                if zci_lo != -INF and gap_bot <= zci_lo:
+                    continue
+
+                # Feasible y range within gap
+                y_lo = gap_top + lane_height / 2 + lane_padding
+                y_hi = gap_bot - lane_height / 2 - lane_padding
+                if zci_lo != -INF:
+                    y_lo = max(y_lo, zci_lo + lane_height / 2)
+                if zci_hi != INF:
+                    y_hi = min(y_hi, zci_hi - lane_height / 2)
+                if y_hi < y_lo:
+                    continue
+
+                candidate = max(y_lo, min(y_hi, y_ideal))
+
+                # Avoid overlapping already-assigned lanes in this gap
+                ok = True
+                for ey, eh in assigned:
+                    min_sep = (lane_height + eh) / 2 + lane_padding
+                    if abs(candidate - ey) < min_sep:
+                        # Try to nudge past the blocking lane
+                        if candidate <= ey:
+                            candidate = ey - min_sep
+                        else:
+                            candidate = ey + min_sep
+                        if candidate < y_lo or candidate > y_hi:
+                            ok = False
+                            break
+                if not ok:
+                    continue
+
+                dist = abs(candidate - y_ideal)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_y = candidate
+
+            if best_y is None:
+                # Fallback: use y_ideal clamped to the closest gap
+                for gap_top, gap_bot in gaps:
+                    if gap_bot - gap_top >= needed:
+                        best_y = max(gap_top + lane_height / 2 + lane_padding,
+                                     min(gap_bot - lane_height / 2 - lane_padding,
+                                         y_ideal))
+                        break
+                if best_y is None:
+                    best_y = y_ideal  # last resort
+
+            assigned.append((best_y, lane_height))
+            col_lane_assignments[col_i].append((entry_idx, best_y))
+
+    # ------------------------------------------------------------------
+    # Build result dict indexed by entry_idx
+    # ------------------------------------------------------------------
+    result = defaultdict(list)
+    for col_i, lane_list in col_lane_assignments.items():
+        x_left, x_right = _col_x_bounds(col_i)
+        for entry_idx, y in lane_list:
+            result[entry_idx].append({
+                'col': col_i,
+                'x_left': x_left,
+                'x_right': x_right,
+                'y': y,
+                'height': lane_height,
+            })
+
+    # Sort lanes by column for each entry
+    return {idx: sorted(lanes, key=lambda d: d['col'])
+            for idx, lanes in result.items()}

@@ -1,4 +1,10 @@
 {
+  "_comment": [
+    "What this shows: the default band link style (links.band) as a single filled",
+    "shape from the source panel to the detail panel — straight edges, solid fill,",
+    "no dashed outline. Use this as the baseline when comparing to band_stroke,",
+    "band_segments, or connector on the same memory layout."
+  ],
   "views": [
     {
       "id": "overview",

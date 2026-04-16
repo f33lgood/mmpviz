@@ -23,12 +23,13 @@
 <h1>Layout algorithm comparison — chips examples</h1>
 <p class="note">
   <b>algo1</b>: one visual column per DAG level (original behaviour) &nbsp;|&nbsp;
-  <b>algo2</b>: height-rebalancing with outlier extraction + trailing overflow
-  &nbsp;|&nbsp; Dimmed rows had identical output from both algorithms.
+  <b>algo2</b>: height-rebalancing with outlier extraction + trailing overflow &nbsp;|&nbsp;
+  <b>algo3</b>: algo2 + routing lanes for non-adjacent links (zero crossings)
+  &nbsp;|&nbsp; Dimmed rows had identical output from all algorithms.
 </p>
 
 <div class="chip-section">
-  <h2>stm32f103 &nbsp;<small style="color:#c00">algo1: 740×1812 (H/W 2.45) → algo2: 1090×1062 (H/W 0.97)</small></h2>
+  <h2>stm32f103 &nbsp;<small style="color:#c00">algo1: 740×1812 (H/W 2.45) → algo2: 1090×1062 (H/W 0.97) → algo3: 1090×1062 (routed, no crossings)</small></h2>
   <div class="side-by-side">
     <div class="col">
       <h3>algo1 (original)</h3>
@@ -38,11 +39,15 @@
       <h3>algo2 (rebalanced)</h3>
       <div class="svg-frame"><img src="stm32f103/algo2.svg" alt="stm32f103 algo2"></div>
     </div>
+    <div class="col">
+      <h3>algo3 (routed)</h3>
+      <div class="svg-frame"><img src="stm32f103/algo3.svg" alt="stm32f103 algo3"></div>
+    </div>
   </div>
 </div>
 
 <div class="chip-section">
-  <h2>opentitan_earlgrey &nbsp;<small style="color:#c00">algo1: 740×1558 (H/W 2.11) → algo2: 1090×890 (H/W 0.82)</small></h2>
+  <h2>opentitan_earlgrey &nbsp;<small style="color:#c00">algo1: 740×1558 (H/W 2.11) → algo2: 1090×890 (H/W 0.82) → algo3: 1090×890 (routed, no crossings)</small></h2>
   <div class="side-by-side">
     <div class="col">
       <h3>algo1 (original)</h3>
@@ -52,44 +57,48 @@
       <h3>algo2 (rebalanced)</h3>
       <div class="svg-frame"><img src="opentitan_earlgrey/algo2.svg" alt="opentitan algo2"></div>
     </div>
+    <div class="col">
+      <h3>algo3 (routed)</h3>
+      <div class="svg-frame"><img src="opentitan_earlgrey/algo3.svg" alt="opentitan algo3"></div>
+    </div>
   </div>
 </div>
 
 <div class="chip-section unchanged">
-  <h2>caliptra &nbsp;<small style="color:#888">unchanged — 746×902 (H/W 1.21) already within target</small></h2>
+  <h2>caliptra &nbsp;<small style="color:#888">unchanged — 746×902 (H/W 1.21), no non-adjacent links</small></h2>
   <div class="side-by-side">
     <div class="col">
-      <h3>algo1 / algo2 (identical)</h3>
+      <h3>algo1 / algo2 / algo3 (identical)</h3>
       <div class="svg-frame"><img src="caliptra/algo1.svg" alt="caliptra"></div>
     </div>
   </div>
 </div>
 
 <div class="chip-section unchanged">
-  <h2>pulpissimo &nbsp;<small style="color:#888">unchanged — 1090×544 (H/W 0.50) already within target</small></h2>
+  <h2>pulpissimo &nbsp;<small style="color:#888">unchanged — 1090×544 (H/W 0.50), no non-adjacent links</small></h2>
   <div class="side-by-side">
     <div class="col">
-      <h3>algo1 / algo2 (identical)</h3>
+      <h3>algo1 / algo2 / algo3 (identical)</h3>
       <div class="svg-frame"><img src="pulpissimo/algo1.svg" alt="pulpissimo"></div>
     </div>
   </div>
 </div>
 
 <div class="chip-section unchanged">
-  <h2>riscv64_virt &nbsp;<small style="color:#888">unchanged — 876×540 (H/W 0.62) already within target</small></h2>
+  <h2>riscv64_virt &nbsp;<small style="color:#888">unchanged — 876×540 (H/W 0.62), no non-adjacent links</small></h2>
   <div class="side-by-side">
     <div class="col">
-      <h3>algo1 / algo2 (identical)</h3>
+      <h3>algo1 / algo2 / algo3 (identical)</h3>
       <div class="svg-frame"><img src="riscv64_virt/algo1.svg" alt="riscv64_virt"></div>
     </div>
   </div>
 </div>
 
 <div class="chip-section unchanged">
-  <h2>arm_coresight_dual_view &nbsp;<small style="color:#888">unchanged — 746×700 (H/W 0.94) already within target</small></h2>
+  <h2>arm_coresight_dual_view &nbsp;<small style="color:#888">unchanged — 746×700 (H/W 0.94), no non-adjacent links</small></h2>
   <div class="side-by-side">
     <div class="col">
-      <h3>algo1 / algo2 (identical)</h3>
+      <h3>algo1 / algo2 / algo3 (identical)</h3>
       <div class="svg-frame"><img src="arm_coresight_dual_view/algo1.svg" alt="arm_coresight_dual_view"></div>
     </div>
   </div>

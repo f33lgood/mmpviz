@@ -203,7 +203,8 @@ class TestRunChecksLevels(unittest.TestCase):
         from mmpviz import get_area_views
         theme = Theme(None)
         base_style = theme.resolve('')
-        return get_area_views(base_style, diagram, theme)
+        area_views, _ = get_area_views(base_style, diagram, theme)
+        return area_views
 
     def test_section_height_conflict_is_error(self):
         from check import run_checks, ALL_RULES
@@ -276,7 +277,8 @@ class TestUncoveredGap(unittest.TestCase):
         from mmpviz import get_area_views
         theme = Theme(None)
         base_style = theme.resolve('')
-        return get_area_views(base_style, diagram, theme)
+        area_views, _ = get_area_views(base_style, diagram, theme)
+        return area_views
 
     def test_chained_breaks_no_issue(self):
         """Three consecutive break sections that together cover the full gap
@@ -315,7 +317,8 @@ class TestLinkAnchorOutOfBounds(unittest.TestCase):
         from mmpviz import get_area_views
         theme = Theme(None)
         base_style = theme.resolve('')
-        return get_area_views(base_style, diagram, theme)
+        area_views, _ = get_area_views(base_style, diagram, theme)
+        return area_views
 
     def test_out_of_bounds_anchor_is_error(self):
         """A link whose from.sections address range extends outside the source

@@ -1,4 +1,9 @@
 {
+  "_comment": [
+    "What this shows: the same band geometry as band_fill, but drawn as an",
+    "outline only — no fill, dashed stroke, visible stroke width.",
+    "Compare to band_fill to see how one links.band theme toggles fill vs stroke."
+  ],
   "views": [
     {
       "id": "overview",

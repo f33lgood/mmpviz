@@ -1,64 +1,74 @@
 {
+  "_comment": [
+    "What this shows: anchoring a link with raw addresses, not only section ids.",
+    "First link: from and to both use exactly two hex strings [\"0xSTART\", \"0xEND\"].",
+    "That range is chosen to cover Block 3 and Block 4 on purpose — it proves the",
+    "band follows those literal addresses across an internal section boundary, not",
+    "just one section box.",
+    "Second link: from uses a single section id (block_3); to still uses a hex pair.",
+    "That shows you can mix id-based and hex-based anchors in one link.",
+    "Names are neutral placeholders, not a real chip map."
+  ],
   "title": "address-range endpoints \u2014 explicit hex ranges on both from and to",
   "views": [
     {
       "id": "overview",
-      "title": "Peripheral Bus",
+      "title": "Overview",
       "sections": [
         {
-          "id": "apb1",
+          "id": "block_0",
           "address": "0x40000000",
           "size": "0x00008000",
-          "name": "APB1"
+          "name": "Block 0"
         },
         {
-          "id": "apb2",
+          "id": "block_1",
           "address": "0x40008000",
           "size": "0x00008000",
-          "name": "APB2"
+          "name": "Block 1"
         },
         {
-          "id": "ahb1",
+          "id": "block_2",
           "address": "0x40010000",
           "size": "0x00008000",
-          "name": "AHB1"
+          "name": "Block 2"
         },
         {
-          "id": "dma1",
+          "id": "block_3",
           "address": "0x40018000",
           "size": "0x00004000",
-          "name": "DMA1"
+          "name": "Block 3"
         },
         {
-          "id": "dma2",
+          "id": "block_4",
           "address": "0x4001C000",
           "size": "0x00004000",
-          "name": "DMA2"
+          "name": "Block 4"
         }
       ]
     },
     {
-      "id": "dma-detail",
-      "title": "DMA Region",
+      "id": "detail",
+      "title": "Detail (blocks 3 and 4)",
       "sections": [
         {
-          "id": "dma1",
+          "id": "block_3",
           "address": "0x40018000",
           "size": "0x00004000",
-          "name": "DMA1"
+          "name": "Block 3"
         },
         {
-          "id": "dma2",
+          "id": "block_4",
           "address": "0x4001C000",
           "size": "0x00004000",
-          "name": "DMA2"
+          "name": "Block 4"
         }
       ]
     }
   ],
   "links": [
     {
-      "id": "overview-dma-detail",
+      "id": "overview-detail",
       "from": {
         "view": "overview",
         "sections": [
@@ -67,23 +77,23 @@
         ]
       },
       "to": {
-        "view": "dma-detail",
+        "view": "detail",
         "sections": [
-          "0x4001C000",
+          "0x40018000",
           "0x40020000"
         ]
       }
     },
     {
-      "id": "overview-dma-detail-1",
+      "id": "overview-detail-by-id",
       "from": {
         "view": "overview",
         "sections": [
-          "apb2"
+          "block_3"
         ]
       },
       "to": {
-        "view": "dma-detail",
+        "view": "detail",
         "sections": [
           "0x40018000",
           "0x4001C000"

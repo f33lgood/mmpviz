@@ -1,0 +1,107 @@
+{
+  "_comment": [
+    "algo3_long_span — one non-adjacent link spanning 4 columns (skipping 3),",
+    "requiring routing lanes in every intermediate column.",
+    "",
+    "Initial DAG columns:",
+    "  chip(0), sub0/dev0/dev1(1), bus0(2), dev2(3)",
+    "",
+    "sub0 is a Pass 1 outlier; it moves col 1→2.",
+    "_push_descendants fires: bus0 col 2→3, then dev2 col 3→4.",
+    "",
+    "Final columns:",
+    "  chip(0), dev0/dev1(1), sub0(2), bus0(3), dev2(4)",
+    "",
+    "Non-adjacent links and their routing lanes:",
+    "  chip→sub0     col 0→2  : 1 lane in col 1  (bracket B, above dev0)",
+    "  chip→dev2     col 0→4  : 3 lanes total —",
+    "    col 1: bracket C (below dev1)",
+    "    col 2: unconstrained gap around sub0",
+    "    col 3: gap around bus0"
+  ],
+  "views": [
+    {
+      "id": "chip",
+      "title": "Chip",
+      "sections": [
+        { "id": "sub0_range", "address": "0x00030000", "size": "0x00010000", "name": "Subsystem 0", "min_height": 50 },
+        { "id": "dev0_range", "address": "0x00020000", "size": "0x00010000", "name": "Device 0",    "min_height": 50 },
+        { "id": "dev1_range", "address": "0x00010000", "size": "0x00010000", "name": "Device 1",    "min_height": 50 },
+        { "id": "dbg_range",  "address": "0x00000000", "size": "0x00010000", "name": "Debug",       "min_height": 50 }
+      ]
+    },
+    {
+      "id": "sub0",
+      "title": "Subsystem 0",
+      "_note": "Pass 1 outlier; extracted col 1→2, triggering 2-level descendant push.",
+      "sections": [
+        { "id": "blk_0", "address": "0x00030000", "size": "0x00001000", "name": "Block 0", "min_height": 60 },
+        { "id": "blk_1", "address": "0x00031000", "size": "0x00001000", "name": "Block 1", "min_height": 60 },
+        { "id": "blk_2", "address": "0x00032000", "size": "0x00001000", "name": "Block 2", "min_height": 60 },
+        { "id": "blk_3", "address": "0x00033000", "size": "0x00001000", "name": "Block 3", "min_height": 60 },
+        { "id": "blk_4", "address": "0x00034000", "size": "0x00001000", "name": "Block 4", "min_height": 60 },
+        { "id": "blk_5", "address": "0x00035000", "size": "0x00001000", "name": "Block 5", "min_height": 60 },
+        { "id": "blk_6", "address": "0x00036000", "size": "0x00001000", "name": "Block 6", "min_height": 60 },
+        { "id": "blk_7", "address": "0x00037000", "size": "0x00001000", "name": "Block 7", "min_height": 60 },
+        { "id": "blk_8", "address": "0x00038000", "size": "0x00001000", "name": "Block 8", "min_height": 60 },
+        { "id": "blk_9", "address": "0x00039000", "size": "0x00001000", "name": "Block 9", "min_height": 60 }
+      ]
+    },
+    {
+      "id": "dev0",
+      "title": "Device 0",
+      "_note": "adjacent link from chip:dev0_range — stays in col 1",
+      "sections": [
+        { "id": "blk_0", "address": "0x00020000", "size": "0x00002000", "name": "Block 0" },
+        { "id": "blk_1", "address": "0x00022000", "size": "0x00002000", "name": "Block 1" },
+        { "id": "blk_2", "address": "0x00024000", "size": "0x00002000", "name": "Block 2" },
+        { "id": "blk_3", "address": "0x00026000", "size": "0x00002000", "name": "Block 3" },
+        { "id": "blk_4", "address": "0x00028000", "size": "0x00002000", "name": "Block 4" }
+      ]
+    },
+    {
+      "id": "dev1",
+      "title": "Device 1",
+      "_note": "adjacent link from chip:dev1_range — stays in col 1",
+      "sections": [
+        { "id": "blk_0", "address": "0x00010000", "size": "0x00002000", "name": "Block 0" },
+        { "id": "blk_1", "address": "0x00012000", "size": "0x00002000", "name": "Block 1" },
+        { "id": "blk_2", "address": "0x00014000", "size": "0x00002000", "name": "Block 2" },
+        { "id": "blk_3", "address": "0x00016000", "size": "0x00002000", "name": "Block 3" },
+        { "id": "blk_4", "address": "0x00018000", "size": "0x00002000", "name": "Block 4" }
+      ]
+    },
+    {
+      "id": "bus0",
+      "title": "Bus 0",
+      "_note": "child of sub0; pushed col 2→3 by descendant propagation; sections within sub0's range (0x30000–0x3A000) so the link anchor resolves",
+      "sections": [
+        { "id": "blk_0", "address": "0x00030000", "size": "0x00002000", "name": "Block 0" },
+        { "id": "blk_1", "address": "0x00032000", "size": "0x00002000", "name": "Block 1" },
+        { "id": "blk_2", "address": "0x00034000", "size": "0x00002000", "name": "Block 2" },
+        { "id": "blk_3", "address": "0x00036000", "size": "0x00002000", "name": "Block 3" },
+        { "id": "blk_4", "address": "0x00038000", "size": "0x00002000", "name": "Block 4" }
+      ]
+    },
+    {
+      "id": "dev2",
+      "title": "Device 2",
+      "_note": "grandchild of sub0; pushed col 3→4. Also linked directly from chip (the long span); sections within bus0's range.",
+      "sections": [
+        { "id": "blk_0", "address": "0x00030000", "size": "0x00001000", "name": "Block 0" },
+        { "id": "blk_1", "address": "0x00031000", "size": "0x00001000", "name": "Block 1" },
+        { "id": "blk_2", "address": "0x00032000", "size": "0x00001000", "name": "Block 2" },
+        { "id": "blk_3", "address": "0x00033000", "size": "0x00001000", "name": "Block 3" },
+        { "id": "blk_4", "address": "0x00034000", "size": "0x00001000", "name": "Block 4" }
+      ]
+    }
+  ],
+  "links": [
+    { "id": "chip-sub0", "from": { "view": "chip", "sections": ["sub0_range"] }, "to": { "view": "sub0"                                                       } },
+    { "id": "chip-dev0", "from": { "view": "chip", "sections": ["dev0_range"] }, "to": { "view": "dev0"                                                       } },
+    { "id": "chip-dev1", "from": { "view": "chip", "sections": ["dev1_range"] }, "to": { "view": "dev1"                                                       } },
+    { "id": "sub0-bus0", "from": { "view": "sub0"                             }, "to": { "view": "bus0"                                                       } },
+    { "id": "bus0-dev2", "from": { "view": "bus0"                             }, "to": { "view": "dev2"                                                       } },
+    { "id": "chip-dev2", "from": { "view": "chip", "sections": ["dbg_range"]  }, "to": { "view": "dev2", "sections": ["blk_0","blk_1","blk_2","blk_3","blk_4"] } }
+  ]
+}

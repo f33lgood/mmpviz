@@ -59,7 +59,7 @@ Full TL-UL crossbar SoC with 71 sections across four panels. Auto-layout fits th
 
 ## Key features
 
-- **Auto-layout** — omit `pos`/`size` entirely. The tool builds a containment graph, assigns panels to columns by depth, and sizes each panel so every section is readable. Canvas grows to fit. Two layout algorithms are available via `--layout algo1|algo2` (algo2 is the default; it rebalances column heights to keep the canvas aspect ratio near 1:1).
+- **Auto-layout** — omit `pos`/`size` entirely. The tool builds a containment graph, assigns panels to columns by depth, and sizes each panel so every section is readable. Canvas grows to fit. Three layout algorithms are available via `--layout algo1|algo2|algo3` (algo3 is the default; it rebalances column heights to keep the canvas aspect ratio near 1:1 and routes non-adjacent links through crossing-free bridge lines).
 - **Multi-level zoom** — link panels together with address-matched zoom bands. Drill from a 4GB overview down to 128-byte register blocks.
 - **Break compression** — mark sparse address gaps as `"break"` sections. They collapse to a thin separator; the remaining panel height is redistributed proportionally.
 - **Growth arrows** — annotate stack/heap regions with directional arrows via `"grows-up"` / `"grows-down"` flags.
@@ -162,7 +162,6 @@ Schema validation and layout checks run automatically before every render. `[ERR
 | `examples/link/band_fill/` | Band format — filled straight trapezoid |
 | `examples/link/band_stroke/` | Band format — dashed stroke outline, no fill |
 | `examples/link/band_segments/` | Band format — three explicit segments with matching junctions |
-| `examples/link/per_link/` | Per-link color overrides via `links.overrides` in `theme.json` |
 | `examples/link/anchor_addr_range/` | Explicit `["0xSTART", "0xEND"]` address-range anchors |
 | `examples/link/anchor_cross_addr/` | Cross-address mapping — band endpoints at different addresses |
 | `examples/link/anchor_to_section/` | `to.sections` pin — destination anchored independently of source |
@@ -208,7 +207,7 @@ Built-in themes in `themes/`: `default.json` (auto-loaded), `plantuml.json`
 | `references/create-diagram.md` | Step-by-step authoring guide |
 | `references/diagram-schema.md` | All `diagram.json` fields, types, and defaults |
 | `references/theme-schema.md` | All `theme.json` style properties; examples and tips |
-| `references/auto-layout-algorithm.md` | Auto-layout implementation reference: algo1 (one column per DAG level) and algo2 (height-rebalancing, default) |
+| `references/auto-layout-algorithm.md` | Auto-layout implementation reference: algo1 (one column per DAG level), algo2 (height-rebalancing, default), algo3 (algo2 + routing lanes for non-adjacent links) |
 | `references/check-rules.md` | Validation rules and remediation |
 
 ---

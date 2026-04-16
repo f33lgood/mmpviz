@@ -1,4 +1,11 @@
 {
+  "_comment": [
+    "What this shows: the connector link style (links.connector in theme.json).",
+    "You get three separate drawn pieces — source trapezoid, curved middle line,",
+    "destination trapezoid — instead of one filled band polygon.",
+    "Same regions and link as band_fill / band_stroke / band_segments; only the",
+    "theme changes so you can compare how one diagram looks under each style."
+  ],
   "views": [
     {
       "id": "overview",

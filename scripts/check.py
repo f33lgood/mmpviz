@@ -883,7 +883,7 @@ def main():
     base_style = theme.resolve('')
     links = Links(links_config=diagram.get('links', []),
                   style=theme.resolve_links())
-    area_views = get_area_views(base_style, diagram, theme, links=links)
+    area_views, _ = get_area_views(base_style, diagram, theme, links=links)
     if not area_views:
         print("Error: no views could be created.", file=sys.stderr)
         sys.exit(1)

@@ -25,14 +25,16 @@ Writing guide:
 ## [2026-04-15]
 
 ### Added
-- **`--layout algo1|algo2` flag** — selects the auto-layout algorithm; `algo2` is the default.
+- **`--layout algo1|algo2|algo3` flag** — selects the auto-layout algorithm; `algo3` is the default.
 - **Algo-2: height-rebalancing layout** — splits over-tall DAG columns by extracting height-outlier views and overflowing trailing views to the next visual column, targeting a canvas H/W ratio ≤ 1.3.
+- **Algo-3: routing lanes** — algo-2 height-rebalancing plus automatic routing lanes for non-adjacent links; a link that skips an intermediate column is re-routed through a horizontal bridge line placed in a crossing-free gap between views in that column.
 - **`examples/themes/section_styles/`** — demonstrates per-section `fill` overrides via `views[id].sections[id]` in `theme.json`.
 - **`examples/themes/per_link/`** — demonstrates per-link `fill`/`opacity` overrides via `links.overrides` in `theme.json`.
 
 ### Changed
-- **Default layout algorithm** — algo-2 height-rebalancing replaces algo-1 (one visual column per DAG level) as the default; pass `--layout algo1` to restore the previous behaviour.
+- **Default layout algorithm** — algo-3 (routing lanes) replaces algo-1 (one visual column per DAG level) as the default; pass `--layout algo1` or `--layout algo2` to select a simpler algorithm.
 - **`examples/diagram/`** — new folder for core diagram primitive demos; `examples/break/` and `examples/labels/` moved here.
+- **Algo-3 routing lane placement (bracket case C)** — non-adjacent links whose source sat below every adjacent destination were sometimes drawn through the last intermediate panel instead of free space below it because no gap existed past the bottom of that column; layout now reserves trailing space so those lanes can route outside panels.
 
 ### Removed
 - **`examples/chips/arm_coresight_line_link/`** — superseded by `examples/chips/arm_coresight_dual_view/`.
@@ -126,6 +128,7 @@ Writing guide:
 - View coordinate space is derived solely from the view's own `sections[]`; no implicit filtering.
 - Link destination bands clamp to the destination view's extent when `to.sections` is absent.
 - `min_section_height` now applies to all views, not only those with break sections.
+- **`min-height-violated` check** — no longer reports false positives when the layout raises sections to the `min_section_height` floor; validation uses the same section geometry as rendering.
 
 ### Removed
 - **Top-level `sections[]` array** — superseded by inline sections per view. Each view is self-contained.
@@ -134,10 +137,6 @@ Writing guide:
 - **`sections[].flags: ["hidden"]`** — hide a section without removing it; simply omit the section from the view instead.
 - **`links.sub_sections`**, **`links.addresses`** — superseded by the new `links` array format.
 - **Address-containment auto-layout** — views are no longer placed by implicit address containment; explicit `links[]` is required for column placement of related views.
-
-### Fixed
-- **`min-height-violated` false positives** — `check.py` was measuring raw proportional section height instead of actual rendered height; sections correctly raised to the `min_section_height` floor by the layout algorithm were incorrectly flagged.
-- **`AreaView.apply_section_geometry()`** — section geometry assignment (size/position fields) is now a single shared method called by both the renderer and `check.py`, eliminating the duplicated code that caused the above bug.
 
 ---
 

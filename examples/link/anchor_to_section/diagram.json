@@ -1,18 +1,26 @@
 {
+  "_comment": [
+    "What this shows: pinning the right-hand side of the band with to.sections.",
+    "The left panel highlights the whole parent range (outer_2). The right panel",
+    "could show many small children, but the band only lines up to inner_0 and",
+    "inner_1 — the destination height is not the full inner view, only the slices",
+    "you list. Omit to.sections to let the tool infer the destination from the source.",
+    "Names are neutral placeholders."
+  ],
   "title": "to.sections \u2014 pinning the destination band to a specific sub-section",
   "views": [
     {
       "id": "overview",
-      "title": "System Overview",
+      "title": "Outer layout",
       "sections": [
         {
-          "id": "flash",
+          "id": "outer_0",
           "address": "0x00000000",
           "size": "0x00080000",
-          "name": "Flash"
+          "name": "Range 0"
         },
         {
-          "id": "brk_ftos",
+          "id": "gap_o0",
           "address": "0x00080000",
           "size": "0x1FF80000",
           "name": "\u00b7\u00b7\u00b7",
@@ -21,13 +29,13 @@
           ]
         },
         {
-          "id": "sram",
+          "id": "outer_1",
           "address": "0x20000000",
           "size": "0x00020000",
-          "name": "SRAM"
+          "name": "Range 1"
         },
         {
-          "id": "brk_stop",
+          "id": "gap_o1",
           "address": "0x20020000",
           "size": "0x1FFE0000",
           "name": "\u00b7\u00b7\u00b7",
@@ -36,82 +44,82 @@
           ]
         },
         {
-          "id": "apb1",
+          "id": "outer_2",
           "address": "0x40000000",
           "size": "0x00010000",
-          "name": "APB1"
+          "name": "Range 2"
         }
       ]
     },
     {
-      "id": "periph-detail",
-      "title": "APB1 Peripherals",
+      "id": "inner",
+      "title": "Inner layout",
       "sections": [
         {
-          "id": "uart0",
+          "id": "inner_0",
           "address": "0x40000000",
           "size": "0x00002000",
-          "name": "UART0"
+          "name": "Leaf 0"
         },
         {
-          "id": "uart1",
+          "id": "inner_1",
           "address": "0x40002000",
           "size": "0x00002000",
-          "name": "UART1"
+          "name": "Leaf 1"
         },
         {
-          "id": "spi0",
+          "id": "inner_2",
           "address": "0x40004000",
           "size": "0x00002000",
-          "name": "SPI0"
+          "name": "Leaf 2"
         },
         {
-          "id": "i2c0",
+          "id": "inner_3",
           "address": "0x40006000",
           "size": "0x00002000",
-          "name": "I2C0"
+          "name": "Leaf 3"
         },
         {
-          "id": "tim2",
+          "id": "inner_4",
           "address": "0x40008000",
           "size": "0x00002000",
-          "name": "TIM2"
+          "name": "Leaf 4"
         },
         {
-          "id": "pwr",
+          "id": "inner_5",
           "address": "0x4000A000",
           "size": "0x00002000",
-          "name": "PWR"
+          "name": "Leaf 5"
         },
         {
-          "id": "bkp",
+          "id": "inner_6",
           "address": "0x4000C000",
           "size": "0x00002000",
-          "name": "BKP"
+          "name": "Leaf 6"
         },
         {
-          "id": "rsvd",
+          "id": "inner_7",
           "address": "0x4000E000",
           "size": "0x00002000",
-          "name": "Reserved"
+          "name": "Unused"
         }
       ]
     }
   ],
   "links": [
     {
-      "id": "overview-periph-detail",
+      "id": "overview-inner",
       "from": {
         "view": "overview",
         "sections": [
-          "apb1"
+          "outer_2"
         ]
       },
       "to": {
-        "view": "periph-detail",
+        "view": "inner",
         "sections": [
-          "uart0",
-          "uart1"
+          "inner_0",
+          "inner_1"
         ]
       }
     }

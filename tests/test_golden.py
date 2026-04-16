@@ -153,7 +153,7 @@ def render_example(example_dir):
     links_config = diagram.get('links', [])
     links = Links(links_config=links_config, style=theme.resolve_links())
 
-    area_views = get_area_views(base_style, diagram, theme, links=links)
+    area_views, routing_lanes = get_area_views(base_style, diagram, theme, links=links)
     doc_w, doc_h, left_overflow, top_overflow = _auto_canvas_size(area_views)
     doc_size = (doc_w, doc_h)
     origin = (-left_overflow, -top_overflow)
@@ -164,6 +164,7 @@ def render_example(example_dir):
         style=base_style,
         size=doc_size,
         origin=origin,
+        routing_lanes=routing_lanes or None,
     ).draw()
 
 
@@ -350,6 +351,24 @@ class GoldenTest(unittest.TestCase):
 
     def test_layout_height_global(self):
         self._run_path('layout', 'height_global')
+
+    def test_layout_algo2_tall_top(self):
+        self._run_path('layout', 'algo2_tall_top')
+
+    def test_layout_algo2_tall_mid(self):
+        self._run_path('layout', 'algo2_tall_mid')
+
+    def test_layout_algo2_tall_bot(self):
+        self._run_path('layout', 'algo2_tall_bot')
+
+    def test_layout_algo2_pass2_cascade(self):
+        self._run_path('layout', 'algo2_pass2_cascade')
+
+    def test_layout_algo2_deep_chain(self):
+        self._run_path('layout', 'algo2_deep_chain')
+
+    def test_layout_algo3_long_span(self):
+        self._run_path('layout', 'algo3_long_span')
 
     def _run_named(self, name):
         d = os.path.join(EXAMPLES_DIR, name)

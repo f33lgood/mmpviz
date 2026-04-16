@@ -25,13 +25,16 @@ class MapRenderer:
 
     def __init__(self, area_views: list, links, style: dict,
                  growth_arrow: dict = None,
-                 size=DefaultAppValues.DOCUMENT_SIZE, origin=(0, 0)):
+                 size=DefaultAppValues.DOCUMENT_SIZE, origin=(0, 0),
+                 routing_lanes: dict = None):
         self.area_views = area_views
         self.links = links
         self.style = style
         self.growth_arrow = growth_arrow or {}
         self.size = size
         self.origin = origin
+        # routing_lanes: {entry_idx: [lane_dict, ...]} from plan_routing_lanes()
+        self.routing_lanes = routing_lanes or {}
         ox, oy = origin
         self.svg = SVGBuilder(size[0], size[1], origin_x=ox, origin_y=oy)
 
@@ -485,7 +488,7 @@ class MapRenderer:
         link_overrides = links_style.get('overrides', {})
         av_by_id = {av.view_id: av for av in self.area_views}
 
-        for entry in self.links.entries:
+        for entry_idx, entry in enumerate(self.links.entries):
             override = link_overrides.get(entry.get('id', ''), {})
             link_style = {**base_link_style, **override}
             from_view_id = entry['from_view']
@@ -521,11 +524,13 @@ class MapRenderer:
                         f"could not resolve destination range, skipping")
                     continue
 
+            entry_lanes = self.routing_lanes.get(entry_idx)
             group.append(self._make_poly(
                 to_area, from_range[0], from_range[1],
                 link_style, source_area=from_area,
                 to_start=to_range[0] if to_range else None,
-                to_end=to_range[1] if to_range else None))
+                to_end=to_range[1] if to_range else None,
+                routing_lanes=entry_lanes))
 
         return group
 
@@ -563,7 +568,8 @@ class MapRenderer:
         return f'L {x2},{y2}'
 
     def _make_poly(self, area_view, start_address, end_address, style: dict,
-                   source_area=None, to_start=None, to_end=None) -> ET.Element:
+                   source_area=None, to_start=None, to_end=None,
+                   routing_lanes=None) -> ET.Element:
         def find_sub(address, area):
             for sub in area.get_split_area_views():
                 if sub.start_address <= address <= sub.end_address:
@@ -609,9 +615,18 @@ class MapRenderer:
         # source/dest junction heights (mid_width) and the middle-segment heights
         # (0, collapsed) differ at the same x, causing discontinuities in the path.
         if _s(style, '_connector_mode'):
+            src_seg_w = _s(style, 'source_seg_width', 25)
+            dst_seg_w = _s(style, 'dest_seg_width', 25)
+            if routing_lanes:
+                return self._render_routed_connector(
+                    lx, lx_j=lx + src_seg_w,
+                    rx_j=rx - dst_seg_w, rx=rx,
+                    src_center=src_center, dst_center=dst_center,
+                    src_span=src_span, dst_span=dst_span,
+                    style=style, routing_lanes=routing_lanes)
             return self._render_connector(
-                lx, lx_j=lx + _s(style, 'source_seg_width', 25),
-                rx_j=rx - _s(style, 'dest_seg_width', 25), rx=rx,
+                lx, lx_j=lx + src_seg_w,
+                rx_j=rx - dst_seg_w, rx=rx,
                 src_center=src_center, dst_center=dst_center,
                 src_span=src_span, dst_span=dst_span,
                 style=style)
@@ -769,6 +784,81 @@ class MapRenderer:
             mid_d = f'M {lx_j},{src_center} {cmd}'
             g.append(self.svg.path(
                 mid_d, fill='none', stroke=fill,
+                stroke_width=mid_w, stroke_linecap=mid_cap,
+                opacity=opacity))
+
+        return g
+
+    def _render_routed_connector(self, lx, lx_j, rx_j, rx,
+                                  src_center, dst_center, src_span, dst_span,
+                                  style: dict, routing_lanes: list) -> ET.Element:
+        """Render a connector routed through intermediate-column lanes.
+
+        Identical to ``_render_connector`` for the source and destination
+        trapezoids, but replaces the single Bezier middle segment with a
+        multi-segment path that detours through a horizontal routing lane in
+        each skipped column.
+
+        Each lane adds two waypoints: entry (x_bridge_l) and exit (x_bridge_r).
+
+        Segments between consecutive waypoints are drawn as:
+          • horizontal (y unchanged) → straight ``L`` command
+          • vertical shift           → symmetric S-curve ``C`` with horizontal
+                                       handles at both endpoints
+        """
+        fill    = _s(style, 'fill', 'none')
+        opacity = _s(style, 'opacity', 1)
+        mid_w   = _s(style, 'middle_seg_line_width', 10)
+        mid_cap = _s(style, 'middle_seg_line_cap', 'butt')
+        src_seg_w = _s(style, 'source_seg_width', 25)
+        dst_seg_w = _s(style, 'dest_seg_width', 25)
+
+        g = self.svg.g()
+        has_fill = fill not in (None, 'none')
+
+        # Source trapezoid
+        sl_t = src_center + src_span / 2
+        sl_b = src_center - src_span / 2
+        sr_t = src_center + mid_w / 2
+        sr_b = src_center - mid_w / 2
+        if has_fill:
+            d_src = (f'M {lx},{sl_t} L {lx_j},{sr_t} '
+                     f'L {lx_j},{sr_b} L {lx},{sl_b} Z')
+            g.append(self.svg.path(d_src, fill=fill, stroke='none', opacity=opacity))
+
+        # Destination trapezoid
+        dl_t = dst_center + mid_w / 2
+        dl_b = dst_center - mid_w / 2
+        dr_t = dst_center + dst_span / 2
+        dr_b = dst_center - dst_span / 2
+        if has_fill:
+            d_dst = (f'M {rx_j},{dl_t} L {rx},{dr_t} '
+                     f'L {rx},{dr_b} L {rx_j},{dl_b} Z')
+            g.append(self.svg.path(d_dst, fill=fill, stroke='none', opacity=opacity))
+
+        # Routed middle line via waypoints
+        waypoints = [(lx_j, src_center)]
+        for lane in routing_lanes:
+            # Bridge width = section width (col_left to col_right, no extension).
+            x_l = lane['x_left']
+            x_r = lane['x_right']
+            waypoints.append((x_l, lane['y']))
+            waypoints.append((x_r, lane['y']))
+        waypoints.append((rx_j, dst_center))
+
+        if mid_w:
+            x0, y0 = waypoints[0]
+            d_mid = f'M {x0},{y0}'
+            for i in range(len(waypoints) - 1):
+                x1, y1 = waypoints[i]
+                x2, y2 = waypoints[i + 1]
+                if abs(y1 - y2) < 0.5:
+                    d_mid += f' L {x2},{y2}'
+                else:
+                    mx = (x1 + x2) / 2
+                    d_mid += f' C {mx},{y1} {mx},{y2} {x2},{y2}'
+            g.append(self.svg.path(
+                d_mid, fill='none', stroke=fill,
                 stroke_width=mid_w, stroke_linecap=mid_cap,
                 opacity=opacity))
 

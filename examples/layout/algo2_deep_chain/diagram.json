@@ -1,0 +1,101 @@
+{
+  "_comment": [
+    "algo2_deep_chain — 4-level DAG depth with 2-level descendant propagation.",
+    "",
+    "Initial DAG columns: chip(0), sub0/dev0/dev1(1), bus0(2), dev2(3).",
+    "sub0 is a Pass 1 outlier (~620 px vs avg ~340 px).",
+    "When sub0 moves col 1→2, _push_descendants fires:",
+    "  bus0 col 2→3  (child of sub0)",
+    "  dev2 col 3→4  (grandchild, recursively pushed)",
+    "",
+    "Final columns: chip(0), dev0/dev1(1), sub0(2), bus0(3), dev2(4).",
+    "The chip→sub0 link is non-adjacent (col 0→2); the routing lane in col 1",
+    "goes above dev0 (bracket case B — sub0_range is the topmost section in chip)."
+  ],
+  "views": [
+    {
+      "id": "chip",
+      "title": "Chip",
+      "sections": [
+        { "id": "sub0_range", "address": "0x00050000", "size": "0x00010000", "name": "Subsystem 0" },
+        { "id": "dev0_range", "address": "0x00040000", "size": "0x00010000", "name": "Device 0"    },
+        { "id": "dev1_range", "address": "0x00030000", "size": "0x00010000", "name": "Device 1"    },
+        { "id": "region0",    "address": "0x00020000", "size": "0x00010000", "name": "Region 0"    },
+        { "id": "region1",    "address": "0x00010000", "size": "0x00010000", "name": "Region 1"    },
+        { "id": "region2",    "address": "0x00000000", "size": "0x00010000", "name": "Region 2"    }
+      ]
+    },
+    {
+      "id": "sub0",
+      "title": "Subsystem 0",
+      "_note": "Pass 1 outlier (~620 px); extracted col 1→2. Triggers 2-level descendant push.",
+      "sections": [
+        { "id": "blk_0", "address": "0x00050000", "size": "0x00001000", "name": "Block 0", "min_height": 60 },
+        { "id": "blk_1", "address": "0x00051000", "size": "0x00001000", "name": "Block 1", "min_height": 60 },
+        { "id": "blk_2", "address": "0x00052000", "size": "0x00001000", "name": "Block 2", "min_height": 60 },
+        { "id": "blk_3", "address": "0x00053000", "size": "0x00001000", "name": "Block 3", "min_height": 60 },
+        { "id": "blk_4", "address": "0x00054000", "size": "0x00001000", "name": "Block 4", "min_height": 60 },
+        { "id": "blk_5", "address": "0x00055000", "size": "0x00001000", "name": "Block 5", "min_height": 60 },
+        { "id": "blk_6", "address": "0x00056000", "size": "0x00001000", "name": "Block 6", "min_height": 60 },
+        { "id": "blk_7", "address": "0x00057000", "size": "0x00001000", "name": "Block 7", "min_height": 60 },
+        { "id": "blk_8", "address": "0x00058000", "size": "0x00001000", "name": "Block 8", "min_height": 60 },
+        { "id": "blk_9", "address": "0x00059000", "size": "0x00001000", "name": "Block 9", "min_height": 60 }
+      ]
+    },
+    {
+      "id": "dev0",
+      "title": "Device 0",
+      "_note": "stays in col 1",
+      "sections": [
+        { "id": "blk_0", "address": "0x00040000", "size": "0x00002000", "name": "Block 0" },
+        { "id": "blk_1", "address": "0x00042000", "size": "0x00002000", "name": "Block 1" },
+        { "id": "blk_2", "address": "0x00044000", "size": "0x00002000", "name": "Block 2" },
+        { "id": "blk_3", "address": "0x00046000", "size": "0x00002000", "name": "Block 3" },
+        { "id": "blk_4", "address": "0x00048000", "size": "0x00002000", "name": "Block 4" }
+      ]
+    },
+    {
+      "id": "dev1",
+      "title": "Device 1",
+      "_note": "stays in col 1",
+      "sections": [
+        { "id": "blk_0", "address": "0x00030000", "size": "0x00002000", "name": "Block 0" },
+        { "id": "blk_1", "address": "0x00032000", "size": "0x00002000", "name": "Block 1" },
+        { "id": "blk_2", "address": "0x00034000", "size": "0x00002000", "name": "Block 2" },
+        { "id": "blk_3", "address": "0x00036000", "size": "0x00002000", "name": "Block 3" },
+        { "id": "blk_4", "address": "0x00038000", "size": "0x00002000", "name": "Block 4" }
+      ]
+    },
+    {
+      "id": "bus0",
+      "title": "Bus 0",
+      "_note": "child of sub0; pushed col 2→3 by descendant propagation; sections within sub0's range (0x50000–0x5A000) so the link anchor resolves",
+      "sections": [
+        { "id": "blk_0", "address": "0x00050000", "size": "0x00002000", "name": "Block 0" },
+        { "id": "blk_1", "address": "0x00052000", "size": "0x00002000", "name": "Block 1" },
+        { "id": "blk_2", "address": "0x00054000", "size": "0x00002000", "name": "Block 2" },
+        { "id": "blk_3", "address": "0x00056000", "size": "0x00002000", "name": "Block 3" },
+        { "id": "blk_4", "address": "0x00058000", "size": "0x00002000", "name": "Block 4" }
+      ]
+    },
+    {
+      "id": "dev2",
+      "title": "Device 2",
+      "_note": "grandchild of sub0; pushed col 3→4 by recursive descendant propagation; sections within bus0's range",
+      "sections": [
+        { "id": "blk_0", "address": "0x00050000", "size": "0x00001000", "name": "Block 0" },
+        { "id": "blk_1", "address": "0x00051000", "size": "0x00001000", "name": "Block 1" },
+        { "id": "blk_2", "address": "0x00052000", "size": "0x00001000", "name": "Block 2" },
+        { "id": "blk_3", "address": "0x00053000", "size": "0x00001000", "name": "Block 3" },
+        { "id": "blk_4", "address": "0x00054000", "size": "0x00001000", "name": "Block 4" }
+      ]
+    }
+  ],
+  "links": [
+    { "id": "chip-sub0", "from": { "view": "chip", "sections": ["sub0_range"] }, "to": { "view": "sub0" } },
+    { "id": "chip-dev0", "from": { "view": "chip", "sections": ["dev0_range"] }, "to": { "view": "dev0" } },
+    { "id": "chip-dev1", "from": { "view": "chip", "sections": ["dev1_range"] }, "to": { "view": "dev1" } },
+    { "id": "sub0-bus0", "from": { "view": "sub0"                             }, "to": { "view": "bus0" } },
+    { "id": "bus0-dev2", "from": { "view": "bus0"                             }, "to": { "view": "dev2" } }
+  ]
+}

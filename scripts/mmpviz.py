@@ -21,7 +21,7 @@ import sys
 from area_view import AreaView
 from auto_layout import (build_link_graph_from_links, assign_columns,
                          sort_by_dag_tree, order_within_column,
-                         rebalance_columns)
+                         rebalance_columns, plan_routing_lanes)
 from helpers import safe_element_list_get, safe_element_dict_get, DefaultAppValues
 from links import Links
 from fmt_diagram import format_diagram
@@ -66,11 +66,12 @@ def parse_arguments():
                         action='store_true',
                         default=False)
     parser.add_argument('--layout',
-                        choices=['algo1', 'algo2'],
-                        default='algo2',
+                        choices=['algo1', 'algo2', 'algo3'],
+                        default='algo3',
                         help=('Auto-layout algorithm: '
                               'algo1 = one visual column per DAG level; '
-                              'algo2 = height-rebalancing with outlier extraction (default).'))
+                              'algo2 = height-rebalancing with outlier extraction; '
+                              'algo3 = algo2 + routing lanes for non-adjacent links (default).'))
     parser.add_argument('--version', '-v',
                         action='version',
                         version=f'mmpviz {__version__}')
@@ -328,7 +329,7 @@ def _estimate_area_height(sections: list, style: dict) -> float:
 
 
 def get_area_views(base_style: dict, diagram: dict, theme: Theme,
-                   links=None, layout_algo: str = 'algo2') -> list:
+                   links=None, layout_algo: str = 'algo3') -> tuple:
     """
     Build AreaView objects from diagram config.
 
@@ -337,6 +338,13 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
 
     Auto-layout always runs: ``pos`` and ``size`` on individual views and the
     diagram-level ``size`` field are deprecated and ignored with a warning.
+
+    Returns
+    -------
+    (area_views, routing_lanes) : tuple
+        ``area_views`` is a list of AreaView objects.
+        ``routing_lanes`` is a dict ``{entry_idx: [lane_dict, ...]}`` (non-empty
+        only when ``layout_algo == 'algo3'`` and non-adjacent links exist).
     """
     area_configurations = diagram.get('views', []) or []
 
@@ -398,8 +406,8 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
         area_configurations = sort_by_dag_tree(
             area_configurations, columns, links.entries, sec_mid_addrs)
 
-    # --- Algo-2: height-rebalancing column reassignment (optional) ---
-    if layout_algo == 'algo2' and links is not None and links.entries:
+    # --- Algo-2/3: height-rebalancing column reassignment (optional) ---
+    if layout_algo in ('algo2', 'algo3') and links is not None and links.entries:
         columns = rebalance_columns(
             columns=columns,
             area_configs=area_configurations,
@@ -480,7 +488,16 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
             theme=theme,
         ))
 
-    return area_views
+    # --- Algo-3: plan routing lanes for non-adjacent links ---
+    routing_lanes = {}
+    if layout_algo == 'algo3' and links is not None and links.entries:
+        routing_lanes = plan_routing_lanes(
+            vis_col=columns,
+            link_entries=links.entries,
+            area_views=area_views,
+        )
+
+    return area_views, routing_lanes
 
 
 def main():
@@ -542,8 +559,9 @@ def main():
     growth_arrow_style = theme.resolve_growth_arrow()
 
     # Build area views — auto-layout always runs
-    area_views = get_area_views(base_style, diagram, theme, links=links,
-                                layout_algo=args.layout)
+    area_views, routing_lanes = get_area_views(base_style, diagram, theme,
+                                               links=links,
+                                               layout_algo=args.layout)
     if not area_views:
         print("Error: no area views could be created. Check diagram.json configuration.")
         sys.exit(1)
@@ -575,6 +593,7 @@ def main():
         growth_arrow=growth_arrow_style,
         size=document_size,
         origin=origin,
+        routing_lanes=routing_lanes or None,
     ).draw()
 
     # Write output

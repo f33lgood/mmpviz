@@ -1,4 +1,10 @@
 {
+  "_comment": [
+    "What this shows: advanced links.band layout — the band is split into named",
+    "legs (source, middle, destination) with different shapes (straight vs curve)",
+    "and fixed pixel heights (sheight/dheight numbers) at the joins.",
+    "Use this when you need fine control over each segment instead of one uniform band."
+  ],
   "views": [
     {
       "id": "overview",

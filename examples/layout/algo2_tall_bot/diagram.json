@@ -1,0 +1,80 @@
+{
+  "_comment": [
+    "algo2_tall_bot — one tall outlier linked from the lowest-address section",
+    "(bottommost in the SVG panel).  Pass 1 extracts it to column 2.",
+    "",
+    "With algo3 the non-adjacent link (System Bus → Subsystem 0) has its source y",
+    "below all three adjacent source y values, so the routing lane is placed below",
+    "the last adjacent destination (ZCI bracket case C — source below all",
+    "adjacent sources).  Contrast with algo2_tall_top (bracket B) and",
+    "algo2_tall_mid (bracket D)."
+  ],
+  "views": [
+    {
+      "id": "bus",
+      "title": "System Bus",
+      "sections": [
+        { "id": "dev0_range", "address": "0x00030000", "size": "0x00010000", "name": "Device 0"    },
+        { "id": "dev1_range", "address": "0x00020000", "size": "0x00010000", "name": "Device 1"    },
+        { "id": "dev2_range", "address": "0x00010000", "size": "0x00010000", "name": "Device 2"    },
+        { "id": "sub0_range", "address": "0x00000000", "size": "0x00010000", "name": "Subsystem 0" }
+      ]
+    },
+    {
+      "id": "dev0",
+      "title": "Device 0",
+      "sections": [
+        { "id": "blk_0", "address": "0x00030000", "size": "0x00002000", "name": "Block 0" },
+        { "id": "blk_1", "address": "0x00032000", "size": "0x00002000", "name": "Block 1" },
+        { "id": "blk_2", "address": "0x00034000", "size": "0x00002000", "name": "Block 2" },
+        { "id": "blk_3", "address": "0x00036000", "size": "0x00002000", "name": "Block 3" },
+        { "id": "blk_4", "address": "0x00038000", "size": "0x00002000", "name": "Block 4" }
+      ]
+    },
+    {
+      "id": "dev1",
+      "title": "Device 1",
+      "sections": [
+        { "id": "blk_0", "address": "0x00020000", "size": "0x00002000", "name": "Block 0" },
+        { "id": "blk_1", "address": "0x00022000", "size": "0x00002000", "name": "Block 1" },
+        { "id": "blk_2", "address": "0x00024000", "size": "0x00002000", "name": "Block 2" },
+        { "id": "blk_3", "address": "0x00026000", "size": "0x00002000", "name": "Block 3" },
+        { "id": "blk_4", "address": "0x00028000", "size": "0x00002000", "name": "Block 4" }
+      ]
+    },
+    {
+      "id": "dev2",
+      "title": "Device 2",
+      "sections": [
+        { "id": "blk_0", "address": "0x00010000", "size": "0x00002000", "name": "Block 0" },
+        { "id": "blk_1", "address": "0x00012000", "size": "0x00002000", "name": "Block 1" },
+        { "id": "blk_2", "address": "0x00014000", "size": "0x00002000", "name": "Block 2" },
+        { "id": "blk_3", "address": "0x00016000", "size": "0x00002000", "name": "Block 3" },
+        { "id": "blk_4", "address": "0x00018000", "size": "0x00002000", "name": "Block 4" }
+      ]
+    },
+    {
+      "id": "sub0",
+      "title": "Subsystem 0",
+      "_note": "Pass 1 outlier linked from the BOTTOM section; extracted to col 2.",
+      "sections": [
+        { "id": "blk_0", "address": "0x00000000", "size": "0x00001000", "name": "Block 0", "min_height": 60 },
+        { "id": "blk_1", "address": "0x00001000", "size": "0x00001000", "name": "Block 1", "min_height": 60 },
+        { "id": "blk_2", "address": "0x00002000", "size": "0x00001000", "name": "Block 2", "min_height": 60 },
+        { "id": "blk_3", "address": "0x00003000", "size": "0x00001000", "name": "Block 3", "min_height": 60 },
+        { "id": "blk_4", "address": "0x00004000", "size": "0x00001000", "name": "Block 4", "min_height": 60 },
+        { "id": "blk_5", "address": "0x00005000", "size": "0x00001000", "name": "Block 5", "min_height": 60 },
+        { "id": "blk_6", "address": "0x00006000", "size": "0x00001000", "name": "Block 6", "min_height": 60 },
+        { "id": "blk_7", "address": "0x00007000", "size": "0x00001000", "name": "Block 7", "min_height": 60 },
+        { "id": "blk_8", "address": "0x00008000", "size": "0x00001000", "name": "Block 8", "min_height": 60 },
+        { "id": "blk_9", "address": "0x00009000", "size": "0x00001000", "name": "Block 9", "min_height": 60 }
+      ]
+    }
+  ],
+  "links": [
+    { "id": "bus-dev0", "from": { "view": "bus", "sections": ["dev0_range"] }, "to": { "view": "dev0" } },
+    { "id": "bus-dev1", "from": { "view": "bus", "sections": ["dev1_range"] }, "to": { "view": "dev1" } },
+    { "id": "bus-dev2", "from": { "view": "bus", "sections": ["dev2_range"] }, "to": { "view": "dev2" } },
+    { "id": "bus-sub0", "from": { "view": "bus", "sections": ["sub0_range"] }, "to": { "view": "sub0" } }
+  ]
+}
