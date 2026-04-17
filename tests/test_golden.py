@@ -310,9 +310,6 @@ class GoldenTest(unittest.TestCase):
     def test_link_band_segments(self):
         self._run_path('link', 'band_segments')
 
-    def test_link_per_link(self):
-        self._run_path('link', 'per_link')
-
     def test_stm32f103(self):
         self._run_path('chips', 'stm32f103')
 

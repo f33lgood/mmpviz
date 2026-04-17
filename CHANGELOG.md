@@ -22,6 +22,17 @@ Writing guide:
 
 ---
 
+## [2026-04-17]
+
+### Added
+- **`--layout algo4`** — layout variant that extends algo-3 with fixed lane assignment and vertical column alignment to minimise total link length.
+- **Package distribution** — `pyproject.toml` added; installable via `pip install mmpviz` or `uv pip install mmpviz`.
+
+### Changed
+- **Theme resolution** — when `-t` is omitted, `mmpviz` first looks for `theme.json` in the same directory as `diagram.json`; falls back to the built-in default if none is found. Explicit `-t` always takes priority over a sibling `theme.json`.
+
+---
+
 ## [2026-04-15]
 
 ### Added

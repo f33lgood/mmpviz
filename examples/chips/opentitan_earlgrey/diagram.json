@@ -3,7 +3,7 @@
   "views": [
     {
       "id": "overview",
-      "title": "Earl Grey",
+      "title": "OpenTitan (Earl Grey)",
       "sections": [
         {
           "id": "rom_debug",

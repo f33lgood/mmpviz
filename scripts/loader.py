@@ -1,11 +1,12 @@
 import json
 import os
 import re
+from importlib.resources import files as _res_files
 
 from section import Section
 
 _ID_RE = re.compile(r'^[a-z0-9_-]+$')
-_SCHEMAS_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'schemas'))
+_SCHEMAS_DIR = str(_res_files("schemas"))
 
 try:
     from jsonschema import Draft202012Validator

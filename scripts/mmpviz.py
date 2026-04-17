@@ -16,12 +16,14 @@ Usage:
 import argparse
 import copy
 import math
+import os
 import sys
 
 from area_view import AreaView
 from auto_layout import (build_link_graph_from_links, assign_columns,
                          sort_by_dag_tree, order_within_column,
-                         rebalance_columns, plan_routing_lanes)
+                         rebalance_columns, plan_routing_lanes,
+                         vertical_align_columns)
 from helpers import safe_element_list_get, safe_element_dict_get, DefaultAppValues
 from links import Links
 from fmt_diagram import format_diagram
@@ -50,10 +52,12 @@ def parse_arguments():
                         help='Path to the diagram.json file',
                         required=False)
     parser.add_argument('--theme', '-t',
-                        help=('Visual styling. Three forms accepted: '
-                              '(omit) = use the built-in default theme; '
-                              '-t <name> = use a built-in theme: default, plantuml; '
-                              '-t <path> = use a custom theme.json file. '
+                        help=('Visual styling. Resolution order (first match wins): '
+                              '(1) -t <name>  built-in theme by name: default, plantuml; '
+                              '(2) -t <path>  path to a custom theme.json file; '
+                              '(3) omit -t    theme.json in the same directory as diagram.json, if present; '
+                              '(4) omit -t    built-in default theme. '
+                              'Providing -t always takes priority over a sibling theme.json. '
                               'Custom themes support "extends" to inherit from a built-in base.'),
                         default=None)
     parser.add_argument('--output', '-o',
@@ -66,12 +70,13 @@ def parse_arguments():
                         action='store_true',
                         default=False)
     parser.add_argument('--layout',
-                        choices=['algo1', 'algo2', 'algo3'],
+                        choices=['algo1', 'algo2', 'algo3', 'algo4'],
                         default='algo3',
                         help=('Auto-layout algorithm: '
                               'algo1 = one visual column per DAG level; '
                               'algo2 = height-rebalancing with outlier extraction; '
-                              'algo3 = algo2 + routing lanes for non-adjacent links (default).'))
+                              'algo3 = algo2 + routing lanes for non-adjacent links (default); '
+                              'algo4 = algo3 + fixed lane assignment + vertical column alignment to minimise link length.'))
     parser.add_argument('--version', '-v',
                         action='version',
                         version=f'mmpviz {__version__}')
@@ -406,8 +411,8 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
         area_configurations = sort_by_dag_tree(
             area_configurations, columns, links.entries, sec_mid_addrs)
 
-    # --- Algo-2/3: height-rebalancing column reassignment (optional) ---
-    if layout_algo in ('algo2', 'algo3') and links is not None and links.entries:
+    # --- Algo-2/3/4: height-rebalancing column reassignment (optional) ---
+    if layout_algo in ('algo2', 'algo3', 'algo4') and links is not None and links.entries:
         columns = rebalance_columns(
             columns=columns,
             area_configs=area_configurations,
@@ -467,6 +472,40 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
                 cfg['pos'][1] = round(y, 1)
                 y += cfg.get('size', [0, 400])[1] + PADDING
 
+    # --- Expand inter-panel gaps for columns with multiple routing lanes ---
+    # When N non-adjacent links must pass routing lanes through a column that
+    # has stacked panels, the gap between those panels must be wide enough to
+    # hold all N lanes.  Required gap = N*lane_pitch + PADDING (breathing room).
+    # Applied for algo3 and above so every routing-lane layout benefits.
+    if layout_algo in ('algo3', 'algo4') \
+            and links is not None and links.entries:
+        _LANE_PITCH = 30   # lane_height(20) + 2 × lane_padding(5)
+        _lane_counts: dict = {}
+        for _entry in links.entries:
+            _fc = columns.get(_entry.get('from_view', ''))
+            _tc = columns.get(_entry.get('to_view', ''))
+            if _fc is not None and _tc is not None and _tc > _fc + 1:
+                for _c in range(_fc + 1, _tc):
+                    _lane_counts[_c] = _lane_counts.get(_c, 0) + 1
+        for _c, _n in _lane_counts.items():
+            if _n < 2:
+                continue
+            _required_gap = _n * _LANE_PITCH + PADDING   # e.g. 3*30+50 = 140 px
+            _col_cfgs = sorted(
+                [cfg for cfg in area_configurations
+                 if columns.get(cfg.get('id', '')) == _c],
+                key=lambda cfg: cfg.get('pos', [0, 0])[1],
+            )
+            for _i in range(len(_col_cfgs) - 1):
+                _above_bot = (_col_cfgs[_i]['pos'][1]
+                              + _col_cfgs[_i].get('size', [0, 400])[1])
+                _current_gap = _col_cfgs[_i + 1]['pos'][1] - _above_bot
+                _extra = _required_gap - _current_gap
+                if _extra > 0.5:
+                    for _j in range(_i + 1, len(_col_cfgs)):
+                        _col_cfgs[_j]['pos'][1] = round(
+                            _col_cfgs[_j]['pos'][1] + _extra, 1)
+
     area_views = []
     for i, area_config in enumerate(area_configurations):
         view_id = area_config.get('id', f'view-{i}')
@@ -488,9 +527,38 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
             theme=theme,
         ))
 
-    # --- Algo-3: plan routing lanes for non-adjacent links ---
+    # --- Algo-4: vertical column alignment to minimise link length ---
+    # Uses preliminary top-aligned area_views to compute link attachment y-coords,
+    # then applies per-column offsets to the configs and rebuilds area_views.
+    if layout_algo == 'algo4' and links is not None and links.entries:
+        col_offsets = vertical_align_columns(
+            vis_col=columns,
+            link_entries=links.entries,
+            area_views=area_views,
+            top_margin=TITLE_SPACE,
+        )
+        if col_offsets and any(abs(v) > 0.5 for v in col_offsets.values()):
+            for cfg in area_configurations:
+                c = columns.get(cfg.get('id', ''))
+                if c is not None:
+                    cfg['pos'][1] = round(cfg['pos'][1] + col_offsets.get(c, 0.0), 1)
+            # Rebuild area_views with the shifted positions (no repeat warnings)
+            area_views = []
+            for i, area_config in enumerate(area_configurations):
+                view_id = area_config.get('id', f'view-{i}')
+                view_sections = copy.deepcopy(resolve_view_sections(area_config))
+                if not view_sections:
+                    continue
+                area_views.append(AreaView(
+                    sections=Sections(sections=view_sections),
+                    style=theme.resolve(view_id),
+                    area_config=area_config,
+                    theme=theme,
+                ))
+
+    # --- Algo-3/4: plan routing lanes for non-adjacent links ---
     routing_lanes = {}
-    if layout_algo == 'algo3' and links is not None and links.entries:
+    if layout_algo in ('algo3', 'algo4') and links is not None and links.entries:
         routing_lanes = plan_routing_lanes(
             vis_col=columns,
             link_entries=links.entries,
@@ -542,9 +610,14 @@ def main():
         print(f"Error loading diagram: {e}")
         sys.exit(1)
 
-    # Load theme (or use built-in defaults)
+    # Load theme: explicit -t > auto-discovered theme.json next to diagram > built-in default
+    _theme_arg = args.theme
+    if _theme_arg is None:
+        _sibling = os.path.join(os.path.dirname(os.path.abspath(args.diagram)), 'theme.json')
+        if os.path.isfile(_sibling):
+            _theme_arg = _sibling
     try:
-        theme = Theme(args.theme)
+        theme = Theme(_theme_arg)
     except (OSError, Exception) as e:
         print(f"Error loading theme: {e}")
         sys.exit(1)
@@ -580,8 +653,16 @@ def main():
             print(f"  {e}")
         sys.exit(1)
 
-    # Canvas always auto-sizes to fit all placed views
+    # Canvas always auto-sizes to fit all placed views and routing lanes
     doc_w, doc_h, left_overflow, top_overflow = _auto_canvas_size(area_views)
+    if routing_lanes:
+        lane_bottom = max(
+            l['y'] + l['height'] / 2
+            for lanes in routing_lanes.values()
+            for l in lanes
+        )
+        # bottom_pad = 30 matches the default in _auto_canvas_size
+        doc_h = max(doc_h, int(lane_bottom) + 30)
     document_size = (doc_w, doc_h)
     origin = (-left_overflow, -top_overflow)
 

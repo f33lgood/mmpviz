@@ -14,6 +14,8 @@ order_within_column(graph, columns, area_views, link_entries)
                                                 → {col: [view_id, ...]}
 rebalance_columns(columns, area_configs, ...)   → {view_id: visual_col_int}
 plan_routing_lanes(vis_col, link_entries, ...)  → {entry_idx: [lane_dict, ...]}
+vertical_align_columns(vis_col, link_entries, area_views, ...)
+                                                → {col_int: y_offset_float}
 """
 from collections import defaultdict, deque
 
@@ -665,7 +667,7 @@ def plan_routing_lanes(
     # ------------------------------------------------------------------
     # Find non-adjacent links and compute routing requests per column
     # ------------------------------------------------------------------
-    # lane_requests[col_i] = list of (entry_idx, y_ideal, zci_lo, zci_hi)
+    # lane_requests[col_i] = list of (entry_idx, y_ideal, zci_lo, zci_hi, src_y)
     lane_requests = defaultdict(list)
 
     for idx, entry in enumerate(link_entries):
@@ -693,10 +695,10 @@ def plan_routing_lanes(
                 zci_lo, zci_hi, y_ideal = -INF, INF, y_src
             elif y_src <= adj[0][1]:
                 zci_lo, zci_hi = -INF, adj[0][2]
-                y_ideal = adj[0][2] - lane_height
+                y_ideal = adj[0][2] - 2 * lane_height
             elif y_src >= adj[-1][1]:
                 zci_lo, zci_hi = adj[-1][2], INF
-                y_ideal = adj[-1][2] + lane_height
+                y_ideal = adj[-1][2] + 2 * lane_height
             else:
                 # Find bracket
                 zci_lo = zci_hi = None
@@ -712,7 +714,7 @@ def plan_routing_lanes(
                 if zci_lo is None:
                     zci_lo, zci_hi, y_ideal = -INF, INF, y_src
 
-            lane_requests[col_i].append((idx, y_ideal, zci_lo, zci_hi))
+            lane_requests[col_i].append((idx, y_ideal, zci_lo, zci_hi, y_src))
 
     if not lane_requests:
         return {}
@@ -724,14 +726,25 @@ def plan_routing_lanes(
     col_lane_assignments = defaultdict(list)  # {col_i: [(entry_idx, y), ...]}
 
     for col_i, requests in lane_requests.items():
-        requests.sort(key=lambda r: r[1])  # sort by y_ideal
+        # Sort by y_ideal; use source y as tiebreak so same-bracket requests
+        # get a deterministic spread order.
+        requests.sort(key=lambda r: (r[1], r[4]))
+        # Pre-spread: when multiple requests share the same y_ideal (e.g. all
+        # bracket case C), push each successive one forward by one lane pitch
+        # so the nudge loop has distinct starting points and can place them
+        # without collision.
+        _step = lane_height + 2 * lane_padding
+        for _i in range(1, len(requests)):
+            if requests[_i][1] < requests[_i - 1][1] + _step:
+                _ei, _, _zlo, _zhi, _sy = requests[_i]
+                requests[_i] = (_ei, requests[_i - 1][1] + _step, _zlo, _zhi, _sy)
         x_left, x_right = _col_x_bounds(col_i)
         if x_left is None:
             continue
         gaps = _col_gaps(col_i)
         assigned = []  # [(y_center, height), ...] already placed in this col
 
-        for entry_idx, y_ideal, zci_lo, zci_hi in requests:
+        for entry_idx, y_ideal, zci_lo, zci_hi, _sy in requests:
             INF = float('inf')
             best_y = None
             best_dist = INF
@@ -757,20 +770,24 @@ def plan_routing_lanes(
 
                 candidate = max(y_lo, min(y_hi, y_ideal))
 
-                # Avoid overlapping already-assigned lanes in this gap
-                ok = True
-                for ey, eh in assigned:
+                # Avoid overlapping already-assigned lanes in this gap.
+                # Sweep upward past any blocking lanes (sorted ascending),
+                # which is correct because requests are also sorted ascending
+                # by y_ideal — earlier requests occupy lower positions.
+                for ey, eh in sorted(assigned, key=lambda t: t[0]):
                     min_sep = (lane_height + eh) / 2 + lane_padding
                     if abs(candidate - ey) < min_sep:
-                        # Try to nudge past the blocking lane
-                        if candidate <= ey:
-                            candidate = ey - min_sep
-                        else:
-                            candidate = ey + min_sep
-                        if candidate < y_lo or candidate > y_hi:
-                            ok = False
+                        candidate = ey + min_sep   # push up past this lane
+                        if candidate > y_hi:
+                            candidate = None
                             break
-                if not ok:
+
+                if candidate is None:
+                    continue
+
+                # Final collision check (catches any edge case in the sweep)
+                if any(abs(candidate - ey) < (lane_height + eh) / 2 + lane_padding
+                       for ey, eh in assigned):
                     continue
 
                 dist = abs(candidate - y_ideal)
@@ -807,6 +824,457 @@ def plan_routing_lanes(
                 'height': lane_height,
             })
 
-    # Sort lanes by column for each entry
-    return {idx: sorted(lanes, key=lambda d: d['col'])
+    # Sort lanes left-to-right (by x_left) so waypoints are in traversal order.
+    return {idx: sorted(lanes, key=lambda d: d['x_left'])
             for idx, lanes in result.items()}
+
+
+def vertical_align_columns(
+    vis_col: dict,
+    link_entries: list,
+    area_views: list,
+    top_margin: float = 60.0,
+) -> dict:
+    """
+    Algo-4: compute per-column y-offsets that minimise total link length.
+
+    All columns are initially top-aligned, which forces short columns to
+    connect to distant y-positions in taller neighbours.  This function finds
+    the vertical shift for each column that brings its link attachment points
+    as close as possible to those of the adjacent column, reducing the overall
+    wiring length.
+
+    The tallest column (by vertical pixel span) is the **anchor** and stays
+    fixed (offset 0).  Every other column is shifted by the L1-optimal amount
+    — the weighted median of the desired offsets implied by all links incident
+    to already-placed neighbours.  Columns are processed in BFS order outward
+    from the anchor so that offsets propagate through the DAG consistently.
+
+    Every non-anchor column's offset is clamped so that its views remain
+    entirely within the anchor column's y-extent [anchor_top, anchor_bottom].
+    This guarantees the overall diagram height and height-to-width ratio are
+    unchanged by the alignment step: the anchor column is the sole determinant
+    of diagram height, exactly as it is in the top-aligned baseline.
+
+    Parameters
+    ----------
+    vis_col : dict  {view_id: col_int}
+    link_entries : list of dict
+        Validated link entry dicts from ``Links.entries``.
+    area_views : list of AreaView
+        Preliminary area views with top-aligned positions (from ``_auto_layout``
+        + crossing minimisation).  Used only to read link attachment y-coords;
+        the caller rebuilds AreaViews after applying the returned offsets.
+    top_margin : float
+        Not used directly after the anchor-bounding clamp was introduced;
+        retained for API compatibility.
+
+    Returns
+    -------
+    dict  {col_int: y_offset_float}
+    """
+    if not area_views or not link_entries:
+        return {}
+
+    av_by_id = {av.view_id: av for av in area_views}
+
+    # Group views by visual column
+    col_views = defaultdict(list)
+    for av in area_views:
+        c = vis_col.get(av.view_id)
+        if c is not None:
+            col_views[c].append(av)
+
+    if len(col_views) <= 1:
+        return {}  # single column — nothing to shift
+
+    # Tallest column (by pixel span) is the anchor; it does not move
+    def _col_span(c):
+        views = col_views[c]
+        if not views:
+            return 0.0
+        return (max(av.pos_y + av.size_y for av in views)
+                - min(av.pos_y for av in views))
+
+    anchor = max(col_views.keys(), key=_col_span)
+
+    # Absolute SVG y of a link's attachment point on av
+    def _abs_y(av, sections):
+        rel = _find_link_midpoint_by_sections(av, sections)
+        return (av.pos_y + rel) if rel is not None else (av.pos_y + av.size_y / 2)
+
+    # Build list of (from_col, from_y, to_col, to_y) for every link
+    link_data = []
+    for entry in link_entries:
+        fc = vis_col.get(entry.get('from_view', ''))
+        tc = vis_col.get(entry.get('to_view', ''))
+        if fc is None or tc is None or fc == tc:
+            continue
+        src_av = av_by_id.get(entry.get('from_view', ''))
+        dst_av = av_by_id.get(entry.get('to_view', ''))
+        if src_av is None or dst_av is None:
+            continue
+        # Only adjacent links (column span == 1) drive vertical placement.
+        # Non-adjacent links are handled by routing lanes and should not pull
+        # a column away from its nearest neighbour.
+        if abs(fc - tc) != 1:
+            continue
+        sy = _abs_y(src_av, entry.get('from_sections'))
+        dy = _abs_y(dst_av, entry.get('to_sections'))
+        link_data.append((fc, sy, tc, dy))
+
+    # Pre-compute routing-lane desired offsets for source columns of non-adjacent
+    # links.  For a link that skips one or more columns, the routing lane in the
+    # first gap (fc → fc+1) represents an additional "desired position" for the
+    # source section.
+    #
+    # Critical for bracket-C (source below all adjacent sources in the gap):
+    # the routing lane is placed in the *trailing gap below the last view in
+    # col fc+1*, not at adj[-1][1] + 2*_lane_h which lands inside the view
+    # body and underestimates the actual lane y by a full view height.  We use
+    # col_views to estimate the true gap start, and apply rank-based lane
+    # spreading so each link in the bracket gets its own y_ideal (matching the
+    # 25-px collision-avoidance step used by plan_routing_lanes).
+    _lane_h           = 20.0  # must match plan_routing_lanes lane_height
+    _lane_padding_est =  5.0  # must match plan_routing_lanes lane_padding
+    _lane_step = _lane_h + _lane_padding_est   # 25 px between consecutive lanes
+
+    _col_pair_adj: dict = defaultdict(list)   # (fc,tc) → [(sy,dy), ...]
+    for fc, sy, tc, dy in link_data:
+        _col_pair_adj[(fc, tc)].append((sy, dy))
+
+    # Bottom edge of every column's view span — used to locate trailing gaps.
+    _col_bottom_edge: dict = {
+        c: max(av.pos_y + av.size_y for av in views)
+        for c, views in col_views.items() if views
+    }
+
+    # Pass 1: group non-adjacent links by their first gap (efc, efc+1).
+    _gap_groups: dict = defaultdict(list)   # (efc, efc+1) → [(esrc_y, entry, efc, etc)]
+    for entry in link_entries:
+        efc = vis_col.get(entry.get('from_view', ''))
+        etc = vis_col.get(entry.get('to_view', ''))
+        if efc is None or etc is None or abs(efc - etc) <= 1:
+            continue  # adjacent or same-column — already in link_data
+        src_av = av_by_id.get(entry.get('from_view', ''))
+        if src_av is None:
+            continue
+        esrc_y = _abs_y(src_av, entry.get('from_sections'))
+        _gap_groups[(efc, efc + 1)].append((esrc_y, entry, efc, etc))
+
+    routing_lane_desired: dict = defaultdict(list)  # col → [desired_offset, ...]
+    _non_adj_info: list = []  # (esrc_y, entry, efc, etc) for Phase 2c
+    # Bracket-C hosting desires: the column that *owns* the trailing gap
+    # (gap_fc1) has its bottom edge govern where the lane lands.  Record
+    # (esrc_y, efc, rank) so Phase 2/2b can add a hosting desired-offset
+    # once offsets[efc] is known: desired_δ_host = source_y_eff - lane_y_at_zero.
+    _host_col_desires: dict = defaultdict(list)  # gap_fc1 → [(esrc_y, efc, rank)]
+
+    # Pass 2: compute y_ideal per ZCI bracket with rank-based lane spreading.
+    for (gap_fc, gap_fc1), group in _gap_groups.items():
+        adj     = sorted(_col_pair_adj.get((gap_fc, gap_fc1), []))   # (sy,dy) by sy
+        col_bot = _col_bottom_edge.get(gap_fc1)
+
+        # Partition by ZCI bracket (bracket A takes precedence over C at tie).
+        if adj:
+            grp_a  = [(sy, e, f, t) for sy, e, f, t in group if sy <= adj[0][0]]
+            grp_c  = [(sy, e, f, t) for sy, e, f, t in group
+                      if sy > adj[0][0] and sy >= adj[-1][0]]
+            grp_bd = [(sy, e, f, t) for sy, e, f, t in group
+                      if adj[0][0] < sy < adj[-1][0]]
+        else:
+            grp_a = grp_c = []
+            grp_bd = list(group)
+
+        # Bracket A: lanes above the first adjacent destination.
+        # rank 0 = closest to adj[0] (highest source y in grp_a).
+        grp_a.sort(key=lambda x: x[0])
+        for rank, (esrc_y, entry, efc, etc) in enumerate(grp_a):
+            y_ideal = adj[0][1] - 2 * _lane_h - rank * _lane_step
+            routing_lane_desired[efc].append(y_ideal - esrc_y)
+            _non_adj_info.append((esrc_y, entry, efc, etc))
+
+        # Bracket C: lanes below the last view in col gap_fc1.
+        # Use the actual trailing-gap start (col_bot + half_lane + padding) with
+        # per-rank offsets matching plan_routing_lanes' 25-px collision step.
+        # Also record hosting desires for gap_fc1 so its offset is nudged to
+        # keep those lanes vertically close to their source sections.
+        grp_c.sort(key=lambda x: x[0])   # ascending source y = plan_routing_lanes order
+        for rank, (esrc_y, entry, efc, etc) in enumerate(grp_c):
+            if col_bot is not None:
+                y_ideal = col_bot + _lane_h / 2 + _lane_padding_est + rank * _lane_step
+                _host_col_desires[gap_fc1].append((esrc_y, efc, rank))
+            else:
+                y_ideal = adj[-1][1] + 2 * _lane_h + rank * _lane_step
+            routing_lane_desired[efc].append(y_ideal - esrc_y)
+            _non_adj_info.append((esrc_y, entry, efc, etc))
+
+        # Bracket B/D: interpolate between the bracketing adjacent destinations.
+        for esrc_y, entry, efc, etc in grp_bd:
+            y_ideal = esrc_y   # fallback when no bracket found
+            for k in range(len(adj) - 1):
+                if adj[k][0] <= esrc_y <= adj[k + 1][0]:
+                    s0, s1 = adj[k][0], adj[k + 1][0]
+                    d0, d1 = adj[k][1], adj[k + 1][1]
+                    t = (esrc_y - s0) / (s1 - s0) if s1 > s0 else 0.5
+                    y_ideal = d0 + t * (d1 - d0)
+                    break
+            routing_lane_desired[efc].append(y_ideal - esrc_y)
+            _non_adj_info.append((esrc_y, entry, efc, etc))
+
+    # Phase 1: BFS to establish processing order without committing offsets.
+    # We separate discovery (BFS order) from offset computation so that each
+    # column's offset is computed using ALL already-placed neighbours, not only
+    # the one that happened to discover it in the BFS.
+    bfs_order = [anchor]
+    in_order  = {anchor}
+    queue     = deque([anchor])
+    while queue:
+        cur = queue.popleft()
+        for fc, sy, tc, dy in link_data:
+            for nb in (tc if fc == cur else fc if tc == cur else None,):
+                if nb is not None and nb not in in_order:
+                    in_order.add(nb)
+                    bfs_order.append(nb)
+                    queue.append(nb)
+
+    # Phase 2: compute offset for each column in BFS order.
+    # Each column uses the median of desired offsets from ALL already-placed
+    # neighbours (not just the one that triggered BFS discovery).
+    offsets = {anchor: 0.0}
+    for col in bfs_order[1:]:               # anchor already placed
+        desired = []
+        for fc, sy, tc, dy in link_data:
+            if fc == col and tc in offsets:
+                # col is source: want sy + offsets[col] ≈ dy + offsets[tc]
+                desired.append(dy + offsets[tc] - sy)
+            elif tc == col and fc in offsets:
+                # col is dest:   want sy + offsets[fc] ≈ dy + offsets[col]
+                desired.append(sy + offsets[fc] - dy)
+        # Also include routing-lane alignment for non-adjacent links whose
+        # source is in this column.  These offsets carry the same weight as
+        # adjacent-link offsets and shift the median toward a placement that
+        # avoids near-parallel routing-line collisions at no extra L1 cost.
+        desired.extend(routing_lane_desired.get(col, []))
+        # Routing-lane hosting desires (bracket C): this column's bottom edge
+        # determines where the trailing-gap routing lanes land.  Add a desired
+        # offset for each lane so the lane y stays close to its source section.
+        for esrc_y, efc, rank in _host_col_desires.get(col, []):
+            if efc in offsets:
+                source_y_eff = esrc_y + offsets[efc]
+                col_bot_h = _col_bottom_edge.get(col)
+                if col_bot_h is not None:
+                    lane_y0 = col_bot_h + _lane_h / 2 + _lane_padding_est + rank * _lane_step
+                    desired.append(source_y_eff - lane_y0)
+        if desired:
+            desired.sort()
+            offsets[col] = desired[len(desired) // 2]   # L1-optimal median
+        else:
+            offsets[col] = 0.0
+
+    # Any column not reachable from the anchor keeps offset 0
+    for c in col_views:
+        offsets.setdefault(c, 0.0)
+
+    # Phase 2b: columns isolated from the anchor (no path via adjacent links)
+    # do not appear in bfs_order, so Phase 2 never applies their desired
+    # offsets.  Mirror Phase 2 for these columns: combine adjacent-link desired
+    # (from link_data) with routing_lane_desired, then take the L1 median.
+    # Process in column-index order so earlier non-BFS offsets propagate to
+    # neighbours within the same isolated cluster.
+    for c in sorted(c for c in col_views if c not in in_order):
+        desired_c: list[float] = list(routing_lane_desired.get(c, []))
+        for fc, sy, tc, dy in link_data:
+            if fc == c and tc in offsets:
+                desired_c.append(dy + offsets[tc] - sy)
+            elif tc == c and fc in offsets:
+                desired_c.append(sy + offsets[fc] - dy)
+        # Routing-lane hosting desires (bracket C): this column's bottom edge
+        # determines where the trailing-gap routing lanes land.  Add a desired
+        # offset for each lane so the lane y stays close to its source section.
+        for esrc_y, efc, rank in _host_col_desires.get(c, []):
+            if efc in offsets:
+                source_y_eff = esrc_y + offsets[efc]
+                col_bot_h = _col_bottom_edge.get(c)
+                if col_bot_h is not None:
+                    lane_y0 = col_bot_h + _lane_h / 2 + _lane_padding_est + rank * _lane_step
+                    desired_c.append(source_y_eff - lane_y0)
+        if desired_c:
+            desired_c.sort()
+            offsets[c] = desired_c[len(desired_c) // 2]
+            in_order.add(c)  # mark placed so Phase 2c can use this offset
+
+    # Phase 2.5: cascade routing desires for multi-hop non-adjacent links.
+    # _gap_groups only covers the first gap (efc, efc+1).  For links that skip
+    # ≥ 2 columns (span > 2) the intermediate columns from efc+2 onward receive
+    # no routing desires, so they are positioned only by adjacent links — which
+    # can leave the cascaded routing lanes far from the source section y,
+    # producing long diagonal routing wires.
+    #
+    # Fix: compute the routing-lane y that plan_routing_lanes will assign for
+    # the first gap (using post-Phase-2 effective coordinates), then add a
+    # hosting desire to every subsequent intermediate column c so its
+    # trailing-gap lane also lands at that same y.  Finish with a second BFS
+    # pass so adjacent-link children of updated columns pick up the new offsets.
+    _cascade_extra: dict = defaultdict(list)   # col → [extra desired_delta, ...]
+
+    for esrc_y, entry, efc, etc in _non_adj_info:
+        if etc - efc <= 2:
+            continue  # span ≤ 2: already fully covered by _gap_groups
+        esrc_y_eff = esrc_y + offsets.get(efc, 0.0)
+        c1 = efc + 1
+
+        # Routing-lane y at gap (efc, c1) — ZCI bracket using effective coords.
+        col1_bot     = _col_bottom_edge.get(c1)
+        col1_bot_eff = (col1_bot + offsets.get(c1, 0.0)) if col1_bot is not None else None
+        adj_01_eff   = sorted(
+            (sy + offsets.get(efc, 0.0), dy + offsets.get(c1, 0.0))
+            for sy, dy in _col_pair_adj.get((efc, c1), [])
+        )
+        if not adj_01_eff:
+            prev_y = esrc_y_eff
+        elif esrc_y_eff >= adj_01_eff[-1][0]:              # bracket C
+            prev_y = (col1_bot_eff + _lane_h / 2 + _lane_padding_est
+                      if col1_bot_eff is not None else esrc_y_eff)
+        elif esrc_y_eff <= adj_01_eff[0][0]:               # bracket A
+            prev_y = adj_01_eff[0][1] - 2 * _lane_h
+        else:                                               # bracket B/D
+            prev_y = esrc_y_eff
+            for k in range(len(adj_01_eff) - 1):
+                if adj_01_eff[k][0] <= esrc_y_eff <= adj_01_eff[k + 1][0]:
+                    s0, s1 = adj_01_eff[k][0], adj_01_eff[k + 1][0]
+                    d0, d1 = adj_01_eff[k][1], adj_01_eff[k + 1][1]
+                    t = (esrc_y_eff - s0) / (s1 - s0) if s1 > s0 else 0.5
+                    prev_y = d0 + t * (d1 - d0)
+                    break
+
+        # Add hosting desire for each subsequent intermediate column c:
+        # want column c's trailing-gap lane to land at prev_y.
+        for c in range(c1 + 1, etc):
+            col_bot = _col_bottom_edge.get(c)
+            if col_bot is None:
+                continue
+            lane_y0 = col_bot + _lane_h / 2 + _lane_padding_est
+            _cascade_extra[c].append(prev_y - lane_y0)
+            # prev_y propagates unchanged: cascade holds the routing lane at
+            # the same y across all intermediate gaps.
+
+    # Second BFS pass: re-run Phase 2 with cascade extras so affected columns
+    # and their adjacent-link descendants all receive updated offsets.
+    if _cascade_extra:
+        # Second BFS pass: recompute BFS-reachable column offsets using cascade
+        # extras.  Use a fresh offsets_2nd dict (seeded only with the anchor) so
+        # stale first-pass values for as-yet-unprocessed descendants don't
+        # create circular anchoring (e.g. dev2's 210 pulling bus0 back to 210).
+        offsets_2nd: dict = {anchor: 0.0}
+        for col in bfs_order[1:]:
+            desired = []
+            for fc, sy, tc, dy in link_data:
+                if fc == col and tc in offsets_2nd:
+                    desired.append(dy + offsets_2nd[tc] - sy)
+                elif tc == col and fc in offsets_2nd:
+                    desired.append(sy + offsets_2nd[fc] - dy)
+            desired.extend(routing_lane_desired.get(col, []))
+            for esrc_y, efc, rank in _host_col_desires.get(col, []):
+                if efc in offsets_2nd:
+                    source_y_eff = esrc_y + offsets_2nd[efc]
+                    col_bot_h    = _col_bottom_edge.get(col)
+                    if col_bot_h is not None:
+                        lane_y0 = col_bot_h + _lane_h / 2 + _lane_padding_est + rank * _lane_step
+                        desired.append(source_y_eff - lane_y0)
+            desired.extend(_cascade_extra.get(col, []))
+            if desired:
+                desired.sort()
+                offsets_2nd[col] = desired[len(desired) // 2]
+            # else: column has no desires; keep first-pass offset (don't add to offsets_2nd)
+        # Merge updated BFS offsets into the main dict; Phase 2b columns that were
+        # not in bfs_order retain their first-pass offsets.
+        offsets.update(offsets_2nd)
+        # Apply cascade desires to isolated (Phase 2b) columns if they appear in
+        # _cascade_extra.  Use the now-merged offsets so BFS parents' updated
+        # values propagate correctly.
+        for c in sorted(c for c in _cascade_extra if c not in offsets_2nd):
+            desired_c: list[float] = list(routing_lane_desired.get(c, []))
+            for fc, sy, tc, dy in link_data:
+                if fc == c and tc in offsets:
+                    desired_c.append(dy + offsets[tc] - sy)
+                elif tc == c and fc in offsets:
+                    desired_c.append(sy + offsets[fc] - dy)
+            for esrc_y, efc, rank in _host_col_desires.get(c, []):
+                if efc in offsets:
+                    source_y_eff = esrc_y + offsets[efc]
+                    col_bot_h    = _col_bottom_edge.get(c)
+                    if col_bot_h is not None:
+                        lane_y0 = col_bot_h + _lane_h / 2 + _lane_padding_est + rank * _lane_step
+                        desired_c.append(source_y_eff - lane_y0)
+            desired_c.extend(_cascade_extra[c])
+            if desired_c:
+                desired_c.sort()
+                offsets[c] = desired_c[len(desired_c) // 2]
+
+    # Phase 2c: destination-column desired offsets for non-adjacent links.
+    # Pure-destination views (no adjacent link pulling them toward their routing
+    # lane) sit at offset 0.  Use the already-computed source offsets to
+    # estimate where the routing lane will arrive at the destination gap,
+    # then pull the destination column toward that y.
+    # Only applied to columns that are NOT already in the BFS cluster — those
+    # already have the adjacent-link median from Phase 2.
+    _dst_desired: dict = defaultdict(list)
+    def _zci_y_ideal(esrc_y_eff: float, adj_gap: list) -> float:
+        """ZCI bracket ideal-y for a routing lane, mirroring plan_routing_lanes."""
+        if not adj_gap:
+            return esrc_y_eff
+        if esrc_y_eff <= adj_gap[0][0]:
+            return adj_gap[0][1] - 2 * _lane_h
+        if esrc_y_eff >= adj_gap[-1][0]:
+            return adj_gap[-1][1] + 2 * _lane_h
+        for k in range(len(adj_gap) - 1):
+            if adj_gap[k][0] <= esrc_y_eff <= adj_gap[k + 1][0]:
+                s0, s1 = adj_gap[k][0], adj_gap[k + 1][0]
+                d0, d1 = adj_gap[k][1], adj_gap[k + 1][1]
+                t = (esrc_y_eff - s0) / (s1 - s0) if s1 > s0 else 0.5
+                return d0 + t * (d1 - d0)
+        return esrc_y_eff
+
+    for esrc_y, entry, efc, etc in _non_adj_info:
+        if etc in in_order:
+            continue  # BFS column: adjacent-link offsets already sufficient
+        dst_av = av_by_id.get(entry.get('to_view', ''))
+        if dst_av is None:
+            continue
+        # Estimate routing lane y at the destination gap using the updated
+        # source offset (already computed in Phase 2 or Phase 2b).
+        esrc_y_eff = esrc_y + offsets.get(efc, 0.0)
+        adj_last = sorted(_col_pair_adj.get((etc - 1, etc), []))
+        y_ideal_dst = _zci_y_ideal(esrc_y_eff, adj_last)
+        edst_y = _abs_y(dst_av, entry.get('to_sections'))
+        _dst_desired[etc].append(y_ideal_dst - edst_y)
+
+    for c, desires in _dst_desired.items():
+        if c not in in_order and desires:
+            # Combine with any source routing_lane_desired already queued
+            combined = sorted(routing_lane_desired.get(c, []) + desires)
+            offsets[c] = combined[len(combined) // 2]
+
+    # Phase 3: clamp each column's offset so its views remain within the
+    # anchor's y-extent.  This prevents short columns from being pushed so far
+    # that they extend above/below the tallest column, which would increase the
+    # overall diagram height beyond what the anchor alone requires.
+    anchor_top    = min(av.pos_y              for av in col_views[anchor])
+    anchor_bottom = max(av.pos_y + av.size_y  for av in col_views[anchor])
+
+    for c, views in col_views.items():
+        if c == anchor or not views:
+            continue
+        col_top    = min(av.pos_y             for av in views)
+        col_bottom = max(av.pos_y + av.size_y for av in views)
+        # Valid offset range that keeps this column inside [anchor_top, anchor_bottom]
+        lo = anchor_top    - col_top     # col top must not go above anchor top
+        hi = anchor_bottom - col_bottom  # col bottom must not go below anchor bottom
+        if lo > hi:
+            # Column is taller than anchor (edge case): centre it
+            offsets[c] = (lo + hi) / 2
+        else:
+            offsets[c] = max(lo, min(hi, offsets[c]))
+
+    return offsets

@@ -843,10 +843,12 @@ def parse_args():
     parser.add_argument('--diagram', '-d', required=True,
                         help='Path to diagram.json')
     parser.add_argument('--theme', '-t', default=None,
-                        help=('Visual styling. Three forms: '
-                              '(omit) = built-in default; '
-                              '-t <name> = built-in theme (default, plantuml); '
-                              '-t <path> = custom theme.json file.'))
+                        help=('Visual styling. Resolution order (first match wins): '
+                              '(1) -t <name>  built-in theme by name: default, plantuml; '
+                              '(2) -t <path>  path to a custom theme.json file; '
+                              '(3) omit -t    theme.json in the same directory as diagram.json, if present; '
+                              '(4) omit -t    built-in default theme. '
+                              'Providing -t always takes priority over a sibling theme.json.'))
     parser.add_argument('--format', choices=['text', 'json'], default='text',
                         help='Output format (default: text)')
     parser.add_argument('--rules', default=None,
@@ -874,8 +876,14 @@ def main():
         print(f"Error loading diagram: {e}", file=sys.stderr)
         sys.exit(1)
 
+    # Load theme: explicit -t > auto-discovered theme.json next to diagram > built-in default
+    _theme_arg = args.theme
+    if _theme_arg is None:
+        _sibling = os.path.join(os.path.dirname(os.path.abspath(args.diagram)), 'theme.json')
+        if os.path.isfile(_sibling):
+            _theme_arg = _sibling
     try:
-        theme = Theme(args.theme)
+        theme = Theme(_theme_arg)
     except (OSError, Exception) as e:
         print(f"Error loading theme: {e}", file=sys.stderr)
         sys.exit(1)

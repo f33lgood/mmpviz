@@ -30,6 +30,12 @@ python3 scripts/check.py -d diagram.json -t theme.json --format json
 python3 scripts/check.py -d diagram.json -t theme.json --rules panel-overlap,label-overlap
 ```
 
+Theme resolution matches `mmpviz.py`: if `-t` is omitted, `check.py` picks up
+a sibling `theme.json` next to `diagram.json` before falling back to the
+built-in default. Providing `-t` always wins over a sibling. See
+[`references/theme-schema.md`](theme-schema.md#theme-resolution-order) for
+the full resolution table.
+
 Exit codes: **0** = no issues, **1** = one or more ERRORs, **2** = warnings only.
 
 - **ERROR** — the rendered diagram is definitively wrong: a structural constraint is violated, a referenced element is missing, or panels physically collide. Treat the output as unusable until these are resolved.

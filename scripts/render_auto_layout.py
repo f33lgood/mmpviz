@@ -22,8 +22,6 @@ from theme import Theme
 
 
 CHIPS_DIR = os.path.join(os.path.dirname(__file__), '..', 'examples', 'chips')
-DEFAULT_THEME = os.path.join(os.path.dirname(__file__), '..', 'examples', 'themes',
-                              'plantuml', 'theme.json')
 
 
 def render_chip(chip_name: str, theme_path: str, output_dir: str) -> str:
@@ -73,8 +71,8 @@ def render_chip(chip_name: str, theme_path: str, output_dir: str) -> str:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--theme', default=DEFAULT_THEME,
-                        help='Path to theme.json (default: plantuml theme)')
+    parser.add_argument('-t', '--theme', default=None,
+                        help='Theme name or path (default: built-in default theme).')
     parser.add_argument('-o', '--output', default='/tmp/mmpviz_auto',
                         help='Output directory for rendered SVGs')
     args = parser.parse_args()

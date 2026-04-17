@@ -15,12 +15,14 @@ It is authoritative for understanding and maintaining the code.
 6. [View Height Estimation](#6-view-height-estimation)
 7. [Layout Algorithms](#7-layout-algorithms)
    - [7.1 Algo-1: One Visual Column per DAG Level](#71-algo-1-one-visual-column-per-dag-level)
-   - [7.2 Algo-2: Height-Rebalancing (default)](#72-algo-2-height-rebalancing-default)
-   - [7.3 Algo-3: Routing Lanes for Non-Adjacent Links](#73-algo-3-routing-lanes-for-non-adjacent-links)
-8. [Column Width and Inter-Column Spacing](#8-column-width-and-inter-column-spacing)
-9. [Canvas Sizing](#9-canvas-sizing)
-10. [Link Band Endpoint Positioning](#10-link-band-endpoint-positioning)
-11. [Remaining Work](#11-remaining-work)
+   - [7.2 Algo-2: Height-Rebalancing](#72-algo-2-height-rebalancing)
+   - [7.3 Algo-3: Routing Lanes for Non-Adjacent Links (default)](#73-algo-3-routing-lanes-for-non-adjacent-links-default)
+   - [7.4 Algo-4: Vertical Column Alignment](#74-algo-4-vertical-column-alignment)
+8. [Link Visual Anatomy](#8-link-visual-anatomy)
+9. [Column Width and Inter-Column Spacing](#9-column-width-and-inter-column-spacing)
+10. [Canvas Sizing](#10-canvas-sizing)
+11. [Link Band Endpoint Positioning](#11-link-band-endpoint-positioning)
+12. [Remaining Work](#12-remaining-work)
 
 ---
 
@@ -53,9 +55,10 @@ The layout algorithm is selected with the `--layout` CLI flag:
 
 | Flag | Algorithm | Default |
 |------|-----------|---------|
-| `--layout algo1` | One visual column per DAG level | |
-| `--layout algo2` | Height-rebalancing with outlier extraction | |
-| `--layout algo3` | Algo-2 + routing lanes for non-adjacent links | ✓ |
+| `--layout algo1`  | One visual column per DAG level | |
+| `--layout algo2`  | Height-rebalancing with outlier extraction | |
+| `--layout algo3`  | Algo-2 + routing lanes for non-adjacent links | ✓ |
+| `--layout algo4`  | Algo-3 + fixed lane assignment + vertical column alignment to minimise link length | |
 
 When `links` is absent or empty, all views get an empty adjacency list (all
 column 0), and auto-layout stacks them vertically in a single column.
@@ -342,19 +345,19 @@ return max(200.0, estimated)
 
 Per-section label-conflict inflation (§2) is applied during actual rendering in
 `AreaView._process()` and is not included in the estimate — any resulting
-height increase is absorbed by canvas auto-expansion (§9).
+height increase is absorbed by canvas auto-expansion (§10).
 
 ---
 
 ## 7. Layout Algorithms
 
-#### Effect on example diagrams
+### Effect on example diagrams
 
-| Diagram | Algo-1 | Algo-2 | Algo-3 |
-|---------|--------|--------|--------|
-| `chips/stm32f103` | 740×1812 H/W=2.45 | 1090×1062 H/W=0.97 | 1090×1062 (routed, no crossings) |
-| `chips/opentitan_earlgrey` | 740×1558 H/W=2.11 | 1090×890 H/W=0.82 | 1090×890 (routed, no crossings) |
-| All other examples | — | identical (already within target) | identical to algo-2 (no non-adjacent links) |
+| Diagram | Algo-1 | Algo-2 | Algo-3 | Algo-4 |
+|---------|--------|--------|--------|--------|
+| `chips/stm32f103` | 740×1812 H/W=2.45 | 1090×1062 H/W=0.97 | 1090×1062 (routed, no crossings) | 1090×1062 (columns vertically aligned to minimise link length) |
+| `chips/opentitan_earlgrey` | 740×1558 H/W=2.11 | 1090×890 H/W=0.82 | 1090×890 (routed, no crossings) | 1090×890 (columns vertically aligned) |
+| All other examples | — | identical (already within target) | identical to algo-2 (no non-adjacent links) | identical to algo-3 when all columns share the same y-extent |
 
 ---
 
@@ -591,8 +594,14 @@ It draws:
 
 1. **Source trapezoid** — same shape as the unrouted connector.
 2. **Destination trapezoid** — same shape as the unrouted connector.
-3. **Middle path** — a sequence of waypoints:
-   `[(src_right, src_center), (lane_x_left, lane_y), (lane_x_right, lane_y), (dst_left, dst_center)]`
+3. **Middle path** — a sequence of waypoints (see §8 for term definitions):
+
+   ```
+   [(lx_j, src_center),          ← source junction
+    (lane.x_left,  lane.y),      ← bridge entry waypoint
+    (lane.x_right, lane.y),      ← bridge exit waypoint
+    (rx_j, dst_center)]          ← destination junction
+   ```
 
    Each consecutive pair of waypoints is connected by an S-curve Bézier
    (`C mx,y1 mx,y2 x2,y2`, where `mx = (x1 + x2) / 2`) if the endpoints
@@ -609,33 +618,331 @@ It draws:
 
 ---
 
-## 8. Column Width and Inter-Column Spacing
+### 7.4 Algo-4: Vertical Column Alignment
+
+**Location:** `vertical_align_columns()` in `scripts/auto_layout.py`;
+selected with `--layout algo4`.  Applied in `mmpviz.py:get_area_views()`
+between the initial `_auto_layout()` call and `plan_routing_lanes()` (§7.3).
+
+Algo-4 runs algo-3's pipeline end-to-end first (height-rebalancing + routing
+lanes), then inserts an additional pass that shifts each DAG column vertically
+to minimise total link length.  Columns keep their widths and view orderings;
+only the y-coordinates of every view in a non-anchor column change.
+
+Unlike algo-3, algo-4 uses the routing-lane y-positions it **plans to produce**
+as hard constraints on column placement — "fixed lane assignment": the lane y
+for each non-adjacent link is computed up front and fed back as a desired
+offset for the column that owns it, so the rebalancing step already knows
+where every bridge will land.
+
+#### Anchor column
+
+The **tallest** column (largest `max(pos_y + size_y) − min(pos_y)` across its
+views) is chosen as the anchor and keeps offset 0.  The anchor's pixel span
+is therefore the diagram's final height; every other column's offset is
+clamped (Phase 3 below) so it cannot push the diagram taller than the anchor
+already requires.
+
+Ties are broken by whichever column `max()` reports first.
+
+#### Link attachment y
+
+For every link entry, the algorithm computes an **absolute SVG y** for both
+endpoints using the preliminary top-aligned `AreaView`s:
+
+```python
+def _abs_y(av, sections):
+    rel = _find_link_midpoint_by_sections(av, sections)
+    return (av.pos_y + rel) if rel is not None else (av.pos_y + av.size_y / 2)
+```
+
+`rel` is the section midpoint (or multi-section midpoint) inside the view;
+when sections are unresolved it falls back to the view's vertical centre.
+
+Only **adjacent** links (column span `|to_col − from_col| == 1`) drive
+vertical alignment directly.  Non-adjacent links are handled via routing-lane
+desired offsets (next subsection) so they don't pull a column toward a
+distant neighbour it doesn't physically connect to.
+
+#### Routing-lane desired offsets
+
+For each non-adjacent link L with source in column `efc` and destination in
+column `etc`, the algorithm pre-computes the routing lane y that
+`plan_routing_lanes()` will assign in the **first** skipped gap
+`(efc, efc+1)`, then records it as a desired offset for column `efc`:
+
+```
+desired_δ = y_ideal_of_first_lane − L.source_y
+```
+
+The lane y is bracket-aware, mirroring `plan_routing_lanes()`' ZCI logic
+(§7.3):
+
+| Bracket | `y_ideal` for lane |
+|---------|----|
+| **A** (source above first adj dest) | `adj[0].dst_y − 2 × lane_height − rank × lane_step` |
+| **C** (source below all adj dests)  | `col_bottom_of_{efc+1} + lane_height/2 + lane_padding + rank × lane_step` |
+| **B/D** (bracketed)                 | linear interpolation between bracketing adjacent destinations |
+
+`lane_step = lane_height + lane_padding = 25 px` — the same rank spacing used
+inside `plan_routing_lanes()` so the lane y pre-estimate lines up with the
+actual lane that will be drawn.
+
+**Bracket-C hosting desires.** Bracket-C lanes land in the trailing gap
+**below** the last view in column `efc+1`.  That column's y-offset therefore
+controls where its bottom edge ends up, which in turn controls where the
+lane lands.  The algorithm records a second desired offset keyed by the
+*host* column `gap_fc1 = efc+1`:
+
+```
+desired_δ_host(efc+1) = (L.source_y + offsets[efc]) − lane_y_at_zero(efc+1)
+```
+
+This keeps the host column close enough that its trailing lane stays near
+the source section, instead of drifting far below.
+
+#### Cascade for multi-hop links
+
+`_gap_groups` only covers the first gap of each non-adjacent link.  For a
+link that skips ≥ 2 columns (`etc − efc > 2`) the intermediate columns from
+`efc + 2` onward receive no routing-lane desire, so their adjacent-link
+medians can park the cascaded lanes far from the source — producing long
+diagonal middle segments.
+
+Phase 2.5 fixes this by computing the first-gap lane y under the
+already-placed offsets and adding a hosting desire for every later
+intermediate column so each cascaded lane lands at the same y:
+
+```
+prev_y = lane_y at gap (efc, efc+1) using effective offsets
+for c in range(efc + 2, etc):
+    lane_y0 = col_bottom[c] + lane_height/2 + lane_padding
+    _cascade_extra[c].append(prev_y − lane_y0)
+    # prev_y propagates unchanged: the cascade holds the lane flat
+```
+
+A second BFS pass then re-runs Phase 2 with the cascade extras so the
+affected columns and their adjacent-link descendants all pick up updated
+offsets.  Columns isolated from the anchor cluster (Phase 2b) receive the
+same treatment in a post-step.
+
+#### Phase 1 — BFS ordering
+
+A breadth-first traversal rooted at the anchor visits every column reachable
+via adjacent links.  The BFS order is used only to establish **processing
+order**; it does not commit offsets.
+
+```
+bfs_order = [anchor]
+queue     = deque([anchor])
+while queue:
+    cur = queue.popleft()
+    for each adjacent link touching cur:
+        other = the other endpoint's column
+        if other not yet visited: append to bfs_order, enqueue
+```
+
+This ordering matters because each column's offset depends on already-placed
+neighbours, not just the column that discovered it.
+
+#### Phase 2 — L1-optimal median
+
+For each column in `bfs_order[1:]` (the anchor is already fixed at 0), the
+algorithm collects every *desired offset* implied by already-placed
+neighbours:
+
+```
+for each adjacent link (fc, sy, tc, dy):
+    if fc == col and tc already placed: desired ← dy + offsets[tc] − sy
+    if tc == col and fc already placed: desired ← sy + offsets[fc] − dy
+
+desired += routing_lane_desired[col]          # source-side lane alignment
+desired += host-column desires                # bracket-C hosting
+
+offsets[col] = median(desired)                # L1-optimal placement
+```
+
+The median minimises total L1 wire length because the sum of absolute
+deviations is minimised at the median of the target positions.  Using the
+mean (L2) would be pulled by outliers; using one anchor neighbour would
+ignore the rest.
+
+Columns with no desired offsets default to 0.
+
+#### Phase 2b — isolated clusters
+
+Columns unreachable from the anchor via adjacent links never appear in
+`bfs_order`.  For these, the algorithm runs a mirror of Phase 2 in
+column-index order so that earlier non-BFS offsets propagate into later ones
+within the same isolated cluster.
+
+#### Phase 2c — destination-pull for non-adjacent links
+
+A view that appears only as a non-adjacent destination (no adjacent link
+pulling it toward anything) sits at offset 0 after Phases 2 and 2b.  Phase 2c
+uses the already-computed source offset to estimate the routing-lane y at
+the **final gap** (`etc − 1, etc`) and pulls the destination column toward
+it:
+
+```
+for each non-adjacent link with dest column etc ∉ in_order:
+    esrc_y_eff = L.source_y + offsets[efc]
+    y_ideal_dst = ZCI_y_ideal(esrc_y_eff, adj_links_in_final_gap)
+    _dst_desired[etc].append(y_ideal_dst − L.dest_y)
+
+for c, desires in _dst_desired.items():
+    combined = routing_lane_desired[c] + desires
+    offsets[c] = median(combined)
+```
+
+This step does not revisit columns already placed by Phase 2 (those already
+have their adjacent-link median).
+
+#### Phase 3 — anchor-bounding clamp
+
+Each non-anchor column's offset is clamped so the column's top stays at or
+below the anchor's top and its bottom stays at or above the anchor's bottom:
+
+```
+anchor_top    = min(av.pos_y              for av in anchor_views)
+anchor_bottom = max(av.pos_y + av.size_y  for av in anchor_views)
+
+for c ≠ anchor:
+    col_top    = min(av.pos_y             for av in col_views[c])
+    col_bottom = max(av.pos_y + av.size_y for av in col_views[c])
+    lo = anchor_top    − col_top     # top must not go above anchor top
+    hi = anchor_bottom − col_bottom  # bottom must not go below anchor bottom
+    if lo > hi:
+        offsets[c] = (lo + hi) / 2   # column taller than anchor: centre it
+    else:
+        offsets[c] = clamp(offsets[c], lo, hi)
+```
+
+This guarantees the overall diagram height is unchanged from the
+top-aligned baseline — the anchor column is the sole determinant of height.
+
+#### Offset application and view rebuild
+
+`vertical_align_columns()` returns `{col_int: y_offset_float}`.  The caller
+applies offsets only when at least one column would shift by more than 0.5 px:
+
+```python
+if col_offsets and any(abs(v) > 0.5 for v in col_offsets.values()):
+    for cfg in area_configurations:
+        c = columns.get(cfg.get('id', ''))
+        if c is not None:
+            cfg['pos'][1] = round(cfg['pos'][1] + col_offsets.get(c, 0.0), 1)
+    # Rebuild AreaViews with the shifted positions
+    area_views = [AreaView(...) for cfg in area_configurations]
+```
+
+Routing lanes are then planned against the shifted positions, so the lanes
+produced by `plan_routing_lanes()` match the lane y-values that Phase 2 used
+as desired offsets (subject to clamping).
+
+#### When algo-4 ≡ algo-3
+
+If the tallest column already spans the full diagram height and no non-anchor
+column has desired offsets exceeding 0.5 px, every column is clamped to 0
+and algo-4 produces the same output as algo-3.  Single-column diagrams and
+diagrams with no links also early-return with `{}` (no shift).
+
+---
+
+## 8. Link Visual Anatomy
+
+All connector and band links share the same three-part structure.  These terms are
+used consistently throughout this document and the codebase.
+
+### Trapezoid
+
+The **trapezoid** is the filled polygon at each end of a link.  It fans the full
+pixel span of the linked source (or destination) sections at the panel edge down to
+the `middle.width` stroke width at the junction.
+
+- **Source trapezoid** — left end.  Outer edge spans the source sections at the
+  panel's right edge (`lx`); inner edge collapses to `middle.width` at the source
+  junction (`lx_j`).
+- **Destination trapezoid** — right end.  Inner edge at `middle.width` at the
+  destination junction (`rx_j`); outer edge spans the destination sections at the
+  panel's left edge (`rx`).
+
+In `connector` style the horizontal extent of each trapezoid is set by
+`connector.source.width` and `connector.destination.width` (default 25 px each).
+In `band` style the same widths come from the `source` and `destination` segment
+sub-objects.
+
+### Junction
+
+The **junction** is the x-coordinate where a trapezoid's inner (narrow) edge meets
+the middle segment — the point where the tapered shape ends and the fixed-width line
+begins.
+
+| Variable | Definition |
+|----------|-----------|
+| `lx_j`   | Source junction x = `lx + source.width` |
+| `rx_j`   | Destination junction x = `rx − destination.width` |
+
+In `band` style, `source.dheight` and `destination.sheight` set the link height
+**at** the junction edge (the inner edge of the respective trapezoid).
+
+### Waypoint
+
+A **waypoint** is one `(x, y)` coordinate pair in the middle segment's path.  The
+renderer walks the waypoint list in order, connecting each consecutive pair with a
+straight line (same y) or an S-curve Bézier (different y).
+
+For an **unrouted** (adjacent-column) link the waypoint sequence is:
+
+```
+[(lx_j, src_center),   ← source junction
+ (rx_j, dst_center)]   ← destination junction
+```
+
+For a **routed** (non-adjacent, algo-3) link each intermediate routing lane
+contributes two additional waypoints — an **entry waypoint** and an **exit
+waypoint** — at the left and right edges of the bridge:
+
+```
+[(lx_j,          src_center),   ← source junction
+ (lane.x_left,   lane.y),       ← bridge entry waypoint
+ (lane.x_right,  lane.y),       ← bridge exit waypoint
+ (rx_j,          dst_center)]   ← destination junction
+```
+
+The horizontal segment between the entry and exit waypoints is the **bridge** —
+the straight line that crosses the gap in the intermediate column at `lane.y`.
+
+---
+
+## 9. Column Width and Inter-Column Spacing
 
 `col_width` is always `MAX_COL_WIDTH` (230 px). The inter-column gap is computed
 per-column from the actual address width and font size of the source column:
 
 ```python
-gap = _ADDR_LABEL_H_OFFSET                        # 10 px: offset from panel right edge
+gap = _ADDR_LABEL_H_OFFSET                         # offset from panel right edge
     + addr_chars * _HELVETICA_W_RATIO * font_size  # label width
-    + 38                                            # breathing room (link band + margin)
+    + _INTER_BREATHING                            # breathing room (link band + margin)
 ```
 
 **Address label geometry constants** (defined in `mmpviz.py`, mirrored in `check.py`):
 
-| Constant               | Value | Purpose                                               |
-|------------------------|-------|-------------------------------------------------------|
-| `_ADDR_LABEL_H_OFFSET` | 10 px | Horizontal offset from panel right edge to label start |
-| `_ADDR_CHARS_32`       | 10    | `len("0x00000000")` — 8 hex digits                   |
-| `_ADDR_CHARS_64`       | 18    | `len("0x0000000000000000")` — 16 hex digits           |
-| `_ADDR_64BIT_THRESHOLD`| `0xFFFF_FFFF` | Start addresses above this need 64-bit format |
-| `_HELVETICA_W_RATIO`   | 0.6   | Estimated character width / font-size for Helvetica   |
+| Constant                | Value         | Purpose                                                |
+|-------------------------|---------------|--------------------------------------------------------|
+| `_ADDR_LABEL_H_OFFSET`  | 10 px         | Horizontal offset from panel right edge to label start |
+| `_ADDR_CHARS_32`        | 10            | `len("0x00000000")` — 8 hex digits                     |
+| `_ADDR_CHARS_64`        | 18            | `len("0x0000000000000000")` — 16 hex digits            |
+| `_ADDR_64BIT_THRESHOLD` | `0xFFFF_FFFF` | Start addresses above this need 64-bit format          |
+| `_HELVETICA_W_RATIO`    | 0.6           | Estimated character width / font-size for Helvetica    |
+| `_INTER_BREATHING`      | 38 px         | Breathing room past the label for link bands + margin (defined locally in `_auto_layout()`) |
 
 A column is "64-bit" when ANY section's **start address** exceeds `_ADDR_64BIT_THRESHOLD`.
 All sections in that view then use the 16-digit label format for visual consistency.
 
 **Example gaps at the default `font_size: 13`:**
-- 32-bit column: `10 + 10 × 0.6 × 13 + 38 = 126 px`
-- 64-bit column: `10 + 18 × 0.6 × 13 + 38 = 188 px`
+- 32-bit column: `_ADDR_LABEL_H_OFFSET + _ADDR_CHARS_32 × _HELVETICA_W_RATIO × 13 + _INTER_BREATHING = 10 + 10 × 0.6 × 13 + 38 = 126 px`
+- 64-bit column: `_ADDR_LABEL_H_OFFSET + _ADDR_CHARS_64 × _HELVETICA_W_RATIO × 13 + _INTER_BREATHING = 10 + 18 × 0.6 × 13 + 38 = 188 px`
 
 Column x-positions are cumulative:
 
@@ -650,7 +957,7 @@ with 28 px breathing room instead of 38 (no link band beyond the last column).
 
 ---
 
-## 9. Canvas Sizing and Viewport Origin
+## 10. Canvas Sizing and Viewport Origin
 
 **Location:** `_auto_canvas_size()` in `scripts/mmpviz.py`;
 `SVGBuilder.__init__()` in `scripts/svg_builder.py`
@@ -703,7 +1010,7 @@ is deprecated and ignored.
 
 ---
 
-## 10. Link Band Endpoint Positioning
+## 11. Link Band Endpoint Positioning
 
 **Location:** `AreaView.address_to_py_actual()` in `scripts/area_view.py`;
 used by `Renderer._get_points_for_address()` in `scripts/renderer.py`.
@@ -723,7 +1030,7 @@ return to_pixels_relative(address)   # fallback
 
 ---
 
-## 11. Remaining Work
+## 12. Remaining Work
 
 Items worth implementing in future iterations. Fully implemented items, dropped
 decisions, and superseded approaches have been removed.

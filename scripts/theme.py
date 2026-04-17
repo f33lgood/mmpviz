@@ -1,10 +1,12 @@
 import json
 import os
+from importlib.resources import files as _res_files
 
 from logger import logger
 
-_HERE = os.path.dirname(os.path.abspath(__file__))
-_DEFAULT_THEME_PATH = os.path.normpath(os.path.join(_HERE, '..', 'themes', 'default.json'))
+_THEMES_PKG       = _res_files("themes")
+_DEFAULT_THEME_PATH = str(_THEMES_PKG.joinpath("default.json"))
+_THEMES_DIR         = str(_THEMES_PKG)
 
 SUPPORTED_SCHEMA_VERSION = 1
 
@@ -12,7 +14,6 @@ _BUILTIN_NAMES = {
     "default": "default.json",
     "plantuml": "plantuml.json",
 }
-_THEMES_DIR = os.path.normpath(os.path.join(_HERE, '..', 'themes'))
 _MAX_INHERITANCE_DEPTH = 10
 _KNOWN_TOP_LEVEL_KEYS = frozenset({
     "schema_version", "extends",
@@ -29,7 +30,7 @@ class Theme:
     Loads and resolves visual styling from a theme.json file.
 
     Style resolution order (later overrides earlier):
-      1. DEFAULT (built-in baseline)
+      1. DEFAULT (schema-migration backfill — see below)
       2. theme["base"] (user global overrides)
       3. theme["views"][view_id] (view-level overrides, minus the 'sections' subkey)
       4. theme["views"][view_id]["sections"][section_id] (section-level overrides)
@@ -38,23 +39,23 @@ class Theme:
 
     Inheritance: theme files may declare "extends": "<name-or-path>" to inherit
     from a base theme. Built-in names: default, plantuml.
+
+    DEFAULT policy:
+        Authoritative defaults live in ``themes/default.json`` (and
+        ``plantuml.json``). DEFAULT is NOT a mirror of those files — it exists
+        only to backfill base keys that a user-authored theme might omit when
+        that theme targets an older schema_version than the current build.
+
+        When a future schema_version introduces a new base key, add it to
+        DEFAULT gated by its introduction version (e.g. via a
+        ``_BASE_DEFAULTS_BY_VERSION`` dict) so themes declaring an older
+        ``schema_version`` still render. While schema_version == 1 is the only
+        version, DEFAULT stays empty and all consumers rely on
+        ``themes/default.json`` plus per-call ``style.get(key, fallback)``
+        safety nets in the renderer.
     """
 
-    DEFAULT = {
-        "background": "white",
-        "fill": "lightgrey",
-        "break_fill": "white",
-        "stroke": "black",
-        "stroke_width": 1,
-        "stroke_dasharray": "3,2",
-        "font_size": 16,
-        "font_family": "Helvetica",
-        "text_fill": "black",
-        "text_stroke": "none",
-        "text_stroke_width": 0,
-        "opacity": 1,
-        "break_height": 20,
-    }
+    DEFAULT: dict = {}
 
     def __init__(self, path: str = None):
         self._data = {}

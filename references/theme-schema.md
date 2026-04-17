@@ -10,20 +10,48 @@ The machine-readable contract for this format lives in `schemas/theme.schema.jso
 
 ## Built-in Themes
 
-Two ready-to-use themes live in the `themes/` directory at the repository root.
-Pass either by name or by path:
+Two ready-to-use themes ship as a package under `scripts/themes/` and are
+resolved via `importlib.resources` (so the short built-in names work from any
+working directory). Pass either by name or by absolute/relative path:
 
 ```bash
-python scripts/mmpviz.py -d diagram.json -t plantuml -o map.svg   # by name
-python scripts/mmpviz.py -d diagram.json -t themes/plantuml.json -o map.svg  # by path
+python scripts/mmpviz.py -d diagram.json -t plantuml -o map.svg                    # by name
+python scripts/mmpviz.py -d diagram.json -t scripts/themes/plantuml.json -o map.svg # by path
 ```
 
 | Name | File | Description |
 |------|------|-------------|
-| `default` | `themes/default.json` | Neutral black/white/gray palette. **Loaded automatically when `-t` is omitted.** |
-| `plantuml` | `themes/plantuml.json` | PlantUML-style pastel fills with red outlines. |
+| `default` | `scripts/themes/default.json` | Neutral black/white/gray palette. **Loaded when `-t` is omitted and no sibling `theme.json` exists — see resolution table below.** |
+| `plantuml` | `scripts/themes/plantuml.json` | PlantUML-style pastel fills with red outlines. |
 
-`themes/default.json` defines the complete set of all `base`, `links`, `labels`, and `growth_arrow` properties; it is the authoritative baseline for link configuration. `themes/plantuml.json` uses `extends: "default"` and overrides only the visual appearance (fill, stroke, opacity, font) while inheriting the link geometry. Both themes have no view- or section-specific overrides, so they work with any `diagram.json` without modification.
+`scripts/themes/default.json` defines the complete set of all `base`, `links`, `labels`, and `growth_arrow` properties; it is the authoritative baseline for link configuration. `scripts/themes/plantuml.json` uses `extends: "default"` and overrides only the visual appearance (fill, stroke, opacity, font) while inheriting the link geometry. Both themes have no view- or section-specific overrides, so they work with any `diagram.json` without modification.
+
+### Theme Resolution Order
+
+Both `scripts/mmpviz.py` and `scripts/check.py` resolve the theme the same way.
+When `-t` is omitted, the tool looks for a `theme.json` in the same directory
+as `diagram.json` (a "sibling" theme) before falling back to the built-in
+default. Providing `-t` always short-circuits sibling discovery — the
+command-line value wins unconditionally.
+
+| `-t` flag | Sibling `theme.json` next to diagram? | Theme used |
+|-----------|---------------------------------------|------------|
+| *(omit)* | yes | sibling `theme.json` |
+| *(omit)* | no  | built-in `default` |
+| `-t <name>` (e.g. `-t plantuml`) | yes | built-in by name — sibling ignored |
+| `-t <name>` | no  | built-in by name |
+| `-t <path>` (e.g. `-t ./custom.json`) | yes | specified file — sibling ignored |
+| `-t <path>` | no  | specified file |
+
+For a project-local custom theme, place a `theme.json` next to `diagram.json`
+and extend a built-in:
+
+```json
+{ "schema_version": 1, "extends": "plantuml" }
+```
+
+No `-t` flag is needed — `mmpviz` and `check` will pick up the sibling
+automatically.
 
 ---
 
@@ -46,12 +74,12 @@ theme.json
 ```
 
 **Resolution order for `base` properties** (later overrides earlier):
-1. Built-in fallback defaults (`Theme.DEFAULT` in `theme.py`)
+1. Built-in defaults (from `scripts/themes/default.json`, auto-loaded when `-t` is omitted; see footnote ¹ under *Section Height Clamping* for why `Theme.DEFAULT` in `theme.py` is intentionally empty)
 2. `theme.base` (global baseline from the loaded theme file, or its `extends` ancestor)
 3. `theme.views[view_id]`
 4. `theme.views[view_id].sections[section_id]`
 
-**Resolution order for `links` properties** — resolved through the `extends` chain with two-level merging: `connector` and `band` sub-objects are merged shallowly, so a child can override individual keys (e.g. `connector.fill`) without losing keys it did not mention. When both `connector` and `band` are present in the resolved style, `band` takes priority. `themes/default.json` defines the complete `connector` baseline; themes using `extends: "default"` inherit it and need only override what changes.
+**Resolution order for `links` properties** — resolved through the `extends` chain with two-level merging: `connector` and `band` sub-objects are merged shallowly, so a child can override individual keys (e.g. `connector.fill`) without losing keys it did not mention. When both `connector` and `band` are present in the resolved style, `band` takes priority. `scripts/themes/default.json` defines the complete `connector` baseline; themes using `extends: "default"` inherit it and need only override what changes.
 
 ---
 
@@ -88,7 +116,7 @@ Inherit all settings from another theme and override only what changes:
 ```
 
 The `extends` value is resolved in order:
-1. A built-in name (`"default"`, `"plantuml"`) → loaded from `themes/`
+1. A built-in name (`"default"`, `"plantuml"`) → loaded from the `scripts/themes/` package via `importlib.resources`
 2. A relative path → resolved relative to the inheriting file's directory
 3. An absolute path → used as-is
 
@@ -110,29 +138,29 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `background` | color string | `"white"` | View frame background fill |
-| `fill` | color string | `"lightgrey"` | Section box fill color |
-| `stroke` | color string | `"black"` | Outline color for boxes and frames |
-| `stroke_width` | number | `1` | Outline thickness in pixels |
-| `stroke_dasharray` | string | `"3,2"` | SVG dash pattern (e.g. `"5,3"` or `"none"`) |
-| `opacity` | number 0–1 | `1` | Element opacity |
+| `background` | color string | `"#ffffff"` ¹ | View frame background fill |
+| `fill` | color string | `"#e8e8e8"` ¹ | Section box fill color |
+| `stroke` | color string | `"#555555"` ¹ | Outline color for boxes and frames |
+| `stroke_width` | number | `1` ¹ | Outline thickness in pixels |
+| `stroke_dasharray` | string | *(unset)* | SVG dash pattern (e.g. `"5,3"` or `"none"`) |
+| `opacity` | number 0–1 | `1` ¹ | Element opacity |
 
 ### Text
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
 | `font_size` | number or string | `13` ¹ | Font size in px (number or `"16px"`) |
-| `font_family` | string | `"Helvetica"` | Font family |
-| `text_fill` | color string | `"black"` | Text color for the section **name** label inside the box. Address labels outside the box always use the view-level `text_fill`, so a dark-background section with `"text_fill": "#ffffff"` does not turn its boundary address labels white. |
-| `text_stroke` | color string | `"black"` | Text outline color |
-| `text_stroke_width` | number | `0` | Text outline thickness |
+| `font_family` | string | `"Helvetica"` ¹ | Font family |
+| `text_fill` | color string | `"#000000"` ¹ | Text color for the section **name** label inside the box. Address labels outside the box always use the view-level `text_fill`, so a dark-background section with `"text_fill": "#ffffff"` does not turn its boundary address labels white. |
+| `text_stroke` | color string | `"none"` ¹ | Text outline color |
+| `text_stroke_width` | number | `0` ¹ | Text outline thickness |
 
 ### Break Sections
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `break_height` | number | `20` | Height in pixels of a break section |
-| `break_fill` | color string | *(same as `fill`)* | Background fill of a break-section box. Falls back to `fill` when unset. |
+| `break_height` | number | `20` ¹ | Height in pixels of a break section |
+| `break_fill` | color string | `"#ffffff"` ¹ *(falls back to `fill`)* | Background fill of a break-section box. Falls back to `fill` when unset. |
 
 ### Section Height Clamping
 
@@ -143,7 +171,7 @@ Controls how pixel height is distributed across subareas (regions between break 
 | `min_section_height` | number | `20` ¹ | Guarantees every visible section renders at least this many pixels tall. The renderer redistributes height so that the smallest visible section meets this threshold. |
 | `max_section_height` | number | `300` ¹ | Caps the pixel height of any single section so it cannot crowd out neighbors. |
 
-¹ Default values come from `themes/default.json`, which is auto-loaded when `-t` is omitted. This includes `font_size: 13`, `min_section_height: 20`, and `max_section_height: 300`.
+¹ All default values listed above come from `scripts/themes/default.json`, which is auto-loaded when `-t` is omitted. The Python class `Theme.DEFAULT` is intentionally empty and is reserved for schema-migration backfill in future schema versions; it is not a mirror of `default.json`. Custom themes that do not declare `"extends": "default"` should set every key they rely on explicitly, or fall back to the renderer's hard-coded inline safety nets (e.g. `font_size → 16`, `break_height → 20`) which may differ from `default.json`.
 
 **How they interact:**
 - When neither is set, sections are sized strictly proportional to their byte range.
@@ -222,6 +250,11 @@ source view       source end     middle line     dest end    dest view
 - The **middle line** is a stroked centerline of constant perpendicular thickness.
 - The **destination trapezoid** tapers from the destination region span back to the middle-line width.
 - A single `fill` color applies to both trapezoid fills and the middle line stroke.
+
+> For precise definitions of *trapezoid*, *junction*, *waypoint*, and *bridge* as used
+> throughout this document and the codebase, see
+> [§8 Link Visual Anatomy](auto-layout-algorithm.md#8-link-visual-anatomy) in the
+> auto-layout reference.
 
 ```json
 "links": {

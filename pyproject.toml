@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mmpviz"
+dynamic = ["version"]
+description = "Memory Map / Address Map SVG Visualizer — turn a JSON description of your memory layout into a publication-quality SVG diagram"
+readme = "README_pypi.md"
+license = {file = "LICENSE"}
+authors = [{name = "Shawn Hu"}]
+requires-python = ">=3.9"
+keywords = [
+    "memory-map", "address-map", "svg", "visualization",
+    "diagram", "hardware", "embedded", "soc",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Topic :: Multimedia :: Graphics",
+    "Topic :: Software Development :: Embedded Systems",
+]
+# Core tool has zero runtime dependencies.
+dependencies = []
+
+[project.optional-dependencies]
+# Enables JSON Schema validation of diagram.json / theme.json inputs.
+validation = ["jsonschema>=4.0"]
+
+[project.scripts]
+mmpviz = "mmpviz:main"
+
+[project.urls]
+Repository = "https://github.com/f33lgood/mmpviz"
+Changelog  = "https://github.com/f33lgood/mmpviz/blob/main/CHANGELOG.md"
+
+# ---------------------------------------------------------------------------
+# Setuptools: treat scripts/ as the package root.
+# - Flat modules (area_view, auto_layout, …) listed in py-modules.
+# - themes/ and schemas/ are proper sub-packages (importlib.resources-ready),
+#   so both editable and non-editable installs find the JSON data files.
+# Single source of truth for version: scripts/version.py → pyproject.toml.
+# ---------------------------------------------------------------------------
+[tool.setuptools.dynamic]
+version = {attr = "version.__version__"}
+
+[tool.setuptools]
+package-dir = {"" = "scripts"}
+py-modules = [
+    "area_view",
+    "auto_layout",
+    "check",
+    "fmt_diagram",
+    "helpers",
+    "labels",
+    "links",
+    "loader",
+    "logger",
+    "mmpviz",
+    "render_auto_layout",
+    "renderer",
+    "section",
+    "sections",
+    "svg_builder",
+    "theme",
+    "version",
+]
+
+[tool.setuptools.packages.find]
+where = ["scripts"]   # discovers themes/ and schemas/ as packages
+
+[tool.setuptools.package-data]
+themes  = ["*.json"]
+schemas = ["*.json"]
