@@ -36,7 +36,10 @@ class Sections:
 
     def has_address(self, address: int) -> bool:
         for section in self.sections:
-            if section.address <= address <= (section.address + section.size):
+            # Half-open interval: [start, start+size). The address equal to
+            # start+size is the first byte of the *next* region and must not
+            # match, otherwise contiguous sections overlap on their boundary.
+            if section.address <= address < (section.address + section.size):
                 return True
         return False
 

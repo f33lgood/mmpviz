@@ -14,11 +14,7 @@ No coordinates. No manual box placement. Just describe the address ranges and le
 pip install mmpviz
 ```
 
-Optional: enable JSON schema validation of your input files:
-
-```bash
-pip install mmpviz[validation]
-```
+`mmpviz` has no runtime dependencies — stdlib only. Schema and cross-reference validation run automatically on every render.
 
 ---
 

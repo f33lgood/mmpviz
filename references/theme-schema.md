@@ -253,7 +253,7 @@ source view       source end     middle line     dest end    dest view
 
 > For precise definitions of *trapezoid*, *junction*, *waypoint*, and *bridge* as used
 > throughout this document and the codebase, see
-> [§8 Link Visual Anatomy](auto-layout-algorithm.md#8-link-visual-anatomy) in the
+> [§8 Link Visual Anatomy](../docs/auto-layout-algorithm.md#8-link-visual-anatomy) in the
 > auto-layout reference.
 
 ```json

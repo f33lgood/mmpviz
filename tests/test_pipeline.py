@@ -55,7 +55,8 @@ def _unresolved_link_diagram():
                 {"id": "code", "address": "0x08000000", "size": "0x20000", "name": "Code"}]},
         ],
         "links": [
-            {"from": {"view": "overview", "sections": ["typo-section-id"]},
+            {"id": "bad-ref",
+             "from": {"view": "overview", "sections": ["typo-section-id"]},
              "to":   {"view": "detail"}}
         ]
     }
@@ -138,6 +139,137 @@ def _out_of_bounds_anchor_diagram():
             {"from": {"view": "source-view",
                       "sections": ["0x07000000", "0x08020000"]},
              "to":   {"view": "detail-view"}}
+        ]
+    }
+
+
+def _break_overlap_diagram():
+    """A break whose size extends into the next visible section's range — the
+    visible section will be silently swallowed → break-overlaps-section ERROR."""
+    return {
+        "views": [{
+            "id": "test-view",
+            "sections": [
+                {"id": "a",   "address": "0x00000000", "size": "0x00001000", "name": "A"},
+                # Break should end at 0x2000 but is sized to end at 0x3000,
+                # covering 0x1000 into the next visible section B's range.
+                {"id": "brk", "address": "0x00001000", "size": "0x00002000",
+                 "name": "···", "flags": ["break"]},
+                {"id": "b",   "address": "0x00002000", "size": "0x00001000", "name": "B"},
+            ]
+        }]
+    }
+
+
+def _visible_overlap_diagram():
+    """Two visible sections (e.g. parent block + its child) with overlapping
+    address ranges — classic layer-confusion case → section-overlap WARN."""
+    return {
+        "views": [{
+            "id": "test-view",
+            "sections": [
+                {"id": "apb1",  "address": "0x40000000", "size": "0x10000", "name": "APB1"},
+                {"id": "uart0", "address": "0x40000000", "size": "0x00400", "name": "UART0"},
+            ]
+        }]
+    }
+
+
+def _breaks_only_overlap_diagram():
+    """Two break sections that genuinely overlap (a wider reserved range plus an
+    inner sub-range flagged as break).  Break-vs-break is an allowed pattern
+    used by chained-gap-coverage — no issue should fire."""
+    return {
+        "views": [{
+            "id": "test-view",
+            "sections": [
+                {"id": "a",    "address": "0x0",     "size": "0x1000", "name": "A"},
+                {"id": "outer", "address": "0x1000", "size": "0x4000",
+                 "name": "Reserved", "flags": ["break"]},
+                {"id": "inner", "address": "0x2000", "size": "0x1000",
+                 "name": "···", "flags": ["break"]},
+                {"id": "b",    "address": "0x5000", "size": "0x1000", "name": "B"},
+            ]
+        }]
+    }
+
+
+def _link_address_range_mappable_diagram():
+    """A link whose to.sections uses the address-range form but the range
+    exactly matches a defined section in the destination view — the author
+    should use the section ID instead → link-address-range-mappable WARN."""
+    return {
+        "views": [
+            {"id": "overview", "sections": [
+                {"id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash"}]},
+            {"id": "detail",  "sections": [
+                {"id": "code",  "address": "0x08000000", "size": "0x10000", "name": "Code"},
+                {"id": "data",  "address": "0x08010000", "size": "0x10000", "name": "Data"}]},
+        ],
+        "links": [
+            {"id": "ovl-detail",
+             "from": {"view": "overview", "sections": ["flash"]},
+             "to":   {"view": "detail",   "sections": ["0x08000000", "0x08010000"]}}
+        ]
+    }
+
+
+def _link_redundant_sections_diagram():
+    """A link whose to.sections lists every section of the destination view —
+    equivalent to omitting the field → link-redundant-sections WARN."""
+    return {
+        "views": [
+            {"id": "overview", "sections": [
+                {"id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash"}]},
+            {"id": "detail",  "sections": [
+                {"id": "code",  "address": "0x08000000", "size": "0x10000", "name": "Code"},
+                {"id": "data",  "address": "0x08010000", "size": "0x10000", "name": "Data"}]},
+        ],
+        "links": [
+            {"id": "ovl-detail",
+             "from": {"view": "overview", "sections": ["flash"]},
+             "to":   {"view": "detail",   "sections": ["code", "data"]}}
+        ]
+    }
+
+
+def _link_clean_diagram():
+    """A well-formed link that pins from.sections to a proper subset of the
+    source view and omits to.sections — no link-form warnings expected."""
+    return {
+        "views": [
+            {"id": "overview", "sections": [
+                {"id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash"},
+                {"id": "sram",  "address": "0x20000000", "size": "0x10000", "name": "SRAM"}]},
+            {"id": "detail",  "sections": [
+                {"id": "code",  "address": "0x08000000", "size": "0x10000", "name": "Code"},
+                {"id": "data",  "address": "0x08010000", "size": "0x10000", "name": "Data"}]},
+        ],
+        "links": [
+            {"id": "ovl-detail",
+             "from": {"view": "overview", "sections": ["flash"]},
+             "to":   {"view": "detail"}}
+        ]
+    }
+
+
+def _link_addr_range_not_mappable_diagram():
+    """A link whose to.sections address range does not align with any defined
+    section boundaries (e.g. virtual→physical mapping).  Legitimate use of
+    the address-range form — no link-form warning should fire."""
+    return {
+        "views": [
+            {"id": "overview", "sections": [
+                {"id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash"}]},
+            {"id": "detail",  "sections": [
+                {"id": "code",  "address": "0x08000000", "size": "0x10000", "name": "Code"},
+                {"id": "data",  "address": "0x08010000", "size": "0x10000", "name": "Data"}]},
+        ],
+        "links": [
+            {"id": "ovl-detail",
+             "from": {"view": "overview", "sections": ["flash"]},
+             "to":   {"view": "detail",
+                      "sections": ["0x08004000", "0x0800C000"]}}  # spans neither Code nor Data cleanly
         ]
     }
 
@@ -230,6 +362,98 @@ class TestRunChecksLevels(unittest.TestCase):
         area_views = self._build_area_views(diagram)
         issues = run_checks(diagram, area_views, ALL_RULES)
         self.assertEqual(issues, [])
+
+    def test_break_overlaps_section_is_error(self):
+        """A break whose range overlaps a visible section fires
+        break-overlaps-section ERROR (the visible section would be
+        silently swallowed by the layout engine)."""
+        from check import run_checks, ALL_RULES
+        diagram = _break_overlap_diagram()
+        area_views = self._build_area_views(diagram)
+        issues = run_checks(diagram, area_views, ALL_RULES)
+        hits = [i for i in issues if i.rule == 'break-overlaps-section']
+        self.assertTrue(hits, "Expected break-overlaps-section issue")
+        self.assertTrue(all(i.level == 'ERROR' for i in hits))
+        # The message must carry the corrected break size so the fix is mechanical.
+        self.assertIn('0x1000', str(hits[0]))
+
+    def test_section_overlap_visible_is_warn(self):
+        """Two visible sections with overlapping ranges still fire
+        section-overlap WARN after the overlap-check consolidation."""
+        from check import run_checks, ALL_RULES
+        diagram = _visible_overlap_diagram()
+        area_views = self._build_area_views(diagram)
+        issues = run_checks(diagram, area_views, ALL_RULES)
+        hits = [i for i in issues if i.rule == 'section-overlap']
+        self.assertTrue(hits, "Expected section-overlap issue")
+        self.assertTrue(all(i.level == 'WARN' for i in hits))
+        # break-overlaps-section must NOT fire for visible-vs-visible.
+        self.assertFalse(
+            [i for i in issues if i.rule == 'break-overlaps-section'],
+            "visible-vs-visible must not emit break-overlaps-section",
+        )
+
+    def test_break_vs_break_overlap_no_issue(self):
+        """Break-vs-break overlap is an allowed pattern (chained reserved
+        ranges) and must not fire either overlap rule."""
+        from check import run_checks, ALL_RULES
+        diagram = _breaks_only_overlap_diagram()
+        area_views = self._build_area_views(diagram)
+        issues = run_checks(diagram, area_views, ALL_RULES)
+        overlap_hits = [i for i in issues
+                        if i.rule in ('section-overlap', 'break-overlaps-section')]
+        self.assertEqual(
+            overlap_hits, [],
+            "Break-vs-break overlap must not fire any overlap rule",
+        )
+
+    def test_link_address_range_mappable_is_warn(self):
+        """An address-range link that resolves exactly to defined section(s)
+        should warn so the author can switch to section IDs."""
+        from check import run_checks, ALL_RULES
+        diagram = _link_address_range_mappable_diagram()
+        area_views = self._build_area_views(diagram)
+        issues = run_checks(diagram, area_views, ALL_RULES)
+        hits = [i for i in issues if i.rule == 'link-address-range-mappable']
+        self.assertTrue(hits, "Expected link-address-range-mappable issue")
+        self.assertTrue(all(i.level == 'WARN' for i in hits))
+
+    def test_link_redundant_sections_is_warn_id_list(self):
+        """A sections list enumerating every section of the destination view
+        is equivalent to omitting the field → link-redundant-sections WARN."""
+        from check import run_checks, ALL_RULES
+        diagram = _link_redundant_sections_diagram()
+        area_views = self._build_area_views(diagram)
+        issues = run_checks(diagram, area_views, ALL_RULES)
+        hits = [i for i in issues if i.rule == 'link-redundant-sections']
+        self.assertTrue(hits, "Expected link-redundant-sections issue")
+        self.assertTrue(all(i.level == 'WARN' for i in hits))
+
+    def test_link_clean_form_no_link_warnings(self):
+        """A link with a single source section ID and omitted to.sections
+        should produce no link-form warnings."""
+        from check import run_checks, ALL_RULES
+        diagram = _link_clean_diagram()
+        area_views = self._build_area_views(diagram)
+        issues = run_checks(diagram, area_views, ALL_RULES)
+        self.assertFalse(
+            [i for i in issues
+             if i.rule in ('link-address-range-mappable', 'link-redundant-sections')],
+            "Clean link must not fire link-form warnings",
+        )
+
+    def test_link_address_range_legitimate_no_warning(self):
+        """An address-range link that doesn't align with any defined section
+        (e.g. virtual→physical mapping) must not fire
+        link-address-range-mappable."""
+        from check import run_checks, ALL_RULES
+        diagram = _link_addr_range_not_mappable_diagram()
+        area_views = self._build_area_views(diagram)
+        issues = run_checks(diagram, area_views, ALL_RULES)
+        self.assertFalse(
+            [i for i in issues if i.rule == 'link-address-range-mappable'],
+            "Address-range that doesn't map to section(s) must not warn",
+        )
 
     def test_panel_overlap_is_error(self):
         """Manually crafted area_views with two overlapping panels."""

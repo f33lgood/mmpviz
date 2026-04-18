@@ -176,14 +176,21 @@ def _auto_layout(area_configs: list, columns: dict = None,
         )
         for c in bin_cfgs:
             for s in c.get('sections', []):
+                raw_addr = s.get('address', '0')
                 try:
-                    if parse_int(s.get('address', '0')) > _ADDR_64BIT_THRESHOLD:
+                    if parse_int(raw_addr) > _ADDR_64BIT_THRESHOLD:
                         return round(
                             _ADDR_LABEL_H_OFFSET
                             + _ADDR_CHARS_64 * _HELVETICA_W_RATIO * fs
                             + _INTER_BREATHING)
                 except (ValueError, TypeError):
-                    pass
+                    # Validation should have rejected malformed addresses by
+                    # now; if we still see one here, surface it instead of
+                    # silently falling back to a 32-bit gap estimate.
+                    logger.warning(
+                        f"_col_gap: could not parse section address {raw_addr!r} "
+                        f"(section id={s.get('id', '?')!r}); assuming 32-bit for column width"
+                    )
         return round(
             _ADDR_LABEL_H_OFFSET
             + _ADDR_CHARS_32 * _HELVETICA_W_RATIO * fs
@@ -595,7 +602,7 @@ def main():
         if not args.output:
             sys.exit(0)  # format-only mode, done
 
-    # Schema validation (JSON Schema via jsonschema, if available)
+    # Structural + cross-reference validation (pure stdlib).
     schema_errors = validate(args.diagram)
     if schema_errors:
         print("Schema validation failed:")

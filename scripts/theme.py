@@ -20,9 +20,336 @@ _KNOWN_TOP_LEVEL_KEYS = frozenset({
     "base", "views", "links", "labels", "growth_arrow"
 })
 
+# ---------------------------------------------------------------------------
+# Keys allowed in each nested block.  Kept in sync with schemas/theme.schema.json
+# and enforced by validate_theme() so that typos surface as errors instead of
+# silently dropping styles.
+# ---------------------------------------------------------------------------
+_BASE_PROP_KEYS = frozenset({
+    "background", "fill", "break_fill", "stroke", "stroke_width",
+    "stroke_dasharray", "opacity", "font_size", "font_family",
+    "text_fill", "text_stroke", "text_stroke_width", "break_height",
+    "min_section_height", "max_section_height",
+})
+_VIEW_OVERRIDE_KEYS = _BASE_PROP_KEYS | {"sections", "labels"}
+_LABELS_BLOCK_KEYS = frozenset({
+    "arrow_size", "stroke", "stroke_width", "stroke_dasharray",
+    "font_size", "font_family", "text_fill",
+})
+_GROWTH_ARROW_KEYS = frozenset({"size", "fill", "stroke"})
+_LINKS_BLOCK_KEYS = frozenset({"connector", "band", "overrides"})
+_CONNECTOR_KEYS = frozenset({"source", "destination", "middle", "fill", "opacity"})
+_BAND_KEYS = frozenset({
+    "source", "middle", "destination",
+    "fill", "stroke", "stroke_width", "stroke_dasharray", "opacity",
+})
+_CONNECTOR_SEG_KEYS = frozenset({"width"})
+_CONNECTOR_MIDDLE_KEYS = frozenset({"width", "shape"})
+_BAND_SEG_KEYS = frozenset({"shape", "width", "sheight", "dheight"})
+_BAND_MIDDLE_KEYS = frozenset({"shape", "sheight", "dheight"})
+_LINK_OVERRIDE_KEYS = frozenset({
+    "fill", "opacity", "stroke", "stroke_width", "stroke_dasharray",
+})
+_CONNECTOR_MIDDLE_SHAPES = frozenset({"straight", "curve"})
+_BAND_SEG_SHAPES = frozenset({"straight", "curve"})
+_SEG_HEIGHT_STRINGS = frozenset({"source", "destination"})
+
 
 class ThemeError(Exception):
     pass
+
+
+# ---------------------------------------------------------------------------
+# Stdlib-only theme validation
+# ---------------------------------------------------------------------------
+
+def _tv_check_unknown(obj, allowed, path, errors):
+    if not isinstance(obj, dict):
+        errors.append(f"{path}: must be an object, got {type(obj).__name__}")
+        return False
+    for k in obj.keys():
+        if k in allowed:
+            continue
+        # Leading-underscore keys are reserved for free-form author notes.
+        if isinstance(k, str) and k.startswith('_'):
+            continue
+        errors.append(
+            f"{path}: unknown property {k!r} — allowed keys are {sorted(allowed)}"
+        )
+    return True
+
+
+def _tv_check_number(value, path, errors, *,
+                     minimum=None, maximum=None, allow_null=False):
+    if value is None and allow_null:
+        return
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        errors.append(f"{path}: must be a number, got {type(value).__name__}")
+        return
+    if minimum is not None and value < minimum:
+        errors.append(f"{path}: must be >= {minimum}, got {value}")
+    if maximum is not None and value > maximum:
+        errors.append(f"{path}: must be <= {maximum}, got {value}")
+
+
+def _tv_check_string(value, path, errors, *, enum=None):
+    if not isinstance(value, str):
+        errors.append(f"{path}: must be a string, got {type(value).__name__}")
+        return
+    if enum is not None and value not in enum:
+        errors.append(f"{path}: must be one of {sorted(enum)}, got {value!r}")
+
+
+def _tv_check_font_size(value, path, errors):
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        errors.append(f"{path}: must be a number or string")
+
+
+def _tv_check_seg_height(value, path, errors):
+    if isinstance(value, str):
+        if value not in _SEG_HEIGHT_STRINGS:
+            errors.append(
+                f"{path}: string value must be one of "
+                f"{sorted(_SEG_HEIGHT_STRINGS)}, got {value!r}"
+            )
+        return
+    _tv_check_number(value, path, errors, minimum=0)
+
+
+def _tv_check_base_props(block, path, errors, allowed_keys):
+    if not _tv_check_unknown(block, allowed_keys, path, errors):
+        return
+    for k, v in block.items():
+        kp = f"{path}.{k}"
+        if k in ("background", "fill", "break_fill", "stroke",
+                 "text_fill", "text_stroke"):
+            _tv_check_string(v, kp, errors)
+        elif k in ("stroke_width", "text_stroke_width", "break_height"):
+            _tv_check_number(v, kp, errors, minimum=0)
+        elif k == "stroke_dasharray":
+            _tv_check_string(v, kp, errors)
+        elif k == "opacity":
+            _tv_check_number(v, kp, errors, minimum=0, maximum=1)
+        elif k == "font_size":
+            _tv_check_font_size(v, kp, errors)
+        elif k == "font_family":
+            _tv_check_string(v, kp, errors)
+        elif k in ("min_section_height", "max_section_height"):
+            _tv_check_number(v, kp, errors, minimum=0, allow_null=True)
+
+
+def _tv_check_labels_block(block, path, errors):
+    if not _tv_check_unknown(block, _LABELS_BLOCK_KEYS, path, errors):
+        return
+    for k, v in block.items():
+        kp = f"{path}.{k}"
+        if k == "arrow_size":
+            _tv_check_number(v, kp, errors, minimum=0)
+        elif k in ("stroke", "text_fill"):
+            _tv_check_string(v, kp, errors)
+        elif k == "stroke_width":
+            _tv_check_number(v, kp, errors, minimum=0)
+        elif k == "stroke_dasharray":
+            _tv_check_string(v, kp, errors)
+        elif k == "font_size":
+            _tv_check_font_size(v, kp, errors)
+        elif k == "font_family":
+            _tv_check_string(v, kp, errors)
+
+
+def _tv_check_connector(block, path, errors):
+    if not _tv_check_unknown(block, _CONNECTOR_KEYS, path, errors):
+        return
+    for k, v in block.items():
+        kp = f"{path}.{k}"
+        if k in ("source", "destination"):
+            if _tv_check_unknown(v, _CONNECTOR_SEG_KEYS, kp, errors):
+                if "width" in v:
+                    _tv_check_number(v["width"], f"{kp}.width", errors, minimum=0)
+        elif k == "middle":
+            if _tv_check_unknown(v, _CONNECTOR_MIDDLE_KEYS, kp, errors):
+                if "width" in v:
+                    _tv_check_number(v["width"], f"{kp}.width", errors, minimum=0)
+                if "shape" in v:
+                    _tv_check_string(v["shape"], f"{kp}.shape", errors,
+                                     enum=_CONNECTOR_MIDDLE_SHAPES)
+        elif k == "fill":
+            _tv_check_string(v, kp, errors)
+        elif k == "opacity":
+            _tv_check_number(v, kp, errors, minimum=0, maximum=1)
+
+
+def _tv_check_band_seg(seg, path, errors, allowed):
+    if not _tv_check_unknown(seg, allowed, path, errors):
+        return
+    for k, v in seg.items():
+        kp = f"{path}.{k}"
+        if k == "shape":
+            _tv_check_string(v, kp, errors, enum=_BAND_SEG_SHAPES)
+        elif k == "width":
+            _tv_check_number(v, kp, errors, minimum=0)
+        elif k in ("sheight", "dheight"):
+            _tv_check_seg_height(v, kp, errors)
+
+
+def _tv_check_band(block, path, errors):
+    if not _tv_check_unknown(block, _BAND_KEYS, path, errors):
+        return
+    for k, v in block.items():
+        kp = f"{path}.{k}"
+        if k in ("source", "destination"):
+            _tv_check_band_seg(v, kp, errors, _BAND_SEG_KEYS)
+        elif k == "middle":
+            _tv_check_band_seg(v, kp, errors, _BAND_MIDDLE_KEYS)
+        elif k in ("fill", "stroke", "stroke_dasharray"):
+            _tv_check_string(v, kp, errors)
+        elif k == "stroke_width":
+            _tv_check_number(v, kp, errors)
+        elif k == "opacity":
+            _tv_check_number(v, kp, errors, minimum=0, maximum=1)
+
+
+def _tv_check_link_override(block, path, errors):
+    if not _tv_check_unknown(block, _LINK_OVERRIDE_KEYS, path, errors):
+        return
+    for k, v in block.items():
+        kp = f"{path}.{k}"
+        if k in ("fill", "stroke", "stroke_dasharray"):
+            _tv_check_string(v, kp, errors)
+        elif k == "opacity":
+            _tv_check_number(v, kp, errors, minimum=0, maximum=1)
+        elif k == "stroke_width":
+            _tv_check_number(v, kp, errors, minimum=0)
+
+
+def _tv_check_links_block(block, path, errors):
+    if not _tv_check_unknown(block, _LINKS_BLOCK_KEYS, path, errors):
+        return
+    if "connector" in block:
+        _tv_check_connector(block["connector"], f"{path}.connector", errors)
+    if "band" in block:
+        _tv_check_band(block["band"], f"{path}.band", errors)
+    if "overrides" in block:
+        ov = block["overrides"]
+        if not isinstance(ov, dict):
+            errors.append(f"{path}.overrides: must be an object")
+        else:
+            for lid, lov in ov.items():
+                _tv_check_link_override(lov, f"{path}.overrides.{lid}", errors)
+
+
+def _tv_check_growth_arrow(block, path, errors):
+    if not _tv_check_unknown(block, _GROWTH_ARROW_KEYS, path, errors):
+        return
+    for k, v in block.items():
+        kp = f"{path}.{k}"
+        if k == "size":
+            _tv_check_number(v, kp, errors, minimum=0)
+        elif k in ("fill", "stroke"):
+            _tv_check_string(v, kp, errors)
+
+
+def _tv_check_view_override(block, path, errors):
+    if not _tv_check_unknown(block, _VIEW_OVERRIDE_KEYS, path, errors):
+        return
+    # base-style keys on the view override itself
+    base_like = {k: v for k, v in block.items() if k in _BASE_PROP_KEYS}
+    _tv_check_base_props(base_like, path, errors, _VIEW_OVERRIDE_KEYS)
+    if "sections" in block:
+        secs = block["sections"]
+        if not isinstance(secs, dict):
+            errors.append(f"{path}.sections: must be an object")
+        else:
+            for sid, sec in secs.items():
+                _tv_check_base_props(
+                    sec if isinstance(sec, dict) else {},
+                    f"{path}.sections.{sid}", errors, _BASE_PROP_KEYS
+                )
+                if not isinstance(sec, dict):
+                    errors.append(f"{path}.sections.{sid}: must be an object")
+    if "labels" in block:
+        labs = block["labels"]
+        if not isinstance(labs, dict):
+            errors.append(f"{path}.labels: must be an object")
+        else:
+            for lid, lab in labs.items():
+                _tv_check_labels_block(
+                    lab if isinstance(lab, dict) else {},
+                    f"{path}.labels.{lid}", errors
+                )
+                if not isinstance(lab, dict):
+                    errors.append(f"{path}.labels.{lid}: must be an object")
+
+
+def validate_theme(raw: dict, source: str = "<theme>") -> list:
+    """
+    Walk a parsed theme.json dict and return a list of structural errors.
+    Pure stdlib: no jsonschema dependency.
+
+    The check enforces ``additionalProperties: false`` on every nested block
+    that the schema declares as closed, so a typo (``"baseX"``, ``"font_siz"``)
+    becomes a hard error instead of a silently-dropped style.
+
+    Args:
+        raw: parsed JSON dict.
+        source: file path, shown in error messages.
+    """
+    errors: list = []
+    if not isinstance(raw, dict):
+        return [f"{source}: top-level value must be a JSON object"]
+
+    # Top-level unknown keys are already surfaced as warnings by
+    # Theme._validate_structure (preserved for schema_version migration).
+    # Skip them here so validate_theme() only adds *hard* errors.
+
+    if "schema_version" in raw:
+        sv = raw["schema_version"]
+        if isinstance(sv, bool) or not isinstance(sv, int):
+            errors.append(f"{source}.schema_version: must be an integer")
+    if "extends" in raw and not isinstance(raw["extends"], str):
+        errors.append(f"{source}.extends: must be a string")
+
+    if "base" in raw:
+        base = raw["base"]
+        if not isinstance(base, dict):
+            errors.append(f"{source}.base: must be an object")
+        else:
+            _tv_check_base_props(base, f"{source}.base", errors, _BASE_PROP_KEYS)
+    if "views" in raw:
+        views = raw["views"]
+        if not isinstance(views, dict):
+            errors.append(f"{source}.views: must be an object")
+        else:
+            for vid, vo in views.items():
+                _tv_check_view_override(
+                    vo if isinstance(vo, dict) else {},
+                    f"{source}.views.{vid}", errors
+                )
+                if not isinstance(vo, dict):
+                    errors.append(f"{source}.views.{vid}: must be an object")
+    if "links" in raw:
+        _tv_check_links_block(
+            raw["links"] if isinstance(raw["links"], dict) else {},
+            f"{source}.links", errors
+        )
+        if not isinstance(raw["links"], dict):
+            errors.append(f"{source}.links: must be an object")
+    if "labels" in raw:
+        _tv_check_labels_block(
+            raw["labels"] if isinstance(raw["labels"], dict) else {},
+            f"{source}.labels", errors
+        )
+        if not isinstance(raw["labels"], dict):
+            errors.append(f"{source}.labels: must be an object")
+    if "growth_arrow" in raw:
+        _tv_check_growth_arrow(
+            raw["growth_arrow"] if isinstance(raw["growth_arrow"], dict) else {},
+            f"{source}.growth_arrow", errors
+        )
+        if not isinstance(raw["growth_arrow"], dict):
+            errors.append(f"{source}.growth_arrow: must be an object")
+
+    return errors
 
 
 class Theme:
@@ -111,6 +438,11 @@ class Theme:
 
         self._validate_schema_version(raw, abs_path)
         self._validate_structure(raw, abs_path)
+        deep_errors = validate_theme(raw, abs_path)
+        if deep_errors:
+            raise ThemeError(
+                "Theme validation failed:\n  " + "\n  ".join(deep_errors)
+            )
 
         extends_value = raw.get("extends")
         if extends_value is not None:

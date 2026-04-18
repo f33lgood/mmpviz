@@ -437,32 +437,64 @@ def _check_addr_64bit_column_width(area_views: list) -> list[Issue]:
 
 def _check_section_overlap(area_views: list) -> list[Issue]:
     """
-    Two visible (non-hidden, non-break) sections in the same view have
-    overlapping address ranges.
+    Two sections in the same view have overlapping address ranges.  Two
+    sub-cases are emitted as distinct rule names so they can be filtered
+    independently:
 
-    A common mistake is including a parent section (e.g. ``APB1``) and its
-    named children (e.g. ``UART0``, ``SPI0``) in the same view.  The parent's
-    visual box covers all children, making labels unreadable.  Fix: remove
-    whichever layer should not be rendered from this view's ``sections[]``.
+    - ``section-overlap`` (WARN): two visible (non-break) sections overlap.
+      Common cause — including a parent region and its named children in the
+      same view; the parent's box visually covers the children, making labels
+      unreadable.  Fix: remove one layer from ``sections[]``.
+
+    - ``break-overlaps-section`` (ERROR): a break's range overlaps a visible
+      section's range.  The layout engine treats the overlapping region as
+      part of the break and silently drops the visible section from the
+      rendered output — the section exists in ``diagram.json`` but never
+      appears in the SVG.  Common cause — an off-by-N slip in a large-address
+      gap hole, making the break extend past the address where the next real
+      section starts.  Fix: recompute the break's size so it ends exactly at
+      the next real section's base address.
+
+    Break-vs-break overlaps are allowed (consecutive / chained breaks that
+    together cover a gap are a legitimate pattern — see ``uncovered-gap``).
     """
     issues = []
     for av in area_views:
-        visible = sorted(
-            (s for s in av.sections.get_sections()
-             if 'hidden' not in s.flags and 'break' not in s.flags),
+        secs = sorted(
+            (s for s in av.sections.get_sections() if 'hidden' not in s.flags),
             key=lambda s: s.address,
         )
-        for i, s1 in enumerate(visible):
+        for i, s1 in enumerate(secs):
             s1_end = s1.address + s1.size
-            for s2 in visible[i + 1:]:
+            s1_is_break = 'break' in s1.flags
+            for s2 in secs[i + 1:]:
                 if s2.address >= s1_end:
                     break  # sorted — no more overlaps with s1
-                issues.append(Issue(
-                    'section-overlap', av.view_id, s1.id,
-                    f"'{s1.id}' [{hex(s1.address)}, +{hex(s1.size)}] overlaps "
-                    f"'{s2.id}' [{hex(s2.address)}, +{hex(s2.size)}]; "
-                    f"remove one layer from this view's sections[]",
-                ))
+                s2_is_break = 'break' in s2.flags
+                if s1_is_break and s2_is_break:
+                    continue  # break-vs-break is allowed
+                if s1_is_break or s2_is_break:
+                    # Exactly one side is a break — the visible side gets swallowed.
+                    brk, vis = (s1, s2) if s1_is_break else (s2, s1)
+                    b_lo, b_hi = brk.address, brk.address + brk.size
+                    v_lo, v_hi = vis.address, vis.address + vis.size
+                    issues.append(Issue(
+                        'break-overlaps-section', av.view_id, vis.id,
+                        f"break '{brk.id}' [{hex(b_lo)}, {hex(b_hi)}] overlaps "
+                        f"non-break section '{vis.id}' [{hex(v_lo)}, {hex(v_hi)}] "
+                        f"— '{vis.id}' will be swallowed by the break and not render. "
+                        f"Fix: recompute the break's size so it ends exactly where "
+                        f"'{vis.id}' begins (break.size = {hex(v_lo)} − "
+                        f"{hex(b_lo)} = {hex(v_lo - b_lo)}).",
+                        level='ERROR',
+                    ))
+                else:
+                    issues.append(Issue(
+                        'section-overlap', av.view_id, s1.id,
+                        f"'{s1.id}' [{hex(s1.address)}, +{hex(s1.size)}] overlaps "
+                        f"'{s2.id}' [{hex(s2.address)}, +{hex(s2.size)}]; "
+                        f"remove one layer from this view's sections[]",
+                    ))
     return issues
 
 
@@ -716,6 +748,141 @@ def _check_link_anchor_out_of_bounds(area_views: list,
     return issues
 
 
+def _check_link_section_form(area_views: list,
+                             links_config: list) -> list[Issue]:
+    """
+    Warn when ``from.sections`` or ``to.sections`` uses a more specific form
+    than necessary.  Emits two rule names so they can be filtered separately:
+
+    - ``link-address-range-mappable`` (WARN): an address-range form
+      (``["0xA", "0xB"]``) resolves exactly to one or more defined non-break
+      sections.  Use section IDs instead — they are more readable and survive
+      address-map edits.
+
+    - ``link-redundant-sections`` (WARN): the sections list is equivalent to
+      the whole-view default (either enumerates every visible non-break
+      section, or is an address range spanning the view's full extent).
+      Omit the ``sections`` field instead.
+
+    Address-range forms that genuinely don't correspond to any defined
+    section (e.g. virtual→physical mappings) are left untouched.
+    """
+    if not area_views or not isinstance(links_config, list):
+        return []
+
+    from loader import parse_int as _parse_int
+
+    av_by_id = {av.view_id: av for av in area_views}
+    issues = []
+
+    def _is_addr_range_form(spec):
+        return (isinstance(spec, list) and len(spec) == 2
+                and isinstance(spec[0], str) and spec[0].startswith('0x')
+                and isinstance(spec[1], str) and spec[1].startswith('0x'))
+
+    def _visible_sections(area):
+        return sorted(
+            (s for s in area.sections.get_sections()
+             if 'hidden' not in s.flags and 'break' not in s.flags),
+            key=lambda s: s.address,
+        )
+
+    def _sections_covering_range(area, lo, hi):
+        """Return the list of section IDs whose union is exactly ``[lo, hi)``,
+        or ``None`` if the range doesn't line up with a contiguous run of
+        non-break sections.  ``None`` is the 'legitimate address-range form'
+        signal — the link refers to a range that no section names."""
+        ids = []
+        cur = lo
+        for s in _visible_sections(area):
+            s_end = s.address + s.size
+            if s_end <= cur:
+                continue
+            if s.address != cur:
+                return None  # gap between cur and next section's start
+            ids.append(s.id)
+            cur = s_end
+            if cur >= hi:
+                break
+        if cur == hi and ids:
+            return ids
+        return None
+
+    def _ids_combined_range(area, id_list):
+        """Return (min_start, max_end) over every section whose id is in
+        ``id_list``, or ``None`` if any id is missing from the view (in which
+        case ``unresolved-section`` catches it).  Mirrors the renderer's
+        ``_resolve_link_addr_range`` section-list branch."""
+        ids_set = set(id_list)
+        starts, ends = [], []
+        seen = set()
+        for s in area.sections.get_sections():
+            if s.id in ids_set:
+                starts.append(s.address)
+                ends.append(s.address + s.size)
+                seen.add(s.id)
+        if not starts or seen != ids_set:
+            return None
+        return (min(starts), max(ends))
+
+    for entry in links_config:
+        if not isinstance(entry, dict):
+            continue
+        link_id = entry.get('id', '<unnamed>')
+        for side in ('from', 'to'):
+            endpoint = entry.get(side, {})
+            if not isinstance(endpoint, dict):
+                continue
+            view_id = endpoint.get('view')
+            spec = endpoint.get('sections')
+            if not spec or not isinstance(spec, list):
+                continue  # omitted / missing — preferred whole-view default
+            area = av_by_id.get(view_id)
+            if area is None:
+                continue  # unresolved-section catches missing view
+
+            if _is_addr_range_form(spec):
+                try:
+                    lo = _parse_int(spec[0])
+                    hi = _parse_int(spec[1])
+                except (ValueError, TypeError):
+                    continue
+                # 1) range equals (or exceeds) whole view → redundant.
+                if lo <= area.start_address and hi >= area.end_address:
+                    issues.append(Issue(
+                        'link-redundant-sections', f'links[{link_id}].{side}', view_id,
+                        f"address range [{spec[0]}, {spec[1]}] spans the whole "
+                        f"'{view_id}' view — omit the '{side}.sections' field "
+                        f"to use the whole-view default",
+                    ))
+                    continue
+                # 2) range maps exactly onto defined section(s) → prefer IDs.
+                ids = _sections_covering_range(area, lo, hi)
+                if ids:
+                    id_repr = ', '.join(f"'{i}'" for i in ids)
+                    issues.append(Issue(
+                        'link-address-range-mappable', f'links[{link_id}].{side}', view_id,
+                        f"address range [{spec[0]}, {spec[1]}] in '{view_id}' "
+                        f"resolves exactly to section(s) [{id_repr}] — replace "
+                        f"the address range with section IDs for readability",
+                    ))
+            else:
+                # Section-ID-list form.  Warn if the combined address range
+                # of the listed IDs covers the whole view — the renderer
+                # would produce an identical anchor if the field were omitted.
+                total = _ids_combined_range(area, spec)
+                if (total is not None
+                        and total[0] <= area.start_address
+                        and total[1] >= area.end_address):
+                    issues.append(Issue(
+                        'link-redundant-sections', f'links[{link_id}].{side}', view_id,
+                        f"'{side}.sections' lists {len(spec)} section ID(s) whose "
+                        f"combined range spans the whole '{view_id}' view — omit "
+                        f"the field to use the whole-view default",
+                    ))
+    return issues
+
+
 def _check_unresolved_link_sections(area_views: list,
                                     links_config: list) -> list[Issue]:
     """Section or view IDs referenced in link entries do not exist."""
@@ -781,8 +948,11 @@ ALL_RULES = {
     'section-height-conflict',
     'out-of-canvas',
     'link-anchor-out-of-bounds',
+    'link-address-range-mappable',
+    'link-redundant-sections',
     'unresolved-section',
     'section-overlap',
+    'break-overlaps-section',
     'uncovered-gap',
     'panel-overlap',
     'title-overlap',
@@ -827,6 +997,7 @@ def run_checks(diagram: dict, area_views: list,
 
     # Link rules
     issues.extend(_check_link_anchor_out_of_bounds(area_views, links_config))
+    issues.extend(_check_link_section_form(area_views, links_config))
     issues.extend(_check_unresolved_link_sections(area_views, links_config))
 
     # Filter to only enabled rules

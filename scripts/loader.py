@@ -1,18 +1,34 @@
+"""
+Diagram loader and validator.
+
+``validate(path)`` is a pure-stdlib structural + cross-reference check for a
+``diagram.json`` file.  It is the single source of truth: no optional
+``jsonschema`` dependency and therefore no silent two-path divergence.
+
+Returns a list of diagnostic strings.  An empty list means the file is valid.
+"""
 import json
-import os
 import re
-from importlib.resources import files as _res_files
 
 from section import Section
 
 _ID_RE = re.compile(r'^[a-z0-9_-]+$')
-_SCHEMAS_DIR = str(_res_files("schemas"))
+_HEX_OR_INT_RE = re.compile(r'^(0[xX][0-9a-fA-F]+|[0-9]+)$')
 
-try:
-    from jsonschema import Draft202012Validator
-    _JSONSCHEMA_AVAILABLE = True
-except ImportError:
-    _JSONSCHEMA_AVAILABLE = False
+_SECTION_FLAG_ENUM = {"break", "grows-up", "grows-down"}
+_LABEL_SIDE_ENUM = {"left", "right"}
+_LABEL_DIR_ENUM = {"in", "out"}
+
+_ALLOWED_DIAGRAM_KEYS = frozenset(("_comment", "title", "views", "links"))
+_ALLOWED_VIEW_KEYS = frozenset(("id", "title", "sections", "labels"))
+_ALLOWED_SECTION_KEYS = frozenset(
+    ("id", "address", "size", "name", "flags", "min_height", "max_height")
+)
+_ALLOWED_LABEL_KEYS = frozenset(
+    ("id", "address", "text", "length", "side", "directions")
+)
+_ALLOWED_LINK_KEYS = frozenset(("id", "from", "to"))
+_ALLOWED_ENDPOINT_KEYS = frozenset(("view", "sections"))
 
 
 def _check_id(id_str: str, context: str) -> None:
@@ -30,6 +46,17 @@ def parse_int(v) -> int:
     if isinstance(v, str):
         return int(v, 0)
     return int(v)
+
+
+def _is_hex_or_int(v) -> bool:
+    """True iff ``v`` matches the schema's hex_or_int definition."""
+    if isinstance(v, bool):
+        return False  # bool is a subclass of int; reject explicitly
+    if isinstance(v, int):
+        return v >= 0
+    if isinstance(v, str):
+        return bool(_HEX_OR_INT_RE.match(v))
+    return False
 
 
 def load(path: str) -> dict:
@@ -82,176 +109,391 @@ def resolve_view_sections(view_config: dict) -> list:
                 "missing required 'name' — skipping")
             continue
 
+        # validate() should have rejected malformed addresses before we get
+        # here; if it didn't (e.g. someone called load()/resolve_view_sections
+        # without validate()), surface a clean error instead of a raw traceback.
+        try:
+            size_int = parse_int(raw_size)
+            addr_int = parse_int(raw_address)
+        except (ValueError, TypeError) as exc:
+            logger.warning(
+                f"View '{view_config.get('id', '?')}': section '{section_id}' "
+                f"has non-numeric address/size ({exc}); skipping"
+            )
+            continue
+
         flags = list(entry.get('flags') or [])
         min_h = entry.get('min_height')
         max_h = entry.get('max_height')
+        try:
+            min_h_f = float(min_h) if min_h is not None else None
+            max_h_f = float(max_h) if max_h is not None else None
+        except (ValueError, TypeError) as exc:
+            logger.warning(
+                f"View '{view_config.get('id', '?')}': section '{section_id}' "
+                f"has non-numeric min_height/max_height ({exc}); skipping"
+            )
+            continue
+
         sections.append(Section(
-            size=parse_int(raw_size),
-            address=parse_int(raw_address),
+            size=size_int,
+            address=addr_int,
             id=section_id,
             flags=flags,
             name=name,
-            min_height=float(min_h) if min_h is not None else None,
-            max_height=float(max_h) if max_h is not None else None,
+            min_height=min_h_f,
+            max_height=max_h_f,
         ))
     return sections
 
 
 # ---------------------------------------------------------------------------
-# Validation helpers
+# Validation
 # ---------------------------------------------------------------------------
 
-def _fmt_json_path(path) -> str:
-    """Format a jsonschema absolute_path deque as a readable location string."""
-    parts = list(path)
-    result = ''
-    for p in parts:
-        if isinstance(p, int):
-            result += f'[{p}]'
+def _check_numeric(value, field_path: str, errors: list,
+                   *, allow_float: bool = False, minimum: float = 0) -> bool:
+    """Validate a number-or-coerced-number field.  Returns True iff valid."""
+    if isinstance(value, bool):
+        errors.append(f"{field_path}: must be a number, got boolean")
+        return False
+    if isinstance(value, (int, float)):
+        if value < minimum:
+            errors.append(f"{field_path}: must be >= {minimum}, got {value}")
+            return False
+        return True
+    errors.append(f"{field_path}: must be a number, got {type(value).__name__}")
+    return False
+
+
+def _check_hex_or_int(value, field_path: str, errors: list) -> bool:
+    """Validate a hex_or_int field.  Returns True iff valid."""
+    if not _is_hex_or_int(value):
+        errors.append(
+            f"{field_path}: must be a non-negative integer or hex/decimal string, "
+            f"got {value!r}"
+        )
+        return False
+    return True
+
+
+def _check_additional_properties(obj: dict, allowed: frozenset,
+                                 container_path: str, errors: list) -> None:
+    # Leading-underscore keys are reserved for free-form author notes
+    # (e.g. "_note", "_comment") and are ignored by the renderer.  Typos
+    # never start with an underscore, so allowing them does not weaken
+    # the silent-failure guarantees.
+    extras = [k for k in obj.keys()
+              if k not in allowed and not (isinstance(k, str) and k.startswith('_'))]
+    for k in extras:
+        errors.append(
+            f"{container_path}: unknown property {k!r} — "
+            f"allowed keys are {sorted(allowed)}"
+        )
+
+
+def _check_label(entry, path: str, errors: list) -> None:
+    if not isinstance(entry, dict):
+        errors.append(f"{path}: must be an object")
+        return
+    _check_additional_properties(entry, _ALLOWED_LABEL_KEYS, path, errors)
+    lid = entry.get('id')
+    if lid is None:
+        errors.append(f"{path}: missing 'id'")
+    elif not isinstance(lid, str) or not _ID_RE.match(lid):
+        errors.append(
+            f"{path}: id={lid!r} is invalid — use only lowercase letters, "
+            "digits, underscores (_), or hyphens (-)"
+        )
+    if 'address' not in entry:
+        errors.append(f"{path}: missing 'address'")
+    else:
+        _check_hex_or_int(entry['address'], f"{path}.address", errors)
+    if 'text' in entry and not isinstance(entry['text'], str):
+        errors.append(f"{path}.text: must be a string")
+    if 'length' in entry:
+        _check_numeric(entry['length'], f"{path}.length", errors, allow_float=True)
+    if 'side' in entry:
+        s = entry['side']
+        if s not in _LABEL_SIDE_ENUM:
+            errors.append(
+                f"{path}.side: must be one of {sorted(_LABEL_SIDE_ENUM)}, got {s!r}"
+            )
+    if 'directions' in entry:
+        d = entry['directions']
+        if isinstance(d, str):
+            if d not in _LABEL_DIR_ENUM:
+                errors.append(
+                    f"{path}.directions: must be one of {sorted(_LABEL_DIR_ENUM)}, "
+                    f"got {d!r}"
+                )
+        elif isinstance(d, list):
+            for k, item in enumerate(d):
+                if not isinstance(item, str) or item not in _LABEL_DIR_ENUM:
+                    errors.append(
+                        f"{path}.directions[{k}]: must be one of "
+                        f"{sorted(_LABEL_DIR_ENUM)}, got {item!r}"
+                    )
         else:
-            result += ('.' if result else '') + str(p)
-    return result or '<root>'
+            errors.append(
+                f"{path}.directions: must be a string or list of strings"
+            )
+
+
+def _check_section(entry, path: str, errors: list) -> None:
+    if not isinstance(entry, dict):
+        errors.append(f"{path}: must be an object")
+        return
+    _check_additional_properties(entry, _ALLOWED_SECTION_KEYS, path, errors)
+    sid = entry.get('id')
+    if sid is None:
+        errors.append(f"{path}: missing 'id'")
+    elif not isinstance(sid, str) or not _ID_RE.match(sid):
+        errors.append(
+            f"{path}: id={sid!r} is invalid — use only lowercase letters, "
+            "digits, underscores (_), or hyphens (-)"
+        )
+    if 'address' not in entry:
+        errors.append(f"{path}: missing 'address'")
+    else:
+        _check_hex_or_int(entry['address'], f"{path}.address", errors)
+    if 'size' not in entry:
+        errors.append(f"{path}: missing 'size'")
+    else:
+        _check_hex_or_int(entry['size'], f"{path}.size", errors)
+    if 'name' not in entry:
+        errors.append(f"{path}: missing required 'name'")
+    elif not isinstance(entry['name'], str):
+        errors.append(f"{path}.name: must be a string")
+    if 'flags' in entry:
+        flags = entry['flags']
+        if not isinstance(flags, list):
+            errors.append(f"{path}.flags: must be a list")
+        else:
+            for k, fl in enumerate(flags):
+                if not isinstance(fl, str) or fl not in _SECTION_FLAG_ENUM:
+                    errors.append(
+                        f"{path}.flags[{k}]: must be one of "
+                        f"{sorted(_SECTION_FLAG_ENUM)}, got {fl!r}"
+                    )
+    min_h = entry.get('min_height')
+    max_h = entry.get('max_height')
+    if min_h is not None:
+        _check_numeric(min_h, f"{path}.min_height", errors, allow_float=True)
+    if max_h is not None:
+        _check_numeric(max_h, f"{path}.max_height", errors, allow_float=True)
+    if (isinstance(min_h, (int, float)) and isinstance(max_h, (int, float))
+            and not isinstance(min_h, bool) and not isinstance(max_h, bool)
+            and min_h > max_h):
+        errors.append(
+            f"{path}: 'min_height' ({min_h}) must not exceed 'max_height' ({max_h})"
+        )
+
+
+def _check_endpoint(ep, path: str, errors: list) -> None:
+    if not isinstance(ep, dict):
+        errors.append(f"{path}: must be an object")
+        return
+    _check_additional_properties(ep, _ALLOWED_ENDPOINT_KEYS, path, errors)
+    view = ep.get('view')
+    if not isinstance(view, str) or not view:
+        errors.append(f"{path}.view: must be a non-empty string")
+    if 'sections' in ep:
+        secs = ep['sections']
+        if not isinstance(secs, list):
+            errors.append(f"{path}.sections: must be a list of strings")
+        else:
+            for k, s in enumerate(secs):
+                if not isinstance(s, str):
+                    errors.append(f"{path}.sections[{k}]: must be a string")
+
+
+def _check_link(entry, path: str, errors: list) -> None:
+    if not isinstance(entry, dict):
+        errors.append(f"{path}: must be an object")
+        return
+    _check_additional_properties(entry, _ALLOWED_LINK_KEYS, path, errors)
+    lid = entry.get('id')
+    if lid is None:
+        errors.append(f"{path}: missing 'id'")
+    elif not isinstance(lid, str) or not _ID_RE.match(lid):
+        errors.append(
+            f"{path}: id={lid!r} is invalid — use only lowercase letters, "
+            "digits, underscores (_), or hyphens (-)"
+        )
+    if 'from' not in entry:
+        errors.append(f"{path}: missing 'from'")
+    else:
+        _check_endpoint(entry['from'], f"{path}.from", errors)
+    if 'to' not in entry:
+        errors.append(f"{path}: missing 'to'")
+    else:
+        _check_endpoint(entry['to'], f"{path}.to", errors)
 
 
 def _check_structure(diagram: dict) -> list:
-    """Manual structural checks — used when jsonschema is not installed."""
-    errors = []
+    """Structural validation — the single authoritative path."""
+    errors: list = []
+    if not isinstance(diagram, dict):
+        errors.append("<root>: must be an object")
+        return errors
+    _check_additional_properties(diagram, _ALLOWED_DIAGRAM_KEYS, "<root>", errors)
+
+    if 'title' in diagram and not isinstance(diagram['title'], str):
+        errors.append("title: must be a string")
+    if '_comment' in diagram:
+        c = diagram['_comment']
+        if not isinstance(c, list) or not all(isinstance(x, str) for x in c):
+            errors.append("_comment: must be a list of strings")
+
     if 'views' in diagram:
-        if not isinstance(diagram['views'], list):
-            errors.append("'views' must be a list")
+        views = diagram['views']
+        if not isinstance(views, list):
+            errors.append("views: must be a list")
         else:
-            for i, view in enumerate(diagram['views']):
+            for i, view in enumerate(views):
+                vpath = f"views[{i}]"
+                if not isinstance(view, dict):
+                    errors.append(f"{vpath}: must be an object")
+                    continue
+                _check_additional_properties(view, _ALLOWED_VIEW_KEYS, vpath, errors)
                 vid = view.get('id')
-                if not vid:
-                    errors.append(f"views[{i}]: missing 'id'")
-                elif not _ID_RE.match(vid):
+                if vid is None:
+                    errors.append(f"{vpath}: missing 'id'")
+                elif not isinstance(vid, str) or not _ID_RE.match(vid):
                     errors.append(
-                        f"views[{i}]: id={vid!r} is invalid — use only "
-                        "lowercase letters, digits, underscores (_), or hyphens (-)"
+                        f"{vpath}: id={vid!r} is invalid — use only lowercase "
+                        "letters, digits, underscores (_), or hyphens (-)"
                     )
-                view_sections = view.get('sections')
-                if view_sections is not None and not isinstance(view_sections, list):
-                    errors.append(f"views[{i}]: 'sections' must be a list")
-                elif view_sections:
-                    for j, entry in enumerate(view_sections):
-                        if not isinstance(entry, dict):
-                            errors.append(f"views[{i}].sections[{j}]: must be an object")
-                            continue
-                        sid = entry.get('id')
-                        if not sid:
-                            errors.append(f"views[{i}].sections[{j}]: missing 'id'")
-                        elif not _ID_RE.match(sid):
-                            errors.append(
-                                f"views[{i}].sections[{j}]: id={sid!r} is invalid — use only "
-                                "lowercase letters, digits, underscores (_), or hyphens (-)"
-                            )
-                        if entry.get('address') is None:
-                            errors.append(f"views[{i}].sections[{j}]: missing 'address'")
-                        if entry.get('size') is None:
-                            errors.append(f"views[{i}].sections[{j}]: missing 'size'")
-                        if entry.get('name') is None:
-                            errors.append(f"views[{i}].sections[{j}]: missing required 'name'")
-                        min_h = entry.get('min_height')
-                        max_h = entry.get('max_height')
-                        if min_h is not None:
-                            try:
-                                min_h = float(min_h)
-                                if min_h < 0:
-                                    errors.append(
-                                        f"views[{i}].sections[{j}]: 'min_height' must be non-negative")
-                            except (TypeError, ValueError):
-                                errors.append(
-                                    f"views[{i}].sections[{j}]: 'min_height' must be a number")
-                        if max_h is not None:
-                            try:
-                                max_h = float(max_h)
-                                if max_h < 0:
-                                    errors.append(
-                                        f"views[{i}].sections[{j}]: 'max_height' must be non-negative")
-                            except (TypeError, ValueError):
-                                errors.append(
-                                    f"views[{i}].sections[{j}]: 'max_height' must be a number")
-                        if (min_h is not None and max_h is not None
-                                and isinstance(min_h, (int, float))
-                                and isinstance(max_h, (int, float))
-                                and min_h > max_h):
-                            errors.append(
-                                f"views[{i}].sections[{j}]: "
-                                f"'min_height' ({min_h}) must not exceed 'max_height' ({max_h})")
+                if 'title' in view and not isinstance(view['title'], str):
+                    errors.append(f"{vpath}.title: must be a string")
+                vsecs = view.get('sections')
+                if vsecs is not None:
+                    if not isinstance(vsecs, list):
+                        errors.append(f"{vpath}.sections: must be a list")
+                    else:
+                        for j, sec in enumerate(vsecs):
+                            _check_section(sec, f"{vpath}.sections[{j}]", errors)
+                vlabels = view.get('labels')
+                if vlabels is not None:
+                    if not isinstance(vlabels, list):
+                        errors.append(f"{vpath}.labels: must be a list")
+                    else:
+                        for j, lab in enumerate(vlabels):
+                            _check_label(lab, f"{vpath}.labels[{j}]", errors)
+
+    if 'links' in diagram:
+        links = diagram['links']
+        if not isinstance(links, list):
+            errors.append("links: must be a list")
+        else:
+            for i, link in enumerate(links):
+                _check_link(link, f"links[{i}]", errors)
 
     return errors
 
 
 def _check_uniqueness(diagram: dict) -> list:
-    """Check for duplicate view IDs and duplicate section IDs within a view.
-    These cross-reference constraints cannot be expressed in JSON Schema.
-    """
+    """Duplicate view IDs, duplicate section IDs within a view, duplicate link IDs."""
     errors = []
-    if not isinstance(diagram.get('views'), list):
-        return errors
-    seen_view_ids: set = set()
-    for i, view in enumerate(diagram['views']):
-        if not isinstance(view, dict):
-            continue
-        vid = view.get('id')
-        if vid:
-            if vid in seen_view_ids:
-                errors.append(
-                    f"views[{i}]: duplicate id={vid!r} — all view ids must be unique"
-                )
-            seen_view_ids.add(vid)
-        secs = view.get('sections')
-        if not isinstance(secs, list):
-            continue
-        seen_section_ids: set = set()
-        for j, entry in enumerate(secs):
-            if not isinstance(entry, dict):
+    views = diagram.get('views')
+    if isinstance(views, list):
+        seen_view_ids: set = set()
+        for i, view in enumerate(views):
+            if not isinstance(view, dict):
                 continue
-            sid = entry.get('id')
-            if sid:
-                if sid in seen_section_ids:
+            vid = view.get('id')
+            if vid:
+                if vid in seen_view_ids:
                     errors.append(
-                        f"views[{i}].sections[{j}]: "
-                        f"duplicate id={sid!r} within view '{vid}'"
+                        f"views[{i}]: duplicate id={vid!r} — all view ids must be unique"
                     )
-                seen_section_ids.add(sid)
+                seen_view_ids.add(vid)
+            secs = view.get('sections')
+            if not isinstance(secs, list):
+                continue
+            seen_section_ids: set = set()
+            seen_label_ids: set = set()
+            for j, entry in enumerate(secs):
+                if not isinstance(entry, dict):
+                    continue
+                sid = entry.get('id')
+                if sid:
+                    if sid in seen_section_ids:
+                        errors.append(
+                            f"views[{i}].sections[{j}]: "
+                            f"duplicate id={sid!r} within view '{vid}'"
+                        )
+                    seen_section_ids.add(sid)
+            labels = view.get('labels')
+            if isinstance(labels, list):
+                for j, lab in enumerate(labels):
+                    if not isinstance(lab, dict):
+                        continue
+                    lid = lab.get('id')
+                    if lid:
+                        if lid in seen_label_ids:
+                            errors.append(
+                                f"views[{i}].labels[{j}]: "
+                                f"duplicate id={lid!r} within view '{vid}'"
+                            )
+                        seen_label_ids.add(lid)
+
+    links = diagram.get('links')
+    if isinstance(links, list):
+        seen_link_ids: set = set()
+        for i, link in enumerate(links):
+            if not isinstance(link, dict):
+                continue
+            lid = link.get('id')
+            if isinstance(lid, str) and lid:
+                if lid in seen_link_ids:
+                    errors.append(
+                        f"links[{i}]: duplicate id={lid!r} — all link ids must be unique"
+                    )
+                seen_link_ids.add(lid)
     return errors
 
 
-def _check_deprecated(diagram: dict) -> list:
-    """Return warning strings for deprecated fields present in the diagram."""
-    warnings = []
-    if 'size' in diagram:
-        warnings.append(
-            "diagram 'size' is deprecated — canvas dimensions are now computed "
-            "automatically from view content; remove this field"
-        )
-    for i, view in enumerate(diagram.get('views', [])):
-        if not isinstance(view, dict):
+def _check_cross_refs(diagram: dict) -> list:
+    """Link endpoints must refer to a declared view id."""
+    errors = []
+    views = diagram.get('views')
+    if not isinstance(views, list):
+        return errors
+    valid_view_ids = {
+        v.get('id') for v in views
+        if isinstance(v, dict) and isinstance(v.get('id'), str)
+    }
+    links = diagram.get('links')
+    if not isinstance(links, list):
+        return errors
+    for i, link in enumerate(links):
+        if not isinstance(link, dict):
             continue
-        vid = view.get('id', f'views[{i}]')
-        if 'pos' in view:
-            warnings.append(
-                f"views[{i}] (id={vid!r}): 'pos' is deprecated — "
-                "view placement is controlled by auto-layout; remove this field"
-            )
-        if 'size' in view:
-            warnings.append(
-                f"views[{i}] (id={vid!r}): 'size' is deprecated — "
-                "view dimensions are controlled by auto-layout; remove this field"
-            )
-    return warnings
+        for side in ('from', 'to'):
+            ep = link.get(side)
+            if not isinstance(ep, dict):
+                continue
+            view = ep.get('view')
+            if isinstance(view, str) and view and view not in valid_view_ids:
+                errors.append(
+                    f"links[{i}].{side}.view: references unknown view "
+                    f"{view!r}; declared views are {sorted(valid_view_ids)}"
+                )
+    return errors
 
 
 def validate(path: str) -> list:
     """
-    Validate a diagram.json file. Returns a list of error strings (empty = valid).
+    Validate a diagram.json file.  Returns a list of diagnostic strings;
+    empty list means the file is valid.
 
-    Structural validation uses schemas/diagram.schema.json via the jsonschema
-    library when available. Cross-reference checks (duplicate IDs) always run
-    in Python regardless.
+    Legacy layout fields (diagram-level ``size``, view-level ``pos`` / ``size``)
+    were removed when auto-layout became the only layout engine — they now
+    surface as "unknown key" errors from the structural check.  Fix by
+    deleting them from the diagram.
     """
-    errors = []
     try:
         with open(path, 'r', encoding='utf-8') as f:
             diagram = json.load(f)
@@ -260,34 +502,8 @@ def validate(path: str) -> list:
     except OSError as e:
         return [f"Cannot open file: {e}"]
 
-    # ------------------------------------------------------------------ #
-    # Structural validation                                                #
-    # ------------------------------------------------------------------ #
-    if _JSONSCHEMA_AVAILABLE:
-        schema_path = os.path.join(_SCHEMAS_DIR, 'diagram.schema.json')
-        try:
-            with open(schema_path, encoding='utf-8') as sf:
-                schema = json.load(sf)
-            validator = Draft202012Validator(schema)
-            for error in sorted(
-                validator.iter_errors(diagram),
-                key=lambda e: (list(e.absolute_path), e.message),
-            ):
-                errors.append(f"{_fmt_json_path(error.absolute_path)}: {error.message}")
-        except OSError:
-            errors.extend(_check_structure(diagram))
-    else:
-        errors.extend(_check_structure(diagram))
-
-    # ------------------------------------------------------------------ #
-    # Cross-reference checks (cannot be expressed in JSON Schema)         #
-    # ------------------------------------------------------------------ #
+    errors = []
+    errors.extend(_check_structure(diagram))
     errors.extend(_check_uniqueness(diagram))
-
-    # ------------------------------------------------------------------ #
-    # Deprecation warnings (prefixed so callers can distinguish)          #
-    # ------------------------------------------------------------------ #
-    for w in _check_deprecated(diagram):
-        errors.append(f"DEPRECATED: {w}")
-
+    errors.extend(_check_cross_refs(diagram))
     return errors

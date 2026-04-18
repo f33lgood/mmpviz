@@ -22,6 +22,25 @@ Writing guide:
 
 ---
 
+## [2026-04-18] (1.0.0)
+
+### Added
+- **`break-overlaps-section` check (ERROR)** — fires when a break section's address range overlaps a visible (non-break) section. The visible section would otherwise be silently swallowed by the layout engine; the error message prints the corrected break size.
+- **`link-address-range-mappable` check (WARN)** — fires when a link's `from.sections` or `to.sections` uses the address-range form `["0xA", "0xB"]` but the range resolves exactly to defined section(s). Suggests replacing the range with section IDs.
+- **`link-redundant-sections` check (WARN)** — fires when a link's `from.sections` or `to.sections` covers the whole target view (enumerated IDs or an address range spanning the full extent). Suggests omitting the field to use the whole-view default.
+- **AreaView degenerate-range guard** — `AreaView` now raises a `ValueError` up front when `size_y <= 0` or `end_address <= start_address`. Previously these produced a division-by-zero or silently bad output downstream.
+
+### Changed
+- **Schema validation is always on — no optional dependency.** `validate()` is now a pure-stdlib structural + cross-reference check; the optional `[validation]` extra (which installed `jsonschema`) has been removed. Existing installs keep working — reinstall without the extra.
+- **`section-overlap` check** — consolidated with break-vs-visible overlap detection. Visible-vs-visible overlaps still emit `section-overlap` (WARN); break-vs-visible emits `break-overlaps-section` (ERROR) with a fix recipe. Break-vs-break overlaps remain allowed (chained reserved ranges).
+- **Auto-layout algorithm doc moved** — `references/auto-layout-algorithm.md` → `docs/auto-layout-algorithm.md`. The doc is developer-facing layout-engine internals and has been pulled out of the author-facing `references/` playbook. Cross-links in `README.md`, `references/diagram-schema.md`, `references/theme-schema.md`, and `references/check-rules.md` updated.
+
+### Removed
+- **`[validation]` optional extra** — `pip install mmpviz[validation]` → `pip install mmpviz`. Validation is always on; no `jsonschema` runtime dependency.
+- **Legacy auto-layout fields now error instead of warn** — diagram-level `size` and view-level `pos` / `size` (replaced by auto-layout years ago) now produce hard "unknown key" errors from the structural check. The soft-deprecation bridge (`DEPRECATED:` prefix, `split_issues()`, `_scrub_deprecated()`) has been removed.
+
+---
+
 ## [2026-04-17]
 
 ### Added

@@ -57,6 +57,41 @@ class TestAreaViewPixelConversion(unittest.TestCase):
         self.assertAlmostEqual(result, 250.0, places=2)
 
 
+class TestAreaViewDegenerateInputs(unittest.TestCase):
+    """Zero-range / zero-height views must fail loudly, not divide by zero."""
+
+    def _construct(self, area_config):
+        s = make_section(0x0, 0x1000)
+        return AreaView(
+            sections=Sections([s]),
+            style=default_style(),
+            area_config=area_config,
+            is_subarea=True,
+        )
+
+    def test_zero_size_y_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            self._construct({'id': 'v', 'pos': [0, 0], 'size': [200, 0],
+                             'start': 0x0, 'end': 0x1000})
+        self.assertIn('size_y', str(ctx.exception))
+
+    def test_negative_size_y_raises(self):
+        with self.assertRaises(ValueError):
+            self._construct({'id': 'v', 'pos': [0, 0], 'size': [200, -10],
+                             'start': 0x0, 'end': 0x1000})
+
+    def test_equal_start_end_raises(self):
+        with self.assertRaises(ValueError) as ctx:
+            self._construct({'id': 'v', 'pos': [0, 0], 'size': [200, 500],
+                             'start': 0x1000, 'end': 0x1000})
+        self.assertIn('end_address', str(ctx.exception))
+
+    def test_end_less_than_start_raises(self):
+        with self.assertRaises(ValueError):
+            self._construct({'id': 'v', 'pos': [0, 0], 'size': [200, 500],
+                             'start': 0x2000, 'end': 0x1000})
+
+
 class TestAreaViewProcess(unittest.TestCase):
 
     def test_no_breaks_produces_self(self):

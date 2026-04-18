@@ -5,8 +5,8 @@ It contains one or more views, each with its own sections, plus optional cross-v
 **No visual styling belongs here** — put colors, fonts, and sizes in `theme.json`.
 
 The machine-readable contract for this format lives in `schemas/diagram.schema.json`
-(JSON Schema draft 2020-12). The validation script loads it automatically when the
-`jsonschema` Python package is available.
+(JSON Schema draft 2020-12). Validation is done by the tool's pure-stdlib `loader.validate()`
+function (no runtime dependencies) and runs automatically on every render.
 
 ---
 
@@ -36,7 +36,7 @@ Each entry in `views` defines one memory view panel in the SVG diagram. A view o
 
 View positions and canvas size are computed automatically — `pos`, `size`, and the
 diagram-level `size` field are deprecated and ignored. See
-`references/auto-layout-algorithm.md` for the full layout algorithm description.
+`docs/auto-layout-algorithm.md` for the full layout algorithm description (developer internals).
 
 ---
 
@@ -122,7 +122,7 @@ Controls the **vertical span of the band on each endpoint** — the address rang
 
 When `to.sections` is omitted, the destination-side band height is derived by
 clamping the source address range to the destination view's extent (the common
-zoom case where a large parent section connects to a detail view that shows only
+drill-down case where a large parent section connects to a detail view that shows only
 a sub-range). When `to.sections` is specified, the destination-side band height
 is anchored to the explicitly resolved range, independently of the source range.
 This allows the band's two endpoints to sit at **different** address positions

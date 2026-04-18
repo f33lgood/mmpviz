@@ -56,6 +56,30 @@ class TestSectionsFilters(unittest.TestCase):
     def test_has_address_false(self):
         self.assertFalse(self.sections.has_address(0x5000))
 
+    def test_has_address_is_inclusive_at_start(self):
+        # First byte of the region matches.
+        self.assertTrue(self.sections.has_address(0x1000))
+
+    def test_has_address_is_exclusive_at_end(self):
+        # One past the last byte is the first byte of the next region; it
+        # must not match, otherwise two contiguous sections overlap on their
+        # shared boundary.
+        self.assertFalse(self.sections.has_address(0x1100))  # s1 end
+        self.assertFalse(self.sections.has_address(0x2200))  # s2 end
+        self.assertFalse(self.sections.has_address(0x3050))  # s3 end
+
+    def test_has_address_boundary_between_contiguous_sections(self):
+        a = make_section(0x1000, 0x1000, 'a')
+        b = make_section(0x2000, 0x1000, 'b')
+        secs = Sections([a, b])
+        # 0x2000 is the first byte of `b`, not the last byte of `a`.
+        # Exactly one section must own this address.
+        owners = [s for s in secs.get_sections()
+                  if s.address <= 0x2000 < s.address + s.size]
+        self.assertEqual(len(owners), 1)
+        self.assertEqual(owners[0].id, 'b')
+        self.assertTrue(secs.has_address(0x2000))
+
     def test_highest_memory(self):
         # s3: 0x3000 + 0x50 = 0x3050
         self.assertEqual(self.sections.highest_memory, 0x3050)

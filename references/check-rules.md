@@ -129,6 +129,38 @@ overview view and the named children in a detail view — never both in the same
 
 ---
 
+### `break-overlaps-section` — ERROR
+
+**Violated when:** A `break`-flagged section's address range overlaps a non-break
+(real, named) section's range.
+
+When a break extends into a real named section, the layout engine treats the
+overlapping region as part of the break and silently drops the real section from
+the rendered output — the section exists in `diagram.json` but its rectangle and
+label never appear in the SVG.
+
+The usual cause is an off-by-N slip when computing a large-address gap hole, so
+the break extends past the address where the next real section begins:
+
+```json
+{ "id": "gap",  "address": "0x0000000001600000", "size": "0x1FFFFFFFFFFE0000", "name": "···", "flags": ["break"] },
+{ "id": "next", "address": "0x2000000000000000", "size": "0x0000000100000000", "name": "NEXT" }
+```
+
+Here the break ends at `0x20000000015E0000`, which is past `NEXT`'s base, so
+`NEXT` gets swallowed.
+
+**Fix:** Human/AI — edit the break's `size` in `diagram.json` so it ends exactly
+at the next real section's base:
+
+```
+break.size = next_section.address − break.address
+```
+
+The error message prints the exact correct size for the offending break.
+
+---
+
 ### `uncovered-gap` — WARN
 
 **Violated when:** A large address gap between two consecutive visible sections is
@@ -209,7 +241,7 @@ borders, and labels from one panel bleed into the other.
 left edge of the adjacent panel in the next column.
 
 The inter-column gap is computed from the actual label width and font size of each
-source column (§8 of `auto-layout-algorithm.md`), so this rule should never fire for
+source column (§8 of `../docs/auto-layout-algorithm.md`), so this rule should never fire for
 diagrams rendered by the current auto-layout engine. If it fires, that is a tool bug.
 
 **Fix:** Bug — report with your `diagram.json`.
@@ -250,6 +282,57 @@ address range.
 **How:** Correct the address values in `from.sections` or `to.sections` so they
 stay within the referenced view's address extent, or remove the explicit range to
 span the full view.
+
+---
+
+### `link-address-range-mappable` — WARN
+
+**Violated when:** A link's `from.sections` or `to.sections` uses the address-range
+form `["0xA", "0xB"]` and the range resolves exactly to one or more defined
+non-break sections in the referenced view. The address-range form is intended for
+cases where the anchor range doesn't correspond to any named section (e.g.
+virtual→physical remappings); using it when the range *does* match a section is
+harder to read and silently drifts if addresses change later.
+
+```json
+"to": { "view": "detail-view", "sections": ["0x08000000", "0x08010000"] }
+```
+
+If `detail-view` has a section `code` at `[0x08000000, 0x08010000)`, this is
+functionally identical to using the section ID.
+
+**Fix:** Human/AI — edit `links[]` in `diagram.json`.
+
+**How:** Replace the address-range form with the section ID(s) the range
+resolves to. The warning message names them:
+
+```json
+"to": { "view": "detail-view", "sections": ["code"] }
+```
+
+---
+
+### `link-redundant-sections` — WARN
+
+**Violated when:** A link's `from.sections` or `to.sections` is equivalent to
+the whole-view default — either an ID list whose combined address range covers
+the view's full extent, or an address range spanning the whole view. The
+renderer produces identical output if the field is omitted.
+
+```json
+"to": { "view": "detail-view", "sections": ["code", "data"] }   // all sections of detail-view
+"to": { "view": "detail-view", "sections": ["0x08000000", "0x08020000"] }   // whole view extent
+```
+
+**Fix:** Human/AI — edit `links[]` in `diagram.json`.
+
+**How:** Omit the `sections` field entirely. The renderer treats an omitted
+`from.sections` or `to.sections` as "span the whole view," producing the same
+band geometry with less JSON.
+
+```json
+"to": { "view": "detail-view" }
+```
 
 ---
 

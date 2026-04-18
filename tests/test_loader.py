@@ -203,31 +203,38 @@ class TestResolveViewSections(unittest.TestCase):
         self.assertIsNone(result[0].max_height)
 
 
-class TestValidateDeprecated(unittest.TestCase):
+class TestLegacyLayoutFieldsAreErrors(unittest.TestCase):
+    """The legacy auto-layout fields (diagram-level ``size``, view-level
+    ``pos`` / ``size``) were removed when auto-layout became the only
+    layout engine — they now surface as hard ``unknown key`` errors from
+    the structural check, not as deprecation notices."""
 
-    def test_diagram_size_produces_deprecation_warning(self):
+    def test_diagram_size_is_error(self):
         f = tempfile.NamedTemporaryFile(mode='w', suffix='.json',
                                         delete=False, encoding='utf-8')
         json.dump({"size": [500, 600], "views": []}, f)
         f.close()
         errors = validate(f.name)
-        self.assertTrue(any("DEPRECATED" in e and "size" in e for e in errors))
+        self.assertTrue(any("size" in e for e in errors),
+                        f"Legacy diagram 'size' was accepted: {errors}")
 
-    def test_view_pos_produces_deprecation_warning(self):
+    def test_view_pos_is_error(self):
         f = tempfile.NamedTemporaryFile(mode='w', suffix='.json',
                                         delete=False, encoding='utf-8')
         json.dump({"views": [{"id": "v", "pos": [10, 20], "sections": []}]}, f)
         f.close()
         errors = validate(f.name)
-        self.assertTrue(any("DEPRECATED" in e and "pos" in e for e in errors))
+        self.assertTrue(any("pos" in e for e in errors),
+                        f"Legacy view 'pos' was accepted: {errors}")
 
-    def test_view_size_produces_deprecation_warning(self):
+    def test_view_size_is_error(self):
         f = tempfile.NamedTemporaryFile(mode='w', suffix='.json',
                                         delete=False, encoding='utf-8')
         json.dump({"views": [{"id": "v", "size": [100, 400], "sections": []}]}, f)
         f.close()
         errors = validate(f.name)
-        self.assertTrue(any("DEPRECATED" in e and "size" in e for e in errors))
+        self.assertTrue(any("size" in e for e in errors),
+                        f"Legacy view 'size' was accepted: {errors}")
 
     def test_min_height_conflict_is_error(self):
         f = tempfile.NamedTemporaryFile(mode='w', suffix='.json',

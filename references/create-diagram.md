@@ -1,93 +1,161 @@
 # How to Create a Memory Map Diagram
 
-This guide walks through authoring a `diagram.json` from scratch.
+This is the authoring playbook for `diagram.json`. Sections the mmpviz workflow points into by name:
+
+- **Rules and verification** — six rules every diagram must obey, each paired with a post-render checklist.
+- **Collect source context** — what to gather from datasheets, linker scripts, RTL, or headers.
+- **Design the view structure** — picking scope, views, and each view's address range.
+- **Write `diagram.json`** — the concrete JSON form for views, sections, links, breaks, and labels.
 
 ---
 
-## Step 1: Collect memory region context
+## Rules and verification
 
-### Identify the initiator viewpoints
+Six rules govern every authoring decision and every correctness check. Each rule has a decision-time statement (the prose — read while planning) and a verification checklist (the `[ ]` boxes — ticked against the rendered SVG). Same rule, two uses — no separate planning/gate lists.
 
-A system bus fabric can be observed from different initiators, each seeing a potentially different address map:
+The rules are ordered for decision flow: Rule 1 is the general principle; Rules 2–4 are applied in sequence — decide root views (Rule 2), then the scope's leaf (Rule 3), then how to render within each view (Rule 4). Rules 5–6 cover coverage/formatting and visual correctness. **When rules conflict, earlier rules win** — in particular, Rule 3 overrides Rule 4.
 
-- **Primary viewpoint** — the main CPU that runs software. This is the primary bus initiator and the most important perspective. Always work out the full hierarchical memory map from this viewpoint first.
-- **Secondary viewpoints** — other bus initiators such as a secondary CPU core, a DMA engine, or a debug/JTAG port. Each may see a remapped or restricted address space. Add secondary-viewpoint root views only after the primary map is complete.
+**The list is the gate.** After rendering, tick every box. Any fail → modify `diagram.json`, re-render, re-run the entire list. Don't mark the diagram done until every box passes on one clean pass.
 
-The primary and secondary viewpoints each become a **root view** in the diagram.
+### Rule 1 — Source fidelity
 
-### Build the hierarchy top-down
+Every view title, group name, and section name traces to the source. Never invent an umbrella label to tidy up flat siblings — if the cluster isn't in the source, render the siblings flat.
 
-A system memory map is naturally a tree. Work from the top level down — do not start at the register level and try to aggregate upward.
+- [ ] Every view title, group name, and section name traces to the source (exception: `···` / `Reserved` for holes).
+- [ ] No invented umbrella groupings cluster flat source siblings.
 
-| Scope | Hierarchy level | Typical drill-down depth |
-|-------|----------------|--------------------------|
+### Rule 2 — Preserve every initiator's view
+
+Each initiator observes the fabric through its own address map. When the source distinguishes multiple address maps, each is a separate **root view** titled after its initiator — never merged for brevity, never silently dropped. Also: one view per address map — don't split a single address map across multiple root views.
+
+**Signals that two address maps are distinct:** separate source sections/tables for each; different address widths (e.g. a narrower peripheral fabric alongside a wider global map); a cross-initiator aperture or address translation (that aperture is the `links` entry between root views).
+
+Identify **every** address map before deciding anything else about views. The set of address maps is the set of root views.
+
+- [ ] Every initiator's address map enumerated in the source appears as a distinct root view, titled after its initiator.
+- [ ] Root views that share fabric are connected by a `links` entry.
+
+### Rule 3 — Respect the scope's leaf level
+
+Every diagram has a scope — system, subsystem, or device — and the scope fixes the leaf level that bounds every view:
+
+| Scope | Leaf | Out of scope |
+|-------|------|--------------|
+| System map | Device or memory block | Device pages, registers |
+| Subsystem map | Device | Device pages, registers |
+| Device map | Register page | Individual registers |
+
+**Below-leaf items are out of scope even when the source enumerates them — Rule 3 overrides Rule 4.** A system- or subsystem-scope diagram shows a device as a single section; its pages do not appear even if the source lists them.
+
+**Heuristic for spotting below-leaf enumeration.** Source-enumerated siblings sharing a naming prefix (`<X>_<A>`, `<X>_<B>`, `<X>_<C>`) usually mean `<X>` names the device and the suffixes are its pages. At a scope where `<X>` is the leaf, collapse them to one section named `<X>`.
+
+- [ ] No section name reveals below-leaf structure (shared-prefix siblings at system/subsystem scope → collapse to the prefix).
+- [ ] No drill-down goes below the scope's leaf level.
+
+### Rule 4 — Show sub-structure within the leaf; choose *how*
+
+When the source enumerates sub-blocks **at or above the leaf level**, they are part of the source and must appear. The choice is *how*, not *whether*. For each such region, pick one of three:
+
+- **Decompose inline** (default) — replace the parent with its sub-block sections in the same view. Self-contained view, no extra column.
+- **Drill-down view** — sub-blocks in a separate view linked from the parent. Earns its column only when one of: the source itself documents the child as its own named address map; the child uses a different address space; or inline decomposition is illegible in the parent (sub-block heights fall below the legibility floor even with `min_height`/`max_height` — typical when the parent spans a much larger address range than the child).
+- **Opaque box** — parent shown as a single region with no sub-detail. Only when the user doesn't want the detail, or the source mentions sub-blocks only in passing.
+
+"Has sub-blocks" is **not** a drill-down justification — nearly every region has sub-blocks. When in doubt, decompose inline. A view may mix modes across its regions.
+
+Drill-downs form a chain (overview → drill-down → further drill-down), never a graph — one column per link, no sideways branches. Below-leaf sub-blocks (Rule 3) don't enter this three-way choice at all: they collapse into the leaf parent.
+
+- [ ] Every source region with sub-blocks **at or above the leaf level** is either decomposed inline or drilled-down (never silently dropped).
+- [ ] Each drill-down cites one of the three justifications (child has its own named address map / different address space / inline illegible). Otherwise inline it.
+
+### Rule 5 — Coverage and formatting
+
+Every view covers its `[Lo, Hi)` end-to-end with explicit, contiguous sections. Section names are concise and don't encode sizes. Sizing uses the right tool: `"break"` for holes/reserved ranges; `"max_height"` / `"min_height"` for real named regions. Hex width is uniform within a view.
+
+- [ ] Section names ≤19 characters, no size string embedded in `name` (size labels are rendered automatically).
+- [ ] Each view has `[Lo, Hi)` matching the source — `Hi` is the last source-described aperture, not padded to the architectural ceiling.
+- [ ] `[Lo, Hi)` covered end-to-end; every unmentioned sub-range is a `break`-flagged hole named `···`. *(Fix: compute `gap_size = next.address − prev.address − prev.size` and insert a `break`-flagged hole.)*
+- [ ] Every section has an explicit `size`.
+- [ ] Real named regions use `max_height` / `min_height` for sizing; `"break"` is reserved for holes and reserved ranges only. *(Fix: remove the flag, set `"max_height"` instead.)*
+- [ ] Address literals within a view use uniform hex width.
+
+### Rule 6 — Visual correctness (from the rendered SVG)
+
+The rendered output must match authorial intent: labels readable, no section dominates, link bands land where expected, drill-down panels aren't near-empty. These checks need the rendered SVG.
+
+- [ ] No section label is truncated or overflowing its box. *(Fix: set `"min_height"` on that section; for a hole, flag it `"break"`.)*
+- [ ] No single section dominates its view and crowds out its neighbours. *(Fix: set `"max_height"` on the dominant section. Never flag a real named section as `"break"` to shrink it — Rule 5.)*
+- [ ] Every link band connects the intended source region to the intended target view. *(Fix: verify `links[]` entries reference the correct view IDs and that `to.view` matches the target view's `id`.)*
+- [ ] No drill-down panel is near-empty relative to its parent (fewer than ~3 visible rows, or vast whitespace). *(Fix: collapse the drill-down and decompose the sub-blocks inline — Rule 4.)*
+
+If canvas shape or link routing isn't satisfactory after the checks pass, try a different layout algorithm via `--layout` (run `mmpviz.py --help` for choices).
+
+---
+
+## Collect source context
+
+### Scope and hierarchy
+
+Choose the diagram's scope first; that fixes the hierarchy depth and the leaf level (Rule 3). Work top-down — don't start at the register level and aggregate upward.
+
+| Scope | Hierarchy levels covered | Typical depth |
+|-------|--------------------------|---------------|
 | Full chip / SoC | system → subsystem → device | 3 levels |
 | One subsystem | subsystem → device → device page | 3 levels |
 | One peripheral | device → device page → registers | 3 levels |
 
-The deepest hierarchy supported is: **system → subsystem → device → device page → registers** (5 levels, 4 links). In practice, most diagrams use 2–3 levels.
+Deepest hierarchy supported: **system → subsystem → device → device page → registers** (5 levels, 4 links). Most diagrams use 2–3.
 
-### Gather region data from sources
+### Gather region data
 
-Different source types expose this information differently:
+Different source types expose region data differently:
 
 | Source | What to extract |
-|--------|----------------|
-| **Datasheet / memory map table** | Region name, base address, size (or end address), access type (R/W/RO), sub-region breakdowns, bus aperture assignments |
-| **Linker script (`.ld` / `.icf`)** | `MEMORY` block entries (origin + length), `SECTIONS` assignments splitting a region into sub-sections (`.text`, `.data`, `.bss`, stack, heap) |
-| **RTL / hardware description** | Address decoder ranges, bus fabric apertures, peripheral base addresses and their sizes, per-initiator address remappings |
-| **C/C++ header (`#define`)** | `BASE_ADDR` + `SIZE` macros; peripheral register block sizes; guard-page or reserved-range constants |
+|--------|-----------------|
+| **Datasheet / memory map table** | Region name, base address, size (or end address), access type, sub-block breakdowns, aperture assignments |
+| **Linker script (`.ld` / `.icf`)** | `MEMORY` entries (origin + length), `SECTIONS` assignments splitting a region into sub-sections (`.text`, `.data`, `.bss`, stack, heap) |
+| **RTL / hardware description** | Address decoder ranges, bus fabric apertures, peripheral base addresses and sizes, per-initiator address remappings |
+| **C/C++ header (`#define`)** | `BASE_ADDR` + `SIZE` macros; register-block sizes; guard-page or reserved-range constants |
 
-For each region record:
-- **Start address** (hex preferred, e.g. `0x08000000`)
-- **Size** (hex preferred, e.g. `0x20000`); compute from end address if needed: `size = end − base`
-- **Name** — keep to ≤19 characters; omit size annotations (the tool renders them automatically)
-- **Level in the hierarchy** — system, subsystem, device, device page, or register
+Invariants for every region:
+
+- **`address`** — base address in hex. Uniform hex width within a view: 32-bit → 8 digits (`0x00000000`, not `0x0`); 64-bit → 16 digits.
+- **`size`** — extent in hex; compute `size = end − base` if the source gives an end address. Required on every section (including holes and breaks). Never embed a size in `name` — sizes are rendered automatically and size-less sections can't lay out.
+- **`name`** — ≤19 characters, no size annotation. Use `···` or `...` for holes, `Reserved` for reserved ranges.
+- **Hierarchy level** — determines which view the region belongs to (given the scope's leaf, Rule 3).
 
 ---
 
-## Step 2: Design the view structure
-
-Sketch the panel layout before writing any JSON. Getting the structure right prevents rework later.
+## Design the view structure
 
 ### Map hierarchy levels to views
 
-Each diagram covers one scope. Choose the scope first, then select which hierarchy levels become views:
+Each diagram covers one scope. Given the scope, the root view and the drill-down chain are:
 
-| Diagram scope | Root view | Drill-down views |
-|--------------|-----------|-----------------|
-| System map | Primary CPU address space | Subsystem → device (one column per level) |
+| Scope | Root view | Drill-down chain |
+|-------|-----------|------------------|
+| System map | Primary CPU address map | Subsystem → device (one column per level) |
 | Subsystem map | Subsystem address space | Device → device page |
 | Device map | Device address space | Device page → registers |
 
-For a system-level diagram, start with the primary CPU root view. Add a secondary CPU or debug-port root view as a separate root view alongside it when their address maps differ.
+Secondary-initiator root views (Rule 2) sit alongside the primary; use `links` to connect them where apertures cross.
 
-### Layout rules
+### Determine each view's address range `[Lo, Hi)`
 
-- **One view per distinct address space.** A contiguous address space belongs in a single view. Do **not** split one address space across multiple root views.
-- **Use break sections for large gaps.** When the gap-to-range ratio exceeds ~90%, compress the gap with a `break`-flagged section; without it, the surrounding sections collapse to sub-pixel height.
-- **Drill-down only, never sideways.** An overview links to a zoom-in, which may link to a sub-detail — each link adds exactly one column. Do not create more levels than the chosen scope requires.
-- **Cross-address-space links require `to.sections`.** When source and destination views use different address spaces (e.g. a 64-bit global map linking into a 24-bit peripheral space), always specify `to.sections` so the destination anchor is expressed in the destination view's own address range.
+Fix the half-open range before enumerating sections. This prevents size-less holes encoded in names and views that stop short of the decoded space.
 
-### Checklist before writing JSON
-
-- [ ] Primary CPU viewpoint is the first root view
-- [ ] Secondary viewpoints (if any) are separate root views
-- [ ] Hierarchy levels are chosen to match the diagram scope
-- [ ] Every contiguous address space maps to exactly one view
-- [ ] Every large address gap has a break section planned
-- [ ] Drill-down relationships are expressed as links, not extra root views
-- [ ] Cross-address-space links have `to.sections` planned
-- [ ] Section names are ≤19 characters
+1. **Pick `Lo` and `Hi` from the source.**
+   - Full decoded space (system-wide, CPU initiator): `Lo = 0x00000000` (or `0x0000_0000_0000_0000` for 64-bit). `Hi` = end of the highest aperture the source enumerates. Extend to the architectural limit only if the source covers or reserves the full space — don't pad a sparse tail.
+   - Scoped view (subsystem, device, aperture): `Lo = aperture_base`, `Hi = aperture_base + aperture_size`.
+2. **Cover `[Lo, Hi)` end-to-end.** Every address belongs to exactly one section. Unmentioned sub-ranges → `break`-flagged holes named `···`. Explicitly reserved ranges → `break`-flagged, named `Reserved` or `···`.
+3. **Verify contiguity.** `section[i].address + section[i].size == section[i+1].address` for every adjacent pair. First section starts at `Lo`; last ends at `Hi`. A one-byte error leaves a blank stripe.
 
 ---
 
-## Step 3: Define views with their sections
+## Write `diagram.json`
 
-Each entry in the `views` array is one panel in the diagram. Each view declares
-its `sections` — the ordered list of memory regions to display. Sections are
-defined inline directly inside the view. Every section requires `id`, `address`,
-`size`, and `name`.
+### Views with sections
+
+Each entry in the `views` array is one panel. Sections are declared inline. Every section needs `id`, `address`, `size`, `name`.
 
 ```json
 "views": [
@@ -103,30 +171,27 @@ defined inline directly inside the view. Every section requires `id`, `address`,
     "id": "sram-view",
     "title": "SRAM",
     "sections": [
-      { "id": "bss",   "address": "0x20000000", "size": "0x00800", "name": ".bss"   },
-      { "id": "stack", "address": "0x20004000", "size": "0x01000", "name": "Stack"  }
+      { "id": "bss",   "address": "0x20000000", "size": "0x00800", "name": ".bss"  },
+      { "id": "stack", "address": "0x20004000", "size": "0x01000", "name": "Stack" }
     ]
   }
 ]
 ```
 
-The SVG canvas and panel positions are computed automatically.
+Canvas and panel positions are computed automatically.
 
-**When the same region appears in multiple views:** declare the section inline in
-each view. Duplication is intentional and makes each view self-contained:
+**Regions that appear in multiple views.** Declare the section inline in each view — duplication makes each view self-contained:
 
 ```json
 "views": [
-  { "id": "overview",   "sections": [{ "id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash" }] },
-  { "id": "flash-zoom", "sections": [{ "id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash" }] }
+  { "id": "overview",     "sections": [{ "id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash" }] },
+  { "id": "flash-detail", "sections": [{ "id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash" }] }
 ]
 ```
 
 ### Links
 
-When one view is a zoomed-in expansion of a section in another view, connect them
-with a `links` entry. This draws a band between the two panels showing the
-correspondence:
+When one view is a drill-down of a section in another view, draw a band with a `links` entry:
 
 ```json
 "links": [
@@ -134,72 +199,46 @@ correspondence:
 ]
 ```
 
-The `id` field is required and must be unique across all links. It is used as a key in `theme.json` under `links.overrides[link_id]` for per-link style overrides.
+- `id` — required, unique across all links; used as the key in `theme.json` under `links.overrides[link_id]`.
+- `from.sections` — pins the source-side vertical anchor; omit to span the full source view.
+- `to.sections` — pins the destination anchor (useful for virtual→physical mappings); omit to span the full destination view.
 
-Each entry draws one band. `from.sections` specifies which sections define the
-vertical anchor on the source side; omit it to span the full source view.
-`to.sections` optionally pins the destination anchor to a different address range
-(useful for virtual→physical mappings).
+**Choose the right `sections` form.** Both `from.sections` and `to.sections` accept three forms — prefer them in this order:
 
-**Cross-address-space links.** When the source and destination views use different
-address spaces (e.g. a 64-bit global address map linking into a 32-bit peripheral
-address space), always specify `to.sections` using section IDs from the destination
-view. Without `to.sections`, the tool attempts to use the source address as a
-y-anchor on the destination side — which is outside the destination view's address
-range and produces a `link-anchor-out-of-bounds` error.
+1. **Section IDs** (preferred): `["code"]` or `["uart0", "uart1"]`. Readable and survives address changes.
+2. **Omitted**: leave the field out when the band spans the whole view on that side. Do **not** enumerate every section ID to achieve the same thing.
+3. **Address range**: `["0x08000000", "0x08020000"]`. Only when pinning to an address range that doesn't correspond to any single section — e.g. a virtual→physical mapping.
 
----
+**Cross-address-space links need `to.sections`.** When source and destination use different address spaces, without `to.sections` the tool tries to use the source address as the y-anchor on the destination side and fails with `link-anchor-out-of-bounds`.
 
-## Step 4: Add optional features
+### Break sections
 
-### Break sections (compressed regions)
-
-Mark a section as a break to compress a large empty or unimportant region:
+Use `"flags": ["break"]` for holes and reserved ranges. The section still needs real `address` and `size` to keep contiguity — the flag only affects rendering (compacted to the theme's `break_height`, default 20 px; size label suppressed).
 
 ```json
 { "id": "unused", "address": "0x0800B000", "size": "0x00005000", "name": "···", "flags": ["break"] }
 ```
 
-If the gap-to-range ratio exceeds ~90%, breaks are essential — without them, functional sections compress to sub-pixel height and become invisible.
+**Don't `break` a real named region** — use `max_height` to resize it. Flagging a real region as `break` makes it indistinguishable from a hole (Rule 5).
 
-**Break vs. height clamping — when to use each:**
-
-| Situation | Use |
-|-----------|-----|
-| Address hole with no hardware behind it | `"break"` flag — compresses the gap visually |
-| One specific section is tiny relative to its neighbours | `"min_height"` on that section in `diagram.json` — per-section floor |
-| One specific section dominates the view | `"max_height"` on that section in `diagram.json` — per-section ceiling |
-| Name and size labels overlap inside a box | Keep the name short (see note below) |
-
-**Section name length.** Keep names to ~19 characters or fewer. Do **not** embed size annotations (e.g. `4 KB`, `1036 KB`) in the `name` field — the tool renders size and address labels automatically. Names longer than ~20 characters can inflate the effective height floor to 43 px (the label-conflict floor formula: `label_min_h = 30 + font_size`) and trigger proportional fallback across the entire view, causing small sections to render at near-zero height.
-
-Self-check: `len(name) × 3.9 < 113 − len(size_str) × 7.2` (where `size_str` is the auto-generated size label, e.g. `"512 KB"`). If this inequality fails, shorten the name.
-
-**Gap continuity:** every section (including breaks) must be exactly contiguous with its neighbours. Even a 1-byte error leaves a blank stripe in the panel:
-
-```
-section[i].address + section[i].size == section[i+1].address
-```
-
-**Break section names:** address labels are auto-hidden at the default 20 px break height. Embed the address range in the `name` field so the break remains informative:
+**Naming large breaks.** When a break sits at a view's top/bottom edge or two breaks are adjacent, the flanking address labels don't show the extent — embed the range in the name:
 
 ```json
 { "id": "gap0", "address": "0x10000000", "size": "0x0FF00000", "name": "··· (0x1000_0000, 256 MiB)", "flags": ["break"] }
 ```
 
-**Gap size computation.** For large address gaps (especially in 64-bit spaces), compute the break size programmatically rather than by hand — a single-nibble error in a 16-digit hex number is invisible visually but produces an `uncovered-gap` warning with the break falling short of the next section:
+Keep the full name ≤19 characters. Longer names trip the label-conflict height floor (~43 px) and collapse small sections.
+
+**Computing break size in large address spaces.** A single-nibble slip in a 16-digit hex gap is invisible and triggers `uncovered-gap`. Verify programmatically:
 
 ```
-gap_size = next_section_address − current_section_end
+gap_size        = next_section_address − current_section_end
+verify: hex(int(gap_address, 16) + int(gap_size, 16)) == next_address
 ```
-
-Verify with: `hex(int(gap_address, 16) + int(gap_size, 16)) == next_address`
 
 ### Growth-direction markers
 
-For stack or heap sections whose address range grows toward a boundary, add a
-`grows-up` or `grows-down` flag to render a directional arrow marker inside the
-box. See `references/diagram-schema.md` for the full list of supported flags.
+For stack or heap regions that grow toward a boundary, flag `grows-up` or `grows-down` to draw a directional arrow. See `diagram-schema.md` for the full flag list.
 
 ```json
 { "id": "stack", "address": "0x20004000", "size": "0x01000", "name": "Stack", "flags": ["grows-down"] }
@@ -215,16 +254,15 @@ Annotate a specific address with a label line:
 ]
 ```
 
-The `id` field is required and must be unique within its view. It is used as a key in `theme.json` under `views[view_id].labels[label_id]` for per-label style overrides.
+`id` is required, unique within the view; it keys into `theme.json` under `views[view_id].labels[label_id]` for per-label overrides.
 
 ---
 
-## Further Reference
+## Further reference
 
 | File | Contents |
 |------|----------|
-| `references/diagram-schema.md` | Complete field reference for `diagram.json` — all properties, types, defaults, and allowed values |
-| `references/theme-schema.md` | Complete field reference for `theme.json` — all style properties, examples, and tips |
-| `schemas/diagram.schema.json` | Machine-readable JSON Schema for `diagram.json` (used by the validator) |
-| `schemas/theme.schema.json` | Machine-readable JSON Schema for `theme.json` (used by the validator) |
-
+| `diagram-schema.md` | Complete `diagram.json` field reference — types, defaults, allowed values |
+| `theme-schema.md` | Complete `theme.json` field reference — style properties, examples |
+| `../schemas/diagram.schema.json` | Machine-readable JSON Schema for `diagram.json` |
+| `../schemas/theme.schema.json` | Machine-readable JSON Schema for `theme.json` |

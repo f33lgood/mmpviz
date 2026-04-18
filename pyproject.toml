@@ -15,7 +15,7 @@ keywords = [
     "diagram", "hardware", "embedded", "soc",
 ]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: MIT License",
@@ -29,12 +29,8 @@ classifiers = [
     "Topic :: Multimedia :: Graphics",
     "Topic :: Software Development :: Embedded Systems",
 ]
-# Core tool has zero runtime dependencies.
+# Core tool has zero runtime dependencies — stdlib only.
 dependencies = []
-
-[project.optional-dependencies]
-# Enables JSON Schema validation of diagram.json / theme.json inputs.
-validation = ["jsonschema>=4.0"]
 
 [project.scripts]
 mmpviz = "mmpviz:main"

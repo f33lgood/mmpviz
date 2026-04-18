@@ -27,20 +27,22 @@ Turn a JSON memory map description into a publication-quality SVG — one comman
 
 ## Workflow
 
-1. **Create the input file** — collect memory regions from context, design the view structure, then write `diagram.json`.
-   Consult `references/create-diagram.md` for detailed guidance on each of these sub-steps.
-2. **Render**: `python <skill_path>/scripts/mmpviz.py -d <input> -o <output>` (`mmpviz.py` lives in `scripts/` alongside this SKILL.md — use its absolute path)
+Authoring rules and field-level details live in `references/create-diagram.md`. Read it before Step 1 — the workflow references its sections by name but doesn't restate their content.
+
+1. **Plan the views.** Read `references/create-diagram.md` — the *Rules and verification*, *Collect source context*, and *Design the view structure* sections — then sketch a views plan: list each view you intend to create with its type (`root` or `drill-down`) and, for every drill-down, one sentence on why it earns its column. The plan is a *forward check* — it catches obvious mistakes early, but the definitive gate is Step 5 (the same rule list, run against the rendered output). Keep the plan lightweight; don't over-polish it.
+
+2. **Write `diagram.json`** per the plan, following create-diagram.md's *Write `diagram.json`* section for field-level details (addresses, sizes, breaks, links, labels).
+
+3. **Render**: `python <skill_path>/scripts/mmpviz.py -d <input> -o <output>` (`mmpviz.py` lives in `scripts/` alongside this SKILL.md — use its absolute path).
    The render pipeline runs automatically in order: schema validate → layout check → SVG render.
    `[ERROR]` lines abort before the SVG is written; `[WARNING]` lines are printed but the SVG is still produced.
    Errors and warnings are expected on the first render — they drive the next step.
-3. **Fix errors and warnings** — for each `[ERROR]` or `[WARNING]` line, consult `references/check-rules.md` to identify the rule, its cause, and the recommended fix. Edit the input file and re-render. Repeat until there are no `[ERROR]` or `[WARNING]` lines.
-4. **Post-render checks** — once the render is clean (no errors or warnings), review the SVG for visual issues not caught by the checker:
-   - **Section label overflow**: name truncated or overflowing its box — set `"min_height"` on that section, or flag it `"break"`.
-   - **Dominant section**: one section crowds out neighbours — set `"max_height"` on it.
-   - **Wrong column layout**: a view lands in the wrong column — verify `links[]` entries reference the correct view IDs.
-   - **Link band to wrong panel**: band connects to the wrong detail view — verify `to.view` matches the exact `id` of the intended target view.
-   Apply any necessary fixes to the input file and re-render.
-5. **Done** — both files are valid and visually correct.
+
+4. **Fix errors and warnings** — for each `[ERROR]` or `[WARNING]` line, consult `references/check-rules.md` to identify the rule, its cause, and the recommended fix. Edit the input file and re-render. Repeat until there are no `[ERROR]` or `[WARNING]` lines.
+
+5. **Verification gate — this is the gate, not Step 1.** With a clean render and the SVG open, work through **every checkbox** in create-diagram.md's *Rules and verification* section — the same six-rule list you read during planning, now ticked off against the rendered artifact. Each failed check has a fix recipe inline; apply it, modify `diagram.json`, and go back to Step 3. Iterate until every item passes on a single clean pass — no skipping, no "good enough." The loop is the mechanism that catches the dominant failure modes (invented umbrellas, unjustified drill-downs, real regions flagged as `break`, illegible labels) that forward-planning alone lets slip.
+
+6. **Done** — only when every Step 5 check passed on the most recent render.
 
 ---
 
@@ -53,6 +55,10 @@ python <skill_path>/scripts/mmpviz.py -d <input> -o <output>
 # Render with plantuml theme
 python <skill_path>/scripts/mmpviz.py -d <input> -t plantuml -o <output>
 
+# Render with a specific layout algorithm (default is usually right)
+# Run mmpviz.py --help for the current list of --layout choices and what they do.
+python <skill_path>/scripts/mmpviz.py -d <input> -o <output> --layout <algo>
+
 # Format input file in-place, then render
 python <skill_path>/scripts/mmpviz.py -d <input> -o <output> --fmt
 
@@ -60,19 +66,29 @@ python <skill_path>/scripts/mmpviz.py -d <input> -o <output> --fmt
 python <skill_path>/scripts/mmpviz.py -d <input> --fmt
 ```
 
+**Theme resolution.** When `-t` is omitted, `mmpviz` first looks for a `theme.json` sibling of `diagram.json`; if none exists, it falls back to the built-in default theme. Explicit `-t <name|path>` always wins over a sibling file.
+
 ---
 
 ## Reference Docs
 
-Read these as needed — don't load all at once.
+Read on demand — don't load all at once. The three **core playbook** files are the ones to reach for while authoring; `theme-schema.md` is optional.
+
+**Core playbook** (author-facing):
 
 | File | When to read |
 |------|--------------|
-| `references/create-diagram.md` | Authoring `diagram.json` — views, sections, links, breaks, labels |
-| `references/diagram-schema.md` | Full field reference — types, defaults, allowed values |
-| `references/check-rules.md` | Diagnosing `[ERROR]`/`[WARNING]` output |
-| `references/theme-schema.md` | Customising visual style via `theme.json` |
-| `references/auto-layout-algorithm.md` | Layout engine internals — read only if diagnosing unexpected column or height behaviour |
+| `references/create-diagram.md` | Authoring `diagram.json` — rules, views, sections, links, breaks, labels, verification checklist. Read before Step 1 of the workflow. |
+| `references/diagram-schema.md` | Full field reference — types, defaults, allowed values. Consult when writing JSON fields. |
+| `references/check-rules.md` | Diagnosing `[ERROR]` / `[WARNING]` output. Consult in workflow Step 4. |
+
+**Optional** (only when relevant):
+
+| File | When to read |
+|------|--------------|
+| `references/theme-schema.md` | Customising visual style via `theme.json`. Skip unless the user asks for a specific theme or per-section colour. |
+
+Layout-engine internals live in `docs/auto-layout-algorithm.md` (developer-facing, not part of the authoring path). Picking a `--layout` algorithm is empirical — start with the default and switch only if the canvas shape or link routing isn't acceptable. The internals doc is only useful if you're modifying the layout code itself.
 
 ## Examples
 
@@ -84,10 +100,8 @@ Browse these for patterns before authoring from scratch:
 | `examples/chips/` | Real chip memory maps (STM32, RISC-V, ARM CoreSight, etc.) |
 | `examples/link/` | Link band styles (connector, band) and anchor variants |
 | `examples/stack/` | Stack and guard-page layout patterns |
-| `examples/diagram/break/` | Break section usage for large address gaps |
-| `examples/diagram/labels/` | Address label annotations |
-| `examples/layout/` | Per-section and global height overrides; column ordering |
+| `examples/diagram/` | Break sections for large address gaps, and address label annotations |
+| `examples/layout/` | Height overrides (`height_override`, `height_global`), column ordering (`column_order`), and layout-algorithm behaviour demos |
 | `examples/themes/` | Per-section and per-link style overrides |
 
 Each example contains a `diagram.json` and a `golden.svg`.
-

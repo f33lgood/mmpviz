@@ -84,6 +84,28 @@ Once installed, you can trigger the skill with prompts like:
 
 See `SKILL.md` for full details on giving your AI agent the power of sight.
 
+### 3. What to expect: convergence, not one-shot
+
+The AI will rarely produce the final diagram on the first render — and that's by design. Memory maps carry **architectural intent** (which regions belong together, what the hierarchy should emphasize, which view is the "main" one) that isn't fully recoverable from a linker script or datasheet alone. mmpviz splits the work so the loop converges quickly:
+
+- **The validator handles structural and geometric correctness** — schema conformance, overlap rules, containment, link endpoints, column feasibility. Every `[ERROR]`/`[WARNING]` maps 1:1 to a rule in `references/check-rules.md`, so the agent fixes these **on its own**, without asking you.
+- **You handle architectural intent** — how the memory map should be *organized*: grouping, hierarchy, which view is primary vs. detail, what gets collapsed into a `break`, which column order reads best. This is where your judgment is irreplaceable, and where the human-AI iteration actually happens.
+
+A typical session looks like:
+
+- **Pass 1:** agent drafts `diagram.json` from your source (linker script, datasheet, header) and renders.
+- **Pass 2 (agent-internal):** validator flags structural issues; agent reads the diagnostics, edits the JSON, re-renders. Usually resolves in 1–2 automatic rounds — you don't see these.
+- **Pass 3 (human-in-the-loop):** you review the SVG and steer the architecture — *"pull the peripherals into their own view", "make SRAM the primary column", "collapse the reserved gap with a break", "try `--layout algo4`", "switch to the plantuml theme"*. Agent applies the change and re-renders.
+
+Typical outcome: **a handful of human-facing rounds, each about architectural choices** — instead of the open-ended back-and-forth you'd get asking an LLM to hand-write SVG, where every round mixes structural bugs with intent changes and you can't tell them apart.
+
+| Without mmpviz SKILL | With mmpviz SKILL |
+|---|---|
+| LLM emits SVG → you squint → re-prompt in natural language → repeat | Agent emits JSON → validator emits structured diagnostics → agent self-corrects → you review final SVG |
+| Structural bugs and architectural disagreements are tangled together | Structural bugs fixed by the agent; your feedback is purely about intent and hierarchy |
+| Each iteration re-generates the whole SVG | Each iteration is a localized JSON edit |
+| Unbounded rounds, unclear progress | Converges quickly; your rounds are the ones that matter |
+
 ---
 
 ## 💻 CLI Quick Start
@@ -117,7 +139,7 @@ For the deep dive into schemas, themes, and layout mechanics:
 *   [Step-by-step authoring guide](references/create-diagram.md)
 *   [`diagram.json` Schema Reference](references/diagram-schema.md)
 *   [`theme.json` Schema Reference](references/theme-schema.md)
-*   [Auto-layout Algorithm Details](references/auto-layout-algorithm.md)
+*   [Auto-layout Algorithm Details](docs/auto-layout-algorithm.md) *(developer internals)*
 *   [Validation Rules](references/check-rules.md)
 
 ### Testing
@@ -125,11 +147,3 @@ For the deep dive into schemas, themes, and layout mechanics:
 python -m pytest tests/
 ```
 
----
-
-## 🚀 Upcoming Release Actions (TODO)
-
-We are currently preparing for our first major release! The following actions are planned:
-- [ ] **GitHub Release**: Tag the repository (e.g., `v1.0.0`) and create a formal GitHub Release with a changelog.
-- [ ] **PyPI Publication**: Publish the `mmpviz` package to PyPI so `pip install mmpviz` works globally.
-- [ ] **SKILL Verification**: Verify that `npx skills add f33lgood/mmpviz` fetches the latest `SKILL.md` correctly after the release.

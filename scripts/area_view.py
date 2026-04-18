@@ -63,6 +63,21 @@ class AreaView:
             label_overrides,
         )
         self.title = safe_element_dict_get(self.area, 'title', DefaultAppValues.TITLE)
+
+        # Guard against degenerate address/size ranges that would turn the
+        # address-to-pixel conversion into a division by zero.  Both of these
+        # indicate a bad diagram (either an all-zero-size section set or a
+        # view pinned to zero height), not a legitimate render input.
+        if self.size_y <= 0:
+            raise ValueError(
+                f"AreaView '{self.view_id}': size_y must be > 0, got {self.size_y}"
+            )
+        if self.end_address <= self.start_address:
+            raise ValueError(
+                f"AreaView '{self.view_id}': end_address ({self.end_address:#x}) "
+                f"must be greater than start_address ({self.start_address:#x}); "
+                "check section sizes and any explicit 'start'/'end' overrides"
+            )
         self.address_to_pxl = (self.end_address - self.start_address) / self.size_y
 
         if not self.is_subarea:
