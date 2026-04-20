@@ -503,7 +503,7 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
     # --- Expand inter-panel gaps for columns with multiple routing lanes ---
     # When N non-adjacent links must pass routing lanes through a column that
     # has stacked panels, the gap between those panels must be wide enough to
-    # hold all N lanes.  Required gap = N*lane_pitch + PADDING (breathing room).
+    # hold all N lanes.  Required gap = (N+1)*lane_pitch (tight minimum).
     # Applied for algo3 and above so every routing-lane layout benefits.
     if layout_algo in ('algo3', 'algo4') \
             and links is not None and links.entries:
@@ -518,7 +518,7 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
         for _c, _n in _lane_counts.items():
             if _n < 2:
                 continue
-            _required_gap = _n * _LANE_PITCH + PADDING   # e.g. 3*30+50 = 140 px
+            _required_gap = _n * _LANE_PITCH   # tight min: N centers × pitch (margins baked into y_lo/y_hi)
             _col_cfgs = sorted(
                 [cfg for cfg in area_configurations
                  if columns.get(cfg.get('id', '')) == _c],

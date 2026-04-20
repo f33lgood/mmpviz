@@ -162,24 +162,21 @@ All property names use `snake_case`. The renderer translates them to SVG `kebab-
 | `break_height` | number | `20` ¹ | Height in pixels of a break section |
 | `break_fill` | color string | `"#ffffff"` ¹ *(falls back to `fill`)* | Background fill of a break-section box. Falls back to `fill` when unset. |
 
-### Section Height Clamping
+### Section Heights
 
-Controls how pixel height is distributed across subareas (regions between break sections).
+mmpviz uses a **floor-stack** layout model: every visible section is rendered at
+its effective floor height, and sections are stacked contiguously.  The view
+height is simply the sum of all section heights — there is no proportional
+scaling by byte range and no redistribution between sections.
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `min_section_height` | number | `20` ¹ | Guarantees every visible section renders at least this many pixels tall. The renderer redistributes height so that the smallest visible section meets this threshold. |
-| `max_section_height` | number | `300` ¹ | Caps the pixel height of any single section so it cannot crowd out neighbors. |
+| `min_section_height` | number | `20` ¹ | Global minimum height for every visible (non-break) section. Combined with the per-section `min_height` and the automatic label-conflict floor as `max(min_section_height, section.min_height, label_conflict_floor)`. |
+| `max_section_height` | number | `300` ¹ | **Accepted but ignored** in the floor-stack model — reserved for future use. Has no effect on rendered section height today. |
 
 ¹ All default values listed above come from `scripts/themes/default.json`, which is auto-loaded when `-t` is omitted. The Python class `Theme.DEFAULT` is intentionally empty and is reserved for schema-migration backfill in future schema versions; it is not a mirror of `default.json`. Custom themes that do not declare `"extends": "default"` should set every key they rely on explicitly, or fall back to the renderer's hard-coded inline safety nets (e.g. `font_size → 16`, `break_height → 20`) which may differ from `default.json`.
 
-**How they interact:**
-- When neither is set, sections are sized strictly proportional to their byte range.
-- `min_section_height` alone: expands small sections; excess space is taken from larger sections proportionally.
-- `max_section_height` alone: shrinks oversized sections; freed space is redistributed proportionally.
-- Both set: the minimum floor always wins — a section that needs more than `max_section_height` to satisfy `min_section_height` is given the floor, not the cap.
-
-**Label-conflict inflation (automatic, no setting required):** the renderer also detects when a section's size label (top-left) and name label (centred) would overlap on the x-axis, and inflates that section's height just enough to separate them vertically. This applies independently of `min_section_height`.
+**Label-conflict inflation (automatic, no setting required):** the renderer detects when a section's size label (top-left) and name label (centred) would overlap on the x-axis, and inflates that section's floor to `30 + font_size` px so the labels can render on separate lines.  This floor participates in the `max(...)` above, so any explicit `min_section_height` or per-section `min_height` above that value takes precedence.
 
 ---
 
@@ -428,4 +425,4 @@ Any valid SVG color string is accepted:
 - Use one shared theme for a family of diagrams (e.g. all boards in a product line).
 - The `sections` key inside a view override accepts section `id` values, not `name` values.
 - `"stroke_dasharray": "none"` disables dashing for solid outlines.
-- `min_section_height` and `max_section_height` are especially useful for chips with both large (GB) and tiny (KB) sections in the same view.
+- `min_section_height` is especially useful for chips whose small regions would otherwise fall below comfortable reading height; combine with per-section `min_height` in `diagram.json` to give specific regions even taller floors.

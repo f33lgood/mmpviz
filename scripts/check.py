@@ -216,10 +216,11 @@ def _check_section_height_conflict(view_id: str, section, sub) -> list[Issue]:
     """
     A section's min_height exceeds its max_height.
 
-    When both are set and min > max, the height algorithm receives contradictory
-    constraints.  The floor-locking phase will lock the section at min_height,
-    but the ceiling phase will then cap it at max_height (below the floor),
-    producing an incorrect height.  This conflict must be fixed in diagram.json.
+    max_height is currently accepted but ignored by the floor-stack layout
+    model, so the conflict has no effect on today's rendered output.  The
+    check remains an ERROR because the declaration is logically inconsistent
+    on its own terms, and would produce a broken render if max_height is
+    re-enabled as a ceiling in a future release.
     """
     if section.is_break():
         return []

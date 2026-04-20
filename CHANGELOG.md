@@ -22,6 +22,16 @@ Writing guide:
 
 ---
 
+## [2026-04-21] (1.1.0)
+
+### Changed
+- **Routing lane ZCI bracket** — crossing-free interval now uses the link's interpolated y (`y_through`) compared against adjacent links' **destination** y-positions; fixes lane placement when source and destination heights differ significantly.
+- **Routing lane collision avoidance** — bidirectional sweep: if upward push exceeds the gap bound, retry with a downward sweep; prevents lanes from collapsing to the same boundary position.
+- **Algo-3/4 inter-panel gap expansion** — minimum gap for N routing lanes is now `N × lane_pitch` (was `N × lane_pitch + PADDING`); the half-lane margins are already baked into the feasible centre range inside `plan_routing_lanes`.
+- **Algo-4 routing-lane desired offset** — uses the nearest inter-view gap midpoint instead of `y_through` from stale initial positions; gap midpoint is position-independent and stable before non-anchor columns are shifted.
+
+---
+
 ## [2026-04-20]
 
 ### Added

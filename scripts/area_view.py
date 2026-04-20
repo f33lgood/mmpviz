@@ -47,6 +47,14 @@ class AreaView:
     `style` is a plain dict (resolved from theme.json at the area level).
     `theme` is the Theme object used to resolve per-section styles.
     `growth_arrow_size` is the `growth_arrow.size` multiplier from the theme (default 1.0).
+
+    Naming note: the `is_subarea`, `pos_y_in_subarea`, `get_split_area_views()`,
+    and `processed_section_views` names are vestiges of the pre-floor-stack model,
+    which split a view into subareas separated by break sections.  The floor-stack
+    model renders a single area per view, so `get_split_area_views()` always returns
+    a one-element list and `pos_y_in_subarea` is equivalent to `pos_y` within this
+    view.  The public API is retained to avoid churn across the renderer, checker,
+    and auto-layout modules that still call these helpers.
     """
     pos_y: int
     pos_x: int

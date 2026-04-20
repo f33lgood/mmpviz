@@ -168,17 +168,22 @@ settings this is roughly 19 characters.
 
 ### `section-height-conflict` — ERROR
 
-**Violated when:** A section declares `"min_height"` greater than `"max_height"` —
-a contradictory constraint the height algorithm cannot satisfy:
+**Violated when:** A section declares `"min_height"` greater than `"max_height"`:
 
 ```json
 { "id": "code", "address": "0x08000000", "size": "0x9000", "name": "Code",
   "min_height": 100, "max_height": 50 }
 ```
 
+`max_height` is currently accepted but ignored by the floor-stack layout model,
+so the conflict does not affect today's rendered output.  The check remains an
+ERROR because the declaration is logically inconsistent on its own terms, and
+would produce a broken render if `max_height` is re-enabled as a ceiling in a
+future release.
+
 **Fix:** Human/AI — edit the section in `diagram.json`.
 
-**How:** Ensure `min_height ≤ max_height` for every section that declares both fields.
+**How:** Ensure `min_height ≤ max_height` for every section that declares both fields, or remove `max_height` entirely since it has no current effect.
 
 ---
 
