@@ -57,7 +57,7 @@ Every diagram has a scope — system, subsystem, or device — and the scope fix
 When the source enumerates sub-blocks **at or above the leaf level**, they are part of the source and must appear. The choice is *how*, not *whether*. For each such region, pick one of three:
 
 - **Decompose inline** (default) — replace the parent with its sub-block sections in the same view. Self-contained view, no extra column.
-- **Drill-down view** — sub-blocks in a separate view linked from the parent. Earns its column only when one of: the source itself documents the child as its own named address map; the child uses a different address space; or inline decomposition is illegible in the parent (sub-block heights fall below the legibility floor even with `min_height`/`max_height` — typical when the parent spans a much larger address range than the child).
+- **Drill-down view** — sub-blocks in a separate view linked from the parent. Earns its column only when one of: the source itself documents the child as its own named address map; the child uses a different address space; or inline decomposition is illegible in the parent (sub-block heights fall below the legibility floor even with `min_height` — typical when the parent spans a much larger address range than the child).
 - **Opaque box** — parent shown as a single region with no sub-detail. Only when the user doesn't want the detail, or the source mentions sub-blocks only in passing.
 
 "Has sub-blocks" is **not** a drill-down justification — nearly every region has sub-blocks. When in doubt, decompose inline. A view may mix modes across its regions.
@@ -69,25 +69,27 @@ Drill-downs form a chain (overview → drill-down → further drill-down), never
 
 ### Rule 5 — Coverage and formatting
 
-Every view covers its `[Lo, Hi)` end-to-end with explicit, contiguous sections. Section names are concise and don't encode sizes. Sizing uses the right tool: `"break"` for holes/reserved ranges; `"max_height"` / `"min_height"` for real named regions. Hex width is uniform within a view.
+Every view covers its `[Lo, Hi)` end-to-end with explicit, contiguous sections. Section names are concise and don't encode sizes. Sizing uses the right tool: `"break"` for holes/reserved ranges; `"min_height"` for real named regions that need a taller floor. Hex width is uniform within a view.
 
-- [ ] Section names ≤19 characters, no size string embedded in `name` (size labels are rendered automatically).
+- [ ] Section names have no size string embedded in `name` (size labels are rendered automatically). Aim for ≤19 characters to keep the name on the same horizontal line as the size label at default settings; longer names trigger two-line layout automatically, and the `section-name-overflow` check flags names that would overflow the panel even in two-line mode.
 - [ ] Each view has `[Lo, Hi)` matching the source — `Hi` is the last source-described aperture, not padded to the architectural ceiling.
 - [ ] `[Lo, Hi)` covered end-to-end; every unmentioned sub-range is a `break`-flagged hole named `···`. *(Fix: compute `gap_size = next.address − prev.address − prev.size` and insert a `break`-flagged hole.)*
 - [ ] Every section has an explicit `size`.
-- [ ] Real named regions use `max_height` / `min_height` for sizing; `"break"` is reserved for holes and reserved ranges only. *(Fix: remove the flag, set `"max_height"` instead.)*
+- [ ] Real named regions use `min_height` for a taller floor; `"break"` is reserved for holes and reserved ranges only. *(Fix: remove the flag. `max_height` is accepted but ignored in the floor-stack layout model.)*
 - [ ] Address literals within a view use uniform hex width.
+- [ ] `min_section_height` in the theme provides the universal baseline (default: 20 px). Per-section `"min_height"` is only used when a specific section needs a floor *higher* than the global baseline — never lower, never redundantly equal. *(Fix: remove `"min_height"` entries that merely repeat `min_section_height`, or raise them above it only if that section genuinely needs a taller floor.)*
 
 ### Rule 6 — Visual correctness (from the rendered SVG)
 
 The rendered output must match authorial intent: labels readable, no section dominates, link bands land where expected, drill-down panels aren't near-empty. These checks need the rendered SVG.
 
-- [ ] No section label is truncated or overflowing its box. *(Fix: set `"min_height"` on that section; for a hole, flag it `"break"`.)*
-- [ ] No single section dominates its view and crowds out its neighbours. *(Fix: set `"max_height"` on the dominant section. Never flag a real named section as `"break"` to shrink it — Rule 5.)*
+- [ ] No section label is vertically overflowing its box (labels always render; a too-short section causes text to overlap neighbours). *(Fix: raise `min_section_height` in the theme. The engine automatically raises floors for label-conflict and grows-arrow-neighbor cases — see `check-rules.md` (`min-height-violated`) for details. If overflow persists after those auto-raises, shorten the section name or widen the view. For a hole, flag it `"break"` instead.)*
+- [ ] No section name overflows the panel width horizontally — the `section-name-overflow` check flags this. *(Fix: shorten the name in `diagram.json`. The layout engine cannot wrap or truncate names automatically.)*
+- [ ] No single section dominates its view and crowds out its neighbours. *(In the floor-stack model every section gets only its minimum readable height — dominance by byte size no longer occurs. If a section still appears too tall, the floor is being raised by a `min_height` or `min_section_height` setting; reduce it.)*
 - [ ] Every link band connects the intended source region to the intended target view. *(Fix: verify `links[]` entries reference the correct view IDs and that `to.view` matches the target view's `id`.)*
-- [ ] No drill-down panel is near-empty relative to its parent (fewer than ~3 visible rows, or vast whitespace). *(Fix: collapse the drill-down and decompose the sub-blocks inline — Rule 4.)*
+- [ ] No drill-down panel is near-empty relative to its parent (fewer than ~3 visible rows, or vast whitespace). *(Fix: if the view is intentionally small — e.g. a single-section zoom — set `"min_height"` on its section(s) to give the panel a readable height. If the view is legitimately thin because it duplicates content better shown inline, collapse the drill-down and decompose the sub-blocks inline — Rule 4.)*
 
-If canvas shape or link routing isn't satisfactory after the checks pass, try a different layout algorithm via `--layout` (run `mmpviz.py --help` for choices).
+If canvas shape or link routing isn't satisfactory after the checks pass, try a different layout algorithm via `--layout` (run `mmpviz.py --help` for choices; see `docs/auto-layout-algorithm.md` for how each algorithm works).
 
 ---
 
@@ -120,7 +122,7 @@ Invariants for every region:
 
 - **`address`** — base address in hex. Uniform hex width within a view: 32-bit → 8 digits (`0x00000000`, not `0x0`); 64-bit → 16 digits.
 - **`size`** — extent in hex; compute `size = end − base` if the source gives an end address. Required on every section (including holes and breaks). Never embed a size in `name` — sizes are rendered automatically and size-less sections can't lay out.
-- **`name`** — ≤19 characters, no size annotation. Use `···` or `...` for holes, `Reserved` for reserved ranges.
+- **`name`** — no size annotation; use `···` or `...` for holes, `Reserved` for reserved ranges. Aim for ≤19 characters at default settings so the name fits on the same line as the size label; the `section-name-overflow` check flags names that overflow the panel even when the name is on its own line.
 - **Hierarchy level** — determines which view the region belongs to (given the scope's leaf, Rule 3).
 
 ---
@@ -219,7 +221,7 @@ Use `"flags": ["break"]` for holes and reserved ranges. The section still needs 
 { "id": "unused", "address": "0x0800B000", "size": "0x00005000", "name": "···", "flags": ["break"] }
 ```
 
-**Don't `break` a real named region** — use `max_height` to resize it. Flagging a real region as `break` makes it indistinguishable from a hole (Rule 5).
+**Don't `break` a real named region** — use `min_height` to give it a taller floor. Flagging a real region as `break` makes it indistinguishable from a hole (Rule 5). (`max_height` is accepted but ignored in the floor-stack model.)
 
 **Naming large breaks.** When a break sits at a view's top/bottom edge or two breaks are adjacent, the flanking address labels don't show the extent — embed the range in the name:
 
@@ -227,7 +229,7 @@ Use `"flags": ["break"]` for holes and reserved ranges. The section still needs 
 { "id": "gap0", "address": "0x10000000", "size": "0x0FF00000", "name": "··· (0x1000_0000, 256 MiB)", "flags": ["break"] }
 ```
 
-Keep the full name ≤19 characters. Longer names trip the label-conflict height floor (~43 px) and collapse small sections.
+Keep the full name ≤19 characters. Longer names may cause the size label and name label to overlap horizontally, which triggers an automatic height floor (`30 + font_size` px); whether it triggers depends on the section's rendered width — wide views are unaffected.
 
 **Computing break size in large address spaces.** A single-nibble slip in a 16-digit hex gap is invisible and triggers `uncovered-gap`. Verify programmatically:
 
@@ -264,5 +266,7 @@ Annotate a specific address with a label line:
 |------|----------|
 | `diagram-schema.md` | Complete `diagram.json` field reference — types, defaults, allowed values |
 | `theme-schema.md` | Complete `theme.json` field reference — style properties, examples |
+| `check-rules.md` | All check rule descriptions, severity levels, and fix guidance |
+| `../docs/auto-layout-algorithm.md` | How the auto-layout engine assigns columns, orders views, and routes links |
 | `../schemas/diagram.schema.json` | Machine-readable JSON Schema for `diagram.json` |
 | `../schemas/theme.schema.json` | Machine-readable JSON Schema for `theme.json` |

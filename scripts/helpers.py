@@ -1,15 +1,6 @@
 from logger import logger
 
 
-class DefaultAppValues:
-    DOCUMENT_SIZE = (400, 700)
-    POSITION_X = 50
-    POSITION_Y = 50
-    SIZE_X = 200
-    SIZE_Y = 500
-    TITLE = ''
-
-
 def safe_element_list_get(_list: list, index: int, default=None):
     """
     Get an element from a list checking if both the list and the element exist.

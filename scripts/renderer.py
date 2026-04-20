@@ -1,6 +1,6 @@
 import xml.etree.ElementTree as ET
 
-from helpers import DefaultAppValues, format_size
+from helpers import format_size
 from labels import Side
 from logger import logger
 from section import Section
@@ -24,8 +24,9 @@ class MapRenderer:
     """
 
     def __init__(self, area_views: list, links, style: dict,
+                 size: tuple,
                  growth_arrow: dict = None,
-                 size=DefaultAppValues.DOCUMENT_SIZE, origin=(0, 0),
+                 origin=(0, 0),
                  routing_lanes: dict = None):
         self.area_views = area_views
         self.links = links
@@ -84,7 +85,7 @@ class MapRenderer:
             s.address > _ADDR_64BIT_THRESHOLD
             for sub in area.get_split_area_views()
             for s in sub.sections.get_sections()
-            if not s.is_hidden() and not s.is_break() and s.size > 0
+            if not s.is_break() and s.size > 0
         )
 
         for sub_area in area.get_split_area_views():
@@ -92,8 +93,6 @@ class MapRenderer:
             subarea_group.append(self._make_main_frame(sub_area))
 
             for section in sub_area.sections.get_sections():
-                if section.is_hidden():
-                    continue
                 self._make_section(subarea_group, section, sub_area, is_64bit)
 
             translate(subarea_group, sub_area.pos_x, sub_area.pos_y)
@@ -217,8 +216,6 @@ class MapRenderer:
             for subarea in area_view.get_split_area_views():
                 area_growth = self.svg.g()
                 for section in subarea.sections.get_sections():
-                    if section.is_hidden():
-                        continue
                     area_growth.append(self._make_growth(section))
                 translate(area_growth, subarea.pos_x, subarea.pos_y)
                 growths_group.append(area_growth)
@@ -264,11 +261,14 @@ class MapRenderer:
     def _draw_labels(self) -> ET.Element:
         global_labels = self.svg.g()
         for area in self.area_views:
-            for subarea in area.get_split_area_views():
+            subareas = area.get_split_area_views()
+            for i, subarea in enumerate(subareas):
                 g = self.svg.g()
                 if subarea.labels is not None:
+                    is_last = (i == len(subareas) - 1)
                     for label in subarea.labels.labels:
-                        if subarea.sections.has_address(label.address):
+                        if (subarea.sections.has_address(label.address) or
+                                (is_last and label.address == subarea.end_address)):
                             g.append(self._make_label(label, subarea))
                 translate(g, subarea.pos_x, subarea.pos_y)
                 global_labels.append(g)
@@ -316,7 +316,7 @@ class MapRenderer:
             direction = -1
             anchor = 'end'
 
-        pos_y = area_view.to_pixels_relative(address)
+        pos_y = area_view.address_to_py_actual(address)
         points = [(pos_x_d, pos_y), (direction * (label_length + pos_x_d), pos_y)]
 
         def add_arrow_head(dir_str):

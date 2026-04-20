@@ -40,9 +40,6 @@ class Section:
     def is_break(self):
         return 'break' in self.flags
 
-    def is_hidden(self):
-        return 'hidden' in self.flags
-
     @property
     def addr_label_pos_x(self):
         return self.size_x + self.label_offset

@@ -34,8 +34,7 @@ import sys
 # Allow importing sibling modules when invoked as a script.
 sys.path.insert(0, os.path.dirname(__file__))
 
-from area_view import AreaView
-from helpers import DefaultAppValues
+from area_view import AreaView, section_label_min_h
 from links import Links
 from loader import load
 from theme import Theme
@@ -88,8 +87,6 @@ def _populate_section_heights(area_views: list) -> list:
     for area in area_views:
         for sub in area.get_split_area_views():
             for section in sub.sections.get_sections():
-                if section.is_hidden():
-                    continue
                 sub.apply_section_geometry(section)
                 result.append((area.view_id, section, sub))
     return result
@@ -101,8 +98,12 @@ def _populate_section_heights(area_views: list) -> list:
 
 def _check_min_height_violated(view_id: str, section, sub) -> list[Issue]:
     """
-    Section height is below its effective minimum (max of global min_section_height
-    and the section's own min_height).
+    Section height is below its effective minimum: max(global min_section_height,
+    section min_height, geometry-derived label-conflict floor).
+
+    The label-conflict floor (30 + font_size px) is only non-zero when the
+    size label (top-left) and the name label (centred) would overlap horizontally
+    given the section's rendered width.  For wide views it is typically 0.
 
     This indicates the proportional-fallback was triggered: the algorithm
     could not satisfy all minimum-height constraints simultaneously and fell
@@ -117,7 +118,9 @@ def _check_min_height_violated(view_id: str, section, sub) -> list[Issue]:
     except (TypeError, ValueError):
         global_min = 0.0
     section_min = section.min_height if section.min_height is not None else 0.0
-    effective_min = max(global_min, section_min)
+    font_size = float(sub.style.get('font_size', 12))
+    label_floor = section_label_min_h(section, font_size, sub.size_x)
+    effective_min = max(global_min, section_min, label_floor)
     if effective_min <= 0:
         return []
     if section.size_y < effective_min - 1e-6:
@@ -125,11 +128,88 @@ def _check_min_height_violated(view_id: str, section, sub) -> list[Issue]:
             'min-height-violated', view_id, section.id,
             f"height {section.size_y:.1f} px < effective min {effective_min:.0f} px "
             f"(global min_section_height={global_min:.0f}, "
-            f"section min_height={section_min:.0f}) "
+            f"section min_height={section_min:.0f}, "
+            f"label floor={label_floor:.0f}) "
             f"— proportional fallback likely triggered; add break sections to "
             f"reduce competing sections or lower the floor",
         )]
     return []
+
+
+def _check_min_height_below_global(view_id: str, section, sub) -> list[Issue]:
+    """
+    Per-section min_height is configured below the global min_section_height,
+    effectively undercutting the global floor for this section.
+
+    Prefer using min_section_height globally; only set a per-section min_height
+    when a section needs a floor *higher* than the global one.
+    """
+    if section.is_break() or section.min_height is None:
+        return []
+    global_min = sub.style.get('min_section_height')
+    try:
+        global_min = float(global_min) if global_min is not None else 0.0
+    except (TypeError, ValueError):
+        global_min = 0.0
+    if global_min <= 0:
+        return []
+    if section.min_height < global_min - 1e-6:
+        return [Issue(
+            'min-height-below-global', view_id, section.id,
+            f"section min_height={section.min_height:.0f} px is below global "
+            f"min_section_height={global_min:.0f} px — per-section override undercuts "
+            f"the global floor; set min_height >= {global_min:.0f} px or remove it",
+        )]
+    return []
+
+
+def _check_min_height_on_break(view_id: str, section, sub) -> list[Issue]:
+    """
+    A break-flagged section has min_height set, which the layout engine ignores.
+    Break sections always render at break_height px regardless of min_height.
+    """
+    if not section.is_break() or section.min_height is None:
+        return []
+    break_h = float(sub.style.get('break_height', 20))
+    return [Issue(
+        'min-height-on-break', view_id, section.id,
+        f"section has min_height={section.min_height:.0f} px but is flagged 'break' "
+        f"— break sections always render at break_height={break_h:.0f} px; "
+        f"remove min_height or remove the 'break' flag",
+    )]
+
+
+_NAME_LABEL_H_MARGIN = 4   # px from section border to name text edge (each side)
+
+
+def _check_section_name_overflow(view_id: str, section, sub) -> list[Issue]:
+    """
+    Section name text is wider than the panel, even when on its own line.
+
+    The name label is rendered as a single horizontal SVG <text> centred in
+    the panel — there is no wrapping.  When the estimated text width exceeds
+    (size_x − 2 × _NAME_LABEL_H_MARGIN) the text visually overflows the
+    section box and bleeds into adjacent sections.  The renderer cannot fix
+    this automatically; the name must be shortened in diagram.json.
+
+    Estimated width = len(name) × 0.6 × font_size.
+    """
+    if section.is_break():
+        return []
+    font_size = float(sub.style.get('font_size', 12))
+    name = section.name if section.name is not None else section.id
+    name_width = len(name) * 0.6 * font_size
+    max_width = sub.size_x - 2 * _NAME_LABEL_H_MARGIN
+    if name_width <= max_width:
+        return []
+    max_chars = int(max_width / (0.6 * font_size))
+    return [Issue(
+        'section-name-overflow', view_id, section.id,
+        f"name '{name}' ({len(name)} chars, est. {name_width:.0f} px) exceeds "
+        f"section panel width {sub.size_x:.0f} px "
+        f"(max ~{max_width:.0f} px ≈ {max_chars} chars at font_size={font_size:.0f}) "
+        f"— shorten the name in diagram.json",
+    )]
 
 
 def _check_section_height_conflict(view_id: str, section, sub) -> list[Issue]:
@@ -322,7 +402,7 @@ def _addr_label_chars_for_area(area) -> int:
     found_any = False
     for sub in area.get_split_area_views():
         for section in sub.sections.get_sections():
-            if section.is_hidden() or section.is_break():
+            if section.is_break():
                 continue
             found_any = True
             if section.address > _ADDR_64BIT_THRESHOLD:
@@ -407,7 +487,7 @@ def _check_addr_64bit_column_width(area_views: list) -> list[Issue]:
         needs_64bit = False
         for sub in area.get_split_area_views():
             for section in sub.sections.get_sections():
-                if section.is_hidden() or section.is_break():
+                if section.is_break():
                     continue
                 if section.address > _ADDR_64BIT_THRESHOLD:
                     needs_64bit = True
@@ -437,7 +517,7 @@ def _check_addr_64bit_column_width(area_views: list) -> list[Issue]:
 
 def _check_section_overlap(area_views: list) -> list[Issue]:
     """
-    Two sections in the same view have overlapping address ranges.  Two
+    Two sections in the same view have overlapping address ranges.  Three
     sub-cases are emitted as distinct rule names so they can be filtered
     independently:
 
@@ -450,18 +530,18 @@ def _check_section_overlap(area_views: list) -> list[Issue]:
       section's range.  The layout engine treats the overlapping region as
       part of the break and silently drops the visible section from the
       rendered output — the section exists in ``diagram.json`` but never
-      appears in the SVG.  Common cause — an off-by-N slip in a large-address
-      gap hole, making the break extend past the address where the next real
-      section starts.  Fix: recompute the break's size so it ends exactly at
-      the next real section's base address.
+      appears in the SVG.  Fix: recompute the break's size so it ends exactly
+      at the next real section's base address.
 
-    Break-vs-break overlaps are allowed (consecutive / chained breaks that
-    together cover a gap are a legitimate pattern — see ``uncovered-gap``).
+    - ``section-overlap`` (WARN): two break sections overlap.  Overlapping
+      breaks are redundant — they claim the same address range twice.  No
+      rendering consequence, but the intent is unclear.  Fix: resize the
+      breaks so their ranges are non-overlapping.
     """
     issues = []
     for av in area_views:
         secs = sorted(
-            (s for s in av.sections.get_sections() if 'hidden' not in s.flags),
+            av.sections.get_sections(),
             key=lambda s: s.address,
         )
         for i, s1 in enumerate(secs):
@@ -472,9 +552,14 @@ def _check_section_overlap(area_views: list) -> list[Issue]:
                     break  # sorted — no more overlaps with s1
                 s2_is_break = 'break' in s2.flags
                 if s1_is_break and s2_is_break:
-                    continue  # break-vs-break is allowed
-                if s1_is_break or s2_is_break:
-                    # Exactly one side is a break — the visible side gets swallowed.
+                    issues.append(Issue(
+                        'section-overlap', av.view_id, s1.id,
+                        f"break '{s1.id}' [{hex(s1.address)}, +{hex(s1.size)}] overlaps "
+                        f"break '{s2.id}' [{hex(s2.address)}, +{hex(s2.size)}] — "
+                        f"overlapping breaks are redundant; resize them so their "
+                        f"ranges do not overlap",
+                    ))
+                elif s1_is_break or s2_is_break:
                     brk, vis = (s1, s2) if s1_is_break else (s2, s1)
                     b_lo, b_hi = brk.address, brk.address + brk.size
                     v_lo, v_hi = vis.address, vis.address + vis.size
@@ -498,109 +583,42 @@ def _check_section_overlap(area_views: list) -> list[Issue]:
     return issues
 
 
-# ---------------------------------------------------------------------------
-# Gap coverage helpers (used by _check_uncovered_gap)
-# ---------------------------------------------------------------------------
-
-def _gap_fully_covered(gap_lo: int, gap_hi: int,
-                       sorted_break_ranges: list) -> bool:
-    """
-    Return True if the union of sorted_break_ranges fully covers [gap_lo, gap_hi].
-
-    Accepts consecutive or overlapping breaks — the union is walked left-to-right,
-    advancing a cursor each time a break extends it.  A hole exists only when
-    the next break starts beyond the current cursor position.
-    """
-    cur = gap_lo
-    for blo, bhi in sorted_break_ranges:
-        if blo > cur:
-            break  # hole between cur and blo
-        if bhi > cur:
-            cur = bhi
-        if cur >= gap_hi:
-            return True
-    return cur >= gap_hi
-
-
-def _first_gap_hole(gap_lo: int, gap_hi: int,
-                    sorted_break_ranges: list) -> int:
-    """Return the first address in [gap_lo, gap_hi) not covered by any break."""
-    cur = gap_lo
-    for blo, bhi in sorted_break_ranges:
-        if blo > cur:
-            return cur
-        if bhi > cur:
-            cur = bhi
-        if cur >= gap_hi:
-            break
-    return cur
-
-
 def _check_uncovered_gap(area_views: list) -> list[Issue]:
     """
-    A large address gap between two consecutive visible sections in a view is
-    not fully covered by break sections.
+    Any address range within the view's extent [Lo, Hi] that is not covered
+    by any section — break or non-break — is reported.
 
-    Coverage is determined by the **union** of all break sections in the view —
-    consecutive or chained breaks that together span the full gap are correctly
-    recognised as covering it.
+    Lo = lowest section start address; Hi = highest section end address
+    (both derived from the sections in the view).  Coverage is the union of
+    all sections' [address, address+size) intervals walked in address order.
+    Any hole in that union is a separate WARN issue naming the sections on
+    either side.
 
-    Two conditions trigger this rule:
-
-    1. **No break coverage** and the gap exceeds 5× the total visible content.
-    2. **Partial break coverage** (breaks overlap the gap but leave holes) and
-       the gap exceeds the size of its flanking sections.
-
-    Fix: add or extend break section(s) so their union spans the entire gap.
+    Two sections that touch exactly (s1.end == s2.start) are fully covered
+    and do not trigger this rule.  Overlapping sections (already flagged by
+    section-overlap) do not produce additional gap issues here.
     """
     issues = []
     for av in area_views:
-        secs = av.sections.get_sections()
-        # Sort breaks once; _gap_fully_covered / _first_gap_hole require sorted input.
-        break_ranges = sorted(
-            [(s.address, s.address + s.size)
-             for s in secs if 'break' in s.flags],
-            key=lambda r: r[0],
-        )
-        visible = sorted(
-            (s for s in secs
-             if 'hidden' not in s.flags and 'break' not in s.flags),
-            key=lambda s: s.address,
-        )
-        if len(visible) < 2:
+        secs = sorted(av.sections.get_sections(), key=lambda s: s.address)
+        if not secs:
             continue
-        total_visible = sum(s.size for s in visible) or 1
-        for i in range(len(visible) - 1):
-            s1, s2 = visible[i], visible[i + 1]
-            gap_lo = s1.address + s1.size
-            gap_hi = s2.address
-            if gap_hi <= gap_lo:
-                continue  # no gap (overlap handled by section-overlap)
-            gap_size = gap_hi - gap_lo
-
-            if _gap_fully_covered(gap_lo, gap_hi, break_ranges):
-                continue
-
-            # Check whether any breaks at least partially overlap this gap.
-            has_partial = any(blo < gap_hi and bhi > gap_lo
-                              for blo, bhi in break_ranges)
-
-            if (gap_size > 5 * total_visible
-                    or (has_partial and gap_size > max(s1.size, s2.size))):
-                if has_partial:
-                    first_hole = _first_gap_hole(gap_lo, gap_hi, break_ranges)
-                    detail = (f" — break sections partially cover this gap; "
-                              f"first uncovered portion starts at {hex(first_hole)}, "
-                              f"{hex(gap_hi - first_hole)} short of '{s2.id}'")
-                else:
-                    detail = (f" is {gap_size // total_visible}× the total visible "
-                              f"content — sections will appear very small")
+        # cursor starts at the first section address = av.start_address,
+        # so there is never a leading hole.
+        cursor = av.start_address
+        prev_id = None
+        for s in secs:
+            if s.address > cursor:
+                hole_lo, hole_hi = cursor, s.address
                 issues.append(Issue(
-                    'uncovered-gap', av.view_id, s1.id,
-                    f"uncovered gap of {hex(gap_size)} between '{s1.id}' and "
-                    f"'{s2.id}'{detail}; "
-                    f"add or extend a break section spanning the full gap",
+                    'uncovered-gap', av.view_id, prev_id,
+                    f"address range [{hex(hole_lo)}, {hex(hole_hi)}) "
+                    f"({hex(hole_hi - hole_lo)}) has no section defined "
+                    f"between '{prev_id}' and '{s.id}' — "
+                    f"add a break section spanning this range",
                 ))
+            cursor = max(cursor, s.address + s.size)
+            prev_id = s.id
     return issues
 
 
@@ -783,7 +801,7 @@ def _check_link_section_form(area_views: list,
     def _visible_sections(area):
         return sorted(
             (s for s in area.sections.get_sections()
-             if 'hidden' not in s.flags and 'break' not in s.flags),
+             if 'break' not in s.flags),
             key=lambda s: s.address,
         )
 
@@ -825,10 +843,36 @@ def _check_link_section_form(area_views: list,
             return None
         return (min(starts), max(ends))
 
+    def _resolve_spec_range(area, spec):
+        """Resolve a sections spec to (lo, hi) or None. Mirrors
+        _resolve_link_addr_range without the full-view default."""
+        if not spec:
+            return None
+        if _is_addr_range_form(spec):
+            try:
+                return (_parse_int(spec[0]), _parse_int(spec[1]))
+            except (ValueError, TypeError):
+                return None
+        return _ids_combined_range(area, spec)
+
     for entry in links_config:
         if not isinstance(entry, dict):
             continue
         link_id = entry.get('id', '<unnamed>')
+
+        # Pre-resolve the 'from' range so we can simulate the renderer's
+        # behavior when 'to.sections' is omitted — for cross-address-space
+        # links the omit-default is clamp(from_range), not the whole to-view.
+        from_ep = entry.get('from', {})
+        from_area = av_by_id.get(from_ep.get('view')) if isinstance(from_ep, dict) else None
+        from_range = None
+        if from_area is not None:
+            from_spec = from_ep.get('sections') if isinstance(from_ep, dict) else None
+            if not from_spec:
+                from_range = (from_area.start_address, from_area.end_address)
+            else:
+                from_range = _resolve_spec_range(from_area, from_spec)
+
         for side in ('from', 'to'):
             endpoint = entry.get(side, {})
             if not isinstance(endpoint, dict):
@@ -841,14 +885,31 @@ def _check_link_section_form(area_views: list,
             if area is None:
                 continue  # unresolved-section catches missing view
 
+            # Compute the effective destination range the renderer would
+            # use if this side's spec were omitted. The 'from' side always
+            # falls back to the whole view; the 'to' side clamps from_range
+            # (or the whole to-view if 'from' is also unresolved).
+            if side == 'from':
+                omit_lo, omit_hi = area.start_address, area.end_address
+            else:
+                if from_range is None:
+                    omit_lo, omit_hi = area.start_address, area.end_address
+                else:
+                    omit_lo = max(from_range[0], area.start_address)
+                    omit_hi = min(from_range[1], area.end_address)
+
             if _is_addr_range_form(spec):
                 try:
                     lo = _parse_int(spec[0])
                     hi = _parse_int(spec[1])
                 except (ValueError, TypeError):
                     continue
-                # 1) range equals (or exceeds) whole view → redundant.
-                if lo <= area.start_address and hi >= area.end_address:
+                # 1) redundant: clamped spec range equals what omitting
+                #    would produce → same anchor, field adds no info.
+                spec_lo = max(lo, area.start_address)
+                spec_hi = min(hi, area.end_address)
+                if (lo <= area.start_address and hi >= area.end_address
+                        and spec_lo == omit_lo and spec_hi == omit_hi):
                     issues.append(Issue(
                         'link-redundant-sections', f'links[{link_id}].{side}', view_id,
                         f"address range [{spec[0]}, {spec[1]}] spans the whole "
@@ -867,13 +928,18 @@ def _check_link_section_form(area_views: list,
                         f"the address range with section IDs for readability",
                     ))
             else:
-                # Section-ID-list form.  Warn if the combined address range
-                # of the listed IDs covers the whole view — the renderer
-                # would produce an identical anchor if the field were omitted.
+                # Section-ID-list form. Redundant only when the clamped
+                # combined range equals what omitting would produce — for
+                # cross-address-space links, omitting would clamp from_range
+                # instead and yield a different (often out-of-bounds) anchor.
                 total = _ids_combined_range(area, spec)
-                if (total is not None
-                        and total[0] <= area.start_address
-                        and total[1] >= area.end_address):
+                if total is None:
+                    continue
+                spec_lo = max(total[0], area.start_address)
+                spec_hi = min(total[1], area.end_address)
+                if (total[0] <= area.start_address
+                        and total[1] >= area.end_address
+                        and spec_lo == omit_lo and spec_hi == omit_hi):
                     issues.append(Issue(
                         'link-redundant-sections', f'links[{link_id}].{side}', view_id,
                         f"'{side}.sections' lists {len(spec)} section ID(s) whose "
@@ -939,13 +1005,112 @@ def _check_unresolved_link_sections(area_views: list,
     return issues
 
 
+def _check_label_out_of_range(area_views: list) -> list[Issue]:
+    """
+    A label's address falls outside the view's address range
+    [start_address, end_address].
+
+    The renderer only draws a label when its address falls within a
+    section's half-open [addr, addr+size) interval or at exactly the
+    view's end address (the end of the last section).  A label whose
+    address is outside [Lo, Hi] is silently not rendered.
+    """
+    issues = []
+    for av in area_views:
+        if not av.labels or not av.labels.labels:
+            continue
+        lo = av.start_address
+        hi = av.end_address
+        for label in av.labels.labels:
+            if label.address < lo or label.address > hi:
+                issues.append(Issue(
+                    'label-out-of-range', av.view_id, label.id,
+                    f"label '{label.id}' address {hex(label.address)} is outside "
+                    f"the view's address range [{hex(lo)}, {hex(hi)}] — "
+                    f"the label will not be rendered; correct the address in diagram.json",
+                ))
+    return issues
+
+
+def _check_link_address_range_order(links_config: list) -> list[Issue]:
+    """
+    A link's ``from.sections`` or ``to.sections`` uses the address-range
+    form ``["0xLO", "0xHI"]`` but LO >= HI.
+
+    The renderer passes the range to the band-geometry code without
+    checking order, so an inverted range produces a crossed or
+    collapsed band.  Fix: swap the two values so LO < HI.
+    """
+    from loader import parse_int as _parse_int
+    issues = []
+    for entry in links_config:
+        if not isinstance(entry, dict):
+            continue
+        link_id = entry.get('id', '<unnamed>')
+        for side in ('from', 'to'):
+            ep = entry.get(side, {})
+            if not isinstance(ep, dict):
+                continue
+            spec = ep.get('sections')
+            if not (isinstance(spec, list) and len(spec) == 2
+                    and isinstance(spec[0], str) and spec[0].startswith('0x')
+                    and isinstance(spec[1], str) and spec[1].startswith('0x')):
+                continue
+            try:
+                lo = _parse_int(spec[0])
+                hi = _parse_int(spec[1])
+            except (ValueError, TypeError):
+                continue
+            if lo >= hi:
+                issues.append(Issue(
+                    'link-address-range-order',
+                    f'links[{link_id}].{side}', None,
+                    f"address range [{spec[0]}, {spec[1]}] has lo >= hi "
+                    f"({hex(lo)} >= {hex(hi)}) — swap the two values; "
+                    f"lo must be strictly less than hi",
+                    level='ERROR',
+                ))
+    return issues
+
+
+def _check_link_self_referential(links_config: list) -> list[Issue]:
+    """
+    A link's ``from.view`` and ``to.view`` reference the same view.
+
+    A self-referential band is drawn from the right edge of the panel
+    back to its left edge, producing a degenerate shape that overlaps
+    or wraps around the panel body.
+    """
+    issues = []
+    for entry in links_config:
+        if not isinstance(entry, dict):
+            continue
+        link_id = entry.get('id', '<unnamed>')
+        from_ep = entry.get('from', {})
+        to_ep   = entry.get('to',   {})
+        if not isinstance(from_ep, dict) or not isinstance(to_ep, dict):
+            continue
+        from_view = from_ep.get('view')
+        to_view   = to_ep.get('view')
+        if from_view and to_view and from_view == to_view:
+            issues.append(Issue(
+                'link-self-referential', f'links[{link_id}]', None,
+                f"link connects view '{from_view}' to itself — a self-referential "
+                f"band produces degenerate geometry overlapping the panel body",
+            ))
+    return issues
+
+
 # ---------------------------------------------------------------------------
 # Runner
 # ---------------------------------------------------------------------------
 
 ALL_RULES = {
     'min-height-violated',
+    'min-height-below-global',
+    'min-height-on-break',
     'section-height-conflict',
+    'section-name-overflow',
     'out-of-canvas',
     'link-anchor-out-of-bounds',
     'link-address-range-mappable',
@@ -958,11 +1123,17 @@ ALL_RULES = {
     'title-overlap',
     'label-overlap',
     'addr-64bit-column-width',
+    'label-out-of-range',
+    'link-address-range-order',
+    'link-self-referential',
 }
 
 PER_SECTION_RULES = [
     _check_min_height_violated,
+    _check_min_height_below_global,
+    _check_min_height_on_break,
     _check_section_height_conflict,
+    _check_section_name_overflow,
 ]
 
 
@@ -973,7 +1144,7 @@ def run_checks(diagram: dict, area_views: list,
         canvas_w = max(av.pos_x + av.size_x for av in area_views) + 110
         canvas_h = max(av.pos_y + av.size_y for av in area_views) + 30
     else:
-        canvas_w, canvas_h = float(DefaultAppValues.DOCUMENT_SIZE[0]), float(DefaultAppValues.DOCUMENT_SIZE[1])
+        canvas_w, canvas_h = 400.0, 700.0
     links_config = diagram.get('links', [])
 
     issues = []
@@ -995,7 +1166,12 @@ def run_checks(diagram: dict, area_views: list,
     issues.extend(_check_section_overlap(area_views))
     issues.extend(_check_uncovered_gap(area_views))
 
+    # Label rules
+    issues.extend(_check_label_out_of_range(area_views))
+
     # Link rules
+    issues.extend(_check_link_address_range_order(links_config))
+    issues.extend(_check_link_self_referential(links_config))
     issues.extend(_check_link_anchor_out_of_bounds(area_views, links_config))
     issues.extend(_check_link_section_form(area_views, links_config))
     issues.extend(_check_unresolved_link_sections(area_views, links_config))

@@ -1,0 +1,12 @@
+{
+  "extends": "default",
+  "views": {
+    "sram": {
+      "sections": {
+        "guard": {
+          "fill": "#ffbbbb"
+        }
+      }
+    }
+  }
+}

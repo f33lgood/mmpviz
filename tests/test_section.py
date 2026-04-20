@@ -15,7 +15,6 @@ class TestSectionFlags(unittest.TestCase):
         self.assertFalse(s.is_grow_up())
         self.assertFalse(s.is_grow_down())
         self.assertFalse(s.is_break())
-        self.assertFalse(s.is_hidden())
 
     def test_grows_up(self):
         s = self._make(['grows-up'])
@@ -31,15 +30,10 @@ class TestSectionFlags(unittest.TestCase):
         s = self._make(['break'])
         self.assertTrue(s.is_break())
 
-    def test_hidden_flag(self):
-        s = self._make(['hidden'])
-        self.assertTrue(s.is_hidden())
-
     def test_multiple_flags(self):
         s = self._make(['grows-up', 'break'])
         self.assertTrue(s.is_grow_up())
         self.assertTrue(s.is_break())
-        self.assertFalse(s.is_hidden())
 
 
 class TestSectionProperties(unittest.TestCase):

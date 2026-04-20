@@ -155,6 +155,13 @@ def render_example(example_dir):
 
     area_views, routing_lanes = get_area_views(base_style, diagram, theme, links=links)
     doc_w, doc_h, left_overflow, top_overflow = _auto_canvas_size(area_views)
+    if routing_lanes:
+        lane_bottom = max(
+            l['y'] + l['height'] / 2
+            for lanes in routing_lanes.values()
+            for l in lanes
+        )
+        doc_h = max(doc_h, int(lane_bottom) + 30)
     doc_size = (doc_w, doc_h)
     origin = (-left_overflow, -top_overflow)
 

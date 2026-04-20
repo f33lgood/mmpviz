@@ -162,10 +162,7 @@
           "id": "chip_ctrl",
           "address": "0x1A120000",
           "size": "0x00020000",
-          "name": "Chip Control",
-          "flags": [
-            "break"
-          ]
+          "name": "Chip Control"
         }
       ]
     },

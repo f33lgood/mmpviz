@@ -125,34 +125,27 @@ class TestRendererGrowthArrows(unittest.TestCase):
 class TestRendererFromFixtures(unittest.TestCase):
 
     def test_full_render_from_fixtures(self):
-        from loader import load, resolve_view_sections
-        import copy
+        from loader import load
+        from mmpviz import get_area_views
         diagram = load(os.path.join(FIXTURES, 'sample_diagram.json'))
         theme = Theme(os.path.join(FIXTURES, 'sample_theme.json'))
-
-        area_views = []
-        for area_config in diagram.get('views', []):
-            view_id = area_config.get('id', '')
-            view_sections = copy.deepcopy(resolve_view_sections(area_config))
-            if not view_sections:
-                continue
-            area_views.append(AreaView(
-                sections=Sections(sections=view_sections),
-                style=theme.resolve(view_id),
-                area_config=area_config,
-                theme=theme,
-            ))
 
         links = Links(
             links_config=diagram.get('links', []),
             style=theme.resolve_links()
+        )
+        area_views, _routing_lanes = get_area_views(
+            base_style=theme.resolve(''),
+            diagram=diagram,
+            theme=theme,
+            links=links,
         )
 
         result = MapRenderer(
             area_views=area_views,
             links=links,
             style=theme.resolve(''),
-            size=tuple(diagram.get('size', [400, 600])),
+            size=(400, 600),
         ).draw()
 
         self.assertIn('<svg', result)

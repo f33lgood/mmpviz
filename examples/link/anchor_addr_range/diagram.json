@@ -1,102 +1,163 @@
 {
   "_comment": [
-    "What this shows: anchoring a link with raw addresses, not only section ids.",
-    "First link: from and to both use exactly two hex strings [\"0xSTART\", \"0xEND\"].",
-    "That range is chosen to cover Block 3 and Block 4 on purpose — it proves the",
-    "band follows those literal addresses across an internal section boundary, not",
-    "just one section box.",
-    "Second link: from uses a single section id (block_3); to still uses a hex pair.",
-    "That shows you can mix id-based and hex-based anchors in one link.",
+    "What this shows: two independent scenarios that each require address-range",
+    "link endpoints.  Separate source/destination view pairs keep the two",
+    "scenarios visually distinct — one per row in the rendered diagram.",
+    "",
+    "Scenario 1 — partial source fraction, full target view (top row):",
+    "  'from' selects the upper half of Zone 1 using an address range",
+    "  [0x00018000, 0x00020000]. Zone 1 starts at 0x00010000, so 0x00018000",
+    "  is a mid-section address — not a section boundary. No section ID can",
+    "  name this fraction, so the address-range form is the correct tool.",
+    "  'to' omits 'sections', anchoring to the full expanded detail view.",
+    "",
+    "Scenario 2 — named source section, partial target range (bottom row):",
+    "  'from' uses the section ID 'unit_1'. 'to' selects [0x40011000, 0x4001B000]",
+    "  in dst_b: a range that starts mid-Sub 0 and ends mid-Sub 2, crossing",
+    "  three sub-blocks without covering any one completely and without spanning",
+    "  the full expanded view. A section-ID list cannot express this mid-section",
+    "  range; the address-range form is required on the 'to' side.",
+    "",
     "Names are neutral placeholders, not a real chip map."
   ],
-  "title": "address-range endpoints \u2014 explicit hex ranges on both from and to",
+  "title": "address-range endpoints \u2014 partial source fraction and partial target range",
   "views": [
     {
-      "id": "overview",
-      "title": "Overview",
+      "id": "src_a",
+      "title": "Source (scenario 1)",
       "sections": [
         {
-          "id": "block_0",
-          "address": "0x40000000",
-          "size": "0x00008000",
-          "name": "Block 0"
+          "id": "zone_0",
+          "address": "0x00000000",
+          "size": "0x00010000",
+          "name": "Zone 0"
         },
         {
-          "id": "block_1",
-          "address": "0x40008000",
-          "size": "0x00008000",
-          "name": "Block 1"
+          "id": "zone_1",
+          "address": "0x00010000",
+          "size": "0x00010000",
+          "name": "Zone 1"
         },
         {
-          "id": "block_2",
-          "address": "0x40010000",
-          "size": "0x00008000",
-          "name": "Block 2"
-        },
-        {
-          "id": "block_3",
-          "address": "0x40018000",
-          "size": "0x00004000",
-          "name": "Block 3"
-        },
-        {
-          "id": "block_4",
-          "address": "0x4001C000",
-          "size": "0x00004000",
-          "name": "Block 4"
+          "id": "zone_2",
+          "address": "0x00020000",
+          "size": "0x00010000",
+          "name": "Zone 2"
         }
       ]
     },
     {
-      "id": "detail",
-      "title": "Detail (blocks 3 and 4)",
+      "id": "dst_a",
+      "title": "Expanded (scenario 1)",
       "sections": [
         {
-          "id": "block_3",
-          "address": "0x40018000",
-          "size": "0x00004000",
-          "name": "Block 3"
+          "id": "page_0",
+          "address": "0x00018000",
+          "size": "0x00002000",
+          "name": "Page 0"
         },
         {
-          "id": "block_4",
+          "id": "page_1",
+          "address": "0x0001A000",
+          "size": "0x00002000",
+          "name": "Page 1"
+        },
+        {
+          "id": "page_2",
+          "address": "0x0001C000",
+          "size": "0x00002000",
+          "name": "Page 2"
+        },
+        {
+          "id": "page_3",
+          "address": "0x0001E000",
+          "size": "0x00002000",
+          "name": "Page 3"
+        }
+      ]
+    },
+    {
+      "id": "src_b",
+      "title": "Source (scenario 2)",
+      "sections": [
+        {
+          "id": "unit_0",
+          "address": "0x40000000",
+          "size": "0x00010000",
+          "name": "Unit 0"
+        },
+        {
+          "id": "unit_1",
+          "address": "0x40010000",
+          "size": "0x00010000",
+          "name": "Unit 1"
+        },
+        {
+          "id": "unit_2",
+          "address": "0x40020000",
+          "size": "0x00010000",
+          "name": "Unit 2"
+        }
+      ]
+    },
+    {
+      "id": "dst_b",
+      "title": "Expanded (scenario 2)",
+      "sections": [
+        {
+          "id": "sub_0",
+          "address": "0x40010000",
+          "size": "0x00004000",
+          "name": "Sub 0"
+        },
+        {
+          "id": "sub_1",
+          "address": "0x40014000",
+          "size": "0x00004000",
+          "name": "Sub 1"
+        },
+        {
+          "id": "sub_2",
+          "address": "0x40018000",
+          "size": "0x00004000",
+          "name": "Sub 2"
+        },
+        {
+          "id": "sub_3",
           "address": "0x4001C000",
           "size": "0x00004000",
-          "name": "Block 4"
+          "name": "Sub 3"
         }
       ]
     }
   ],
   "links": [
     {
-      "id": "overview-detail",
+      "id": "partial-src-full-dst",
       "from": {
-        "view": "overview",
+        "view": "src_a",
         "sections": [
-          "0x40018000",
-          "0x40020000"
+          "0x00018000",
+          "0x00020000"
         ]
       },
       "to": {
-        "view": "detail",
-        "sections": [
-          "0x40018000",
-          "0x40020000"
-        ]
+        "view": "dst_a"
       }
     },
     {
-      "id": "overview-detail-by-id",
+      "id": "named-src-partial-dst",
       "from": {
-        "view": "overview",
+        "view": "src_b",
         "sections": [
-          "block_3"
+          "unit_1"
         ]
       },
       "to": {
-        "view": "detail",
+        "view": "dst_b",
         "sections": [
-          "0x40018000",
-          "0x4001C000"
+          "0x40011000",
+          "0x4001B000"
         ]
       }
     }

@@ -41,21 +41,32 @@ Exit codes: **0** = no issues, **1** = one or more ERRORs, **2** = warnings only
 - **ERROR** — the rendered diagram is definitively wrong: a structural constraint is violated, a referenced element is missing, or panels physically collide. Treat the output as unusable until these are resolved.
 - **WARN** — the diagram renders but may be hard to read or visually misleading. Whether to act is a judgment call.
 
+Some rules are **layout-engine bug guards**: they cannot fire on a valid `diagram.json` rendered by the current engine. They exist to catch regressions. If one fires, it is a tool bug — no user edit can prevent it. These are marked **Bug — report** in the Fixer column.
+
 ---
 
 ## Rule Summary
 
 | Rule | Level | Fixer |
 |------|-------|-------|
-| `min-height-violated` | WARN | Human/AI |
 | `section-height-conflict` | ERROR | Human/AI |
-| `out-of-canvas` | ERROR | Bug — report |
+| `break-overlaps-section` | ERROR | Human/AI |
+| `unresolved-section` | ERROR | Human/AI |
+| `link-address-range-order` | ERROR | Human/AI |
+| `link-anchor-out-of-bounds` | ERROR | Human/AI (address-range form) |
 | `section-overlap` | WARN | Human/AI |
 | `uncovered-gap` | WARN | Human/AI |
-| `panel-overlap` | ERROR | Human/AI |
-| `link-anchor-out-of-bounds` | ERROR | Human/AI |
-| `unresolved-section` | ERROR | Human/AI |
-| `title-overlap` | WARN | Human/AI (shorten title or reduce view height) |
+| `section-name-overflow` | WARN | Human/AI (shorten name) |
+| `min-height-below-global` | WARN | Human/AI |
+| `min-height-on-break` | WARN | Human/AI |
+| `label-out-of-range` | WARN | Human/AI |
+| `link-self-referential` | WARN | Human/AI |
+| `link-address-range-mappable` | WARN | Human/AI |
+| `link-redundant-sections` | WARN | Human/AI |
+| `title-overlap` | WARN | Human/AI (horizontal); Bug — report (vertical) |
+| `min-height-violated` | WARN | Bug — report |
+| `panel-overlap` | ERROR | Bug — report |
+| `out-of-canvas` | ERROR | Bug — report |
 | `label-overlap` | WARN | Bug — report |
 | `addr-64bit-column-width` | WARN | Bug — report |
 
@@ -65,17 +76,93 @@ Exit codes: **0** = no issues, **1** = one or more ERRORs, **2** = warnings only
 
 ### `min-height-violated` — WARN
 
-**Violated when:** The panel contains too many sections competing for limited height.
-When satisfying all minimum-height constraints would require more pixels than the
-panel has, the renderer falls back to pure proportional layout — all sections
-render at their proportional size and minimums are violated.
+**Violated when:** A section's rendered height falls below its effective minimum.
+The effective minimum is the largest of four floors:
+
+1. **Global floor** — `min_section_height` in the theme (recommended baseline for all sections).
+2. **Per-section floor** — `"min_height"` on the section in `diagram.json` (use only when a section needs a floor *higher* than the global one; setting it lower than the global floor triggers `min-height-below-global`).
+3. **Label-conflict floor** — `30 + font_size` px, applied automatically when the size label and name label would overlap horizontally (geometry-dependent, not a fixed value — typically 0 for wide views).
+4. **Grows-arrow neighbor floor** — `2 × 20 × growth_arrow.size + font_size` px, applied automatically to any non-break section immediately adjacent (in address order) to a section with a `grows-up` or `grows-down` flag, so the arrow tip clears the neighbor's text label center.
+
+In the floor-stack model the layout engine assigns every section exactly its floor height — floors are always satisfied by construction; this rule firing indicates a layout engine bug, not a configuration problem.
+
+**Fix:** Report as a bug if observed on a well-formed diagram. The check is retained
+as a guard to catch regressions in the layout engine.
+
+---
+
+### `min-height-below-global` — WARN
+
+**Violated when:** A section's `"min_height"` is set lower than the global
+`min_section_height` in the theme, undercutting the global floor for that section.
+
+The most common cause is copying a `min_height` value from an older diagram or
+setting it to a small number (e.g. `0`) without realising it silently overrides
+the global baseline downward.
+
+**Preferred pattern:** use `min_section_height` in the theme as the universal
+baseline. Only set a per-section `"min_height"` when a specific section needs a
+floor *higher* than the global one — never lower.
 
 **Fix:** Human/AI — edit `diagram.json`.
 
-**How:**
-- Set `"min_height"` on sections that are too thin to read in `diagram.json` — gives them a guaranteed pixel floor.
-- Set `"max_height"` on sections that dominate the view in `diagram.json` — caps their pixel budget; the freed height is redistributed to floor-locked sections first.
-- Add `"flags": ["break"]` to unimportant sections in `diagram.json` — compresses them to `break_height` px (default 20 px), freeing proportional height for the rest.
+**How:** Set `"min_height" ≥ min_section_height` for the flagged section, or
+remove the field entirely to inherit the global floor.
+
+---
+
+### `min-height-on-break` — WARN
+
+**Violated when:** A section has `"min_height"` set but is also flagged `"break"`.
+The layout engine ignores `min_height` on break sections — they always render at
+`break_height` px (default 20 px) regardless of the configured floor.
+
+The most common cause is adding `"flags": ["break"]` to an existing section without
+removing its `"min_height"` field.
+
+**Fix:** Human/AI — edit the section in `diagram.json`.
+
+**How:** Either remove `"min_height"` from the break section, or remove the `"break"`
+flag and keep `"min_height"` if the intent was to give the section a visible height floor.
+
+---
+
+### `section-name-overflow` — WARN
+
+**Violated when:** A section's name text is estimated to be wider than the section
+panel, even when the name occupies a line of its own (two-line layout).
+
+Section names are rendered as a single horizontal SVG `<text>` element centred in
+the panel — there is no automatic text wrapping.  When the estimated width exceeds
+the available panel width the text visually overflows the section box and overlaps
+adjacent sections.  This cannot be corrected by the layout engine; the name must be
+shortened in `diagram.json`.
+
+**Estimated name width** = `len(name) × 0.6 × font_size`  (Helvetica width ratio).
+
+**Available panel width** = `size_x − 8 px` (4 px margin from each border edge).
+
+**Relationship to label-conflict floor.**  There are two distinct horizontal
+constraints on section names:
+
+1. **Same-line** (size label and name share a Y-level): the name must not overlap
+   the size label on the left.  Available name width ≈ `size_x − 2 × size_label_width`.
+   At default settings (`font_size=12`, `size_x=230`, 5–6 char size label) this limits
+   names to roughly 19 characters — the guideline in `create-diagram.md`.  Exceeding
+   this triggers the label-conflict floor (`30 + font_size` px), which the layout
+   engine resolves automatically by moving the name to its own Y-line.
+
+2. **Two-line** (name on its own line): the name can use the full panel width.
+   Available = `size_x − 8 px`.  This rule (`section-name-overflow`) checks this
+   wider bound.  If the name still overflows here, the engine cannot help — shorten
+   the name.
+
+**Fix:** Human/AI — edit the section in `diagram.json`.
+
+**How:** Shorten `"name"` to fit within the panel width.  To stay under the
+same-line limit (avoiding forced two-line layout), keep names to approximately
+`(size_x − 2 × size_label_width) / (0.6 × font_size)` characters.  At default
+settings this is roughly 19 characters.
 
 ---
 
@@ -122,6 +209,8 @@ children in the same view:
 
 `APB1` spans the entire range and visually covers `UART0`, making labels unreadable.
 
+Also fires (WARN) when two break sections have overlapping address ranges — the breaks are redundant. Fix: resize the breaks so their ranges are non-overlapping.
+
 **Fix:** Human/AI — edit `sections[]` in `diagram.json`.
 
 **How:** Separate levels of detail into separate views. Put the parent block in an
@@ -163,32 +252,30 @@ The error message prints the exact correct size for the offending break.
 
 ### `uncovered-gap` — WARN
 
-**Violated when:** A large address gap between two consecutive visible sections is
-not fully covered by break sections. Two conditions independently trigger this rule:
+**Violated when:** Any address range within the view's extent `[Lo, Hi]` is not
+covered by any section — break or non-break.
 
-1. **No break coverage** and the gap exceeds 5× the total size of all non-break
-   sections in that view — proportional layout shrinks the real sections to
-   near-invisible slivers.
+`Lo` is the lowest section start address; `Hi` is the highest section end address
+(both derived from the sections in the view). Coverage is the union of all sections'
+`[address, address+size)` intervals walked in address order. Any hole in that union
+is reported as a separate WARN issue naming the sections on either side.
 
-2. **Partial break coverage** — break sections overlap the gap but leave holes,
-   and the gap exceeds the size of its flanking sections. The warning message
-   reports the first uncovered address.
+Two sections that touch exactly (`s1.end == s2.start`) are fully covered and do not
+trigger this rule. Overlapping sections (already flagged by `section-overlap`) do not
+produce additional gap issues here.
 
-Coverage is determined by the **union** of all break sections in the view.
-Multiple consecutive breaks that together span the full gap are correctly
-recognised as covering it — each break does not need to span the entire gap alone.
+Example: `Flash` at `0x0800_0000` (128 KB) followed by `SRAM` at `0x2000_0000`
+(64 KB) — the range `[0x0802_0000, 0x2000_0000)` has no section defined, so the
+rule fires for that hole.
 
-Example: `Flash` at `0x0000_0000` (512 KB) and `SRAM` at `0x2000_0000` (128 KB)
-share a ~500 MB gap. Without any break, condition 1 fires. With one break ending at
-`0x0200_0000` instead of `0x2000_0000`, condition 2 fires.
+**Fix:** Human/AI — add break section(s) in `diagram.json` spanning each uncovered
+range.
 
-**Fix:** Human/AI — add or correct break section(s) in `diagram.json`.
-
-**How:** Break sections must be contiguous; their union must span `[gap_lo, gap_hi]`
-with no holes. A single break is simplest:
+**How:** Add a break section whose `address` equals the hole start and whose `size`
+equals the hole size reported in the warning message:
 
 ```json
-{ "id": "gap0", "address": "0x00080000", "size": "0x1FF80000",
+{ "id": "gap0", "address": "0x08020000", "size": "0x17FE0000",
   "name": "···", "flags": ["break"] }
 ```
 
@@ -199,16 +286,14 @@ equals `previous_break.address + previous_break.size` with no gaps between them.
 
 ### `panel-overlap` — ERROR
 
-**Violated when:** Two panels' bounding rectangles physically intersect. This occurs
-when stacked panels in the same column grow tall enough to collide — sections,
-borders, and labels from one panel bleed into the other.
+**Violated when:** Two panels' bounding rectangles physically intersect.
 
-**Fix:** Human/AI — reduce panel height in `diagram.json`.
+The auto-layout engine stacks views in each column with a fixed padding gap and
+auto-expands the canvas vertically. With the floor-stack model computing exact
+view heights before layout, each view's allocated slot equals its rendered height;
+panels cannot overlap. If this rule fires, it is a tool bug.
 
-**How:**
-- Add `"break"` sections to compress large gaps in the taller view.
-- Set `"max_height"` on dominant sections in `diagram.json` to cap their pixel
-  allocation.
+**Fix:** Bug — report with your `diagram.json`. No user edit can prevent this.
 
 ---
 
@@ -218,18 +303,15 @@ borders, and labels from one panel bleed into the other.
 
 - **Vertical** — a panel's title intrudes into the body of the panel directly above
   it in the same column. Titles render 20 px above the panel top edge; the checker
-  uses a 25 px clearance zone. Fires when the upper panel is too tall, leaving
-  insufficient vertical gap for the lower panel's title.
+  uses a 25 px clearance zone. The inter-panel padding (50 px) exceeds the clearance
+  zone (25 px), so this should never fire for diagrams rendered by the current
+  auto-layout engine — if it does, it is a layout bug.
 
 - **Horizontal** — two panel titles at the same vertical level (e.g. adjacent columns
-  in the top row) overlap in the inter-column gap. Title width is estimated from the
-  character count × font size.
+  in the top row) overlap in the inter-column gap. Title width is estimated from
+  character count × font size. This is a user configuration issue.
 
-**Fix (vertical):** Human/AI — reduce the height of the upper panel in `diagram.json`.
-
-**How:**
-- Add `"break"` sections to compress large gaps in the upper view.
-- Set `"max_height"` on dominant sections in the upper view.
+**Fix (vertical):** Bug — report with your `diagram.json`.
 
 **Fix (horizontal):** Human/AI — shorten the view `"title"` field in `diagram.json`.
 
@@ -271,11 +353,11 @@ outside the panel's rendered pixel range `[pos_y, pos_y + size_y]`. When this
 happens the band is drawn partially or fully outside the panel rectangle and no
 longer aligns with the sections it is supposed to annotate.
 
-For section-ID specifiers this should never fire — sections are always within
-their panel's pixel range. It fires when `links[].from.sections` or
-`links[].to.sections` uses an explicit address-range form
-(e.g. `["0x0", "0x5000"]`) whose addresses extend beyond the view's actual
-address range.
+For **section-ID specifiers** this is a layout-engine bug guard — sections are always
+placed within their panel's pixel range by the layout engine and this case should
+never fire. For **address-range form** (`["0xLO", "0xHI"]`) this is a user
+configuration error: the explicit addresses extend beyond the view's actual address
+range.
 
 **Fix:** Human/AI — edit `links[]` in `diagram.json`.
 
@@ -316,8 +398,8 @@ resolves to. The warning message names them:
 
 **Violated when:** A link's `from.sections` or `to.sections` is equivalent to
 the whole-view default — either an ID list whose combined address range covers
-the view's full extent, or an address range spanning the whole view. The
-renderer produces identical output if the field is omitted.
+the view's full extent, or an address range spanning the whole view — *and*
+omitting the field would produce the same band geometry.
 
 ```json
 "to": { "view": "detail-view", "sections": ["code", "data"] }   // all sections of detail-view
@@ -333,6 +415,12 @@ band geometry with less JSON.
 ```json
 "to": { "view": "detail-view" }
 ```
+
+**Not a redundancy (cross-address-space links):** When `from` and `to` live in
+different address spaces, omitting `to.sections` makes the renderer fall back
+to clamping `from_range` into the destination view — *not* the whole-view
+default. An enumerated `to.sections` list that spans the destination view is
+then load-bearing, and the check correctly declines to warn. Keep the field.
 
 ---
 
@@ -353,3 +441,54 @@ band produces no visual error:
 **How:** Correct the section or view ID spelling. Verify the section is declared in
 the exact view named by `from.view` (or `to.view`) — a section with the same ID in
 a different view does not satisfy the reference.
+
+---
+
+### `label-out-of-range` — WARN
+
+**Violated when:** A label's `address` field falls outside the view's address range
+`[start_address, end_address]`.
+
+The renderer only draws a label when its address falls within a section's half-open
+`[addr, addr+size)` interval or at exactly the view's end address (the end of the
+last section). A label whose address lies outside `[Lo, Hi]` is silently not rendered
+— it exists in `diagram.json` but produces no line or text in the SVG.
+
+**Fix:** Human/AI — edit the label's `address` in `diagram.json`.
+
+**How:** Set `address` to a value within the view's address range `[Lo, Hi]`. The
+warning message shows the current address and the valid range.
+
+---
+
+### `link-address-range-order` — ERROR
+
+**Violated when:** A link's `from.sections` or `to.sections` uses the address-range
+form `["0xLO", "0xHI"]` but `LO >= HI` (inverted or collapsed range).
+
+The renderer passes the range directly to the band-geometry code without checking
+order, so an inverted range produces a crossed or collapsed band in the SVG.
+
+**Fix:** Human/AI — edit `links[]` in `diagram.json`.
+
+**How:** Swap the two values so the first element is the lower address and the second
+is the higher address (`LO < HI` strictly):
+
+```json
+"sections": ["0x08000000", "0x08020000"]   // correct: lo < hi
+```
+
+---
+
+### `link-self-referential` — WARN
+
+**Violated when:** A link's `from.view` and `to.view` reference the same view.
+
+A self-referential band is drawn from the right edge of the panel back to its left
+edge, producing a degenerate shape that overlaps or wraps around the panel body. The
+geometry is typically invisible or visually incorrect.
+
+**Fix:** Human/AI — edit `links[]` in `diagram.json`.
+
+**How:** Ensure `from.view` and `to.view` reference two different views. A link is
+meaningful only when it connects distinct panels.

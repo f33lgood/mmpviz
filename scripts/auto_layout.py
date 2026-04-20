@@ -10,7 +10,7 @@ build_link_graph_from_links(entries, view_ids) → {src_id: [tgt_id, ...]}
 assign_columns(graph, view_ids)                 → {view_id: column_int}
 sort_by_dag_tree(area_configs, columns, link_entries, sec_mid_addrs)
                                                 → [area_config, ...]
-order_within_column(graph, columns, area_views, link_entries)
+order_within_column(columns, area_views, link_entries)
                                                 → {col: [view_id, ...]}
 rebalance_columns(columns, area_configs, ...)   → {view_id: visual_col_int}
 plan_routing_lanes(vis_col, link_entries, ...)  → {entry_idx: [lane_dict, ...]}
@@ -194,9 +194,18 @@ def sort_by_dag_tree(area_configs: list, columns: dict,
                     if entry.get('to_view') != vid:
                         continue
                     from_secs = entry.get('from_sections')
-                    for sid, mid in _sm.get(entry.get('from_view', ''), {}).items():
-                        if from_secs is None or sid in from_secs:
-                            addrs.append(mid)
+                    # Address-range form: derive mid-address from hex bounds directly.
+                    if _is_addr_range_form(from_secs):
+                        try:
+                            addrs.append(
+                                (int(from_secs[0], 16) + int(from_secs[1], 16)) / 2
+                            )
+                        except ValueError:
+                            pass
+                    else:
+                        for sid, mid in _sm.get(entry.get('from_view', ''), {}).items():
+                            if from_secs is None or sid in from_secs:
+                                addrs.append(mid)
                 src_addr = sum(addrs) / len(addrs) if addrs else 0.0
 
                 return (parent_pos, -src_addr)
@@ -216,8 +225,8 @@ def sort_by_dag_tree(area_configs: list, columns: dict,
 # Column ordering (crossing minimisation)
 # ---------------------------------------------------------------------------
 
-def order_within_column(graph: dict, columns: dict, area_views: list,
-                        link_entries: list = None) -> dict:
+def order_within_column(columns: dict, area_views: list,
+                        link_entries: list) -> dict:
     """
     Sort areas within each column to minimise link-band crossings.
 
@@ -226,21 +235,19 @@ def order_within_column(graph: dict, columns: dict, area_views: list,
     that link to B.  Sorting column C+1 by ascending source midpoint places
     targets in the same top-to-bottom order as their sources.
 
-    When ``link_entries`` is provided (recommended), section IDs from the link
-    entry's ``from_sections`` field are used directly, which correctly handles
-    multi-section links (e.g. two sections linking to one target).  Without
-    ``link_entries``, a legacy address-containment fallback is used.
+    Section IDs from each link entry's ``from_sections`` field are used
+    directly, which correctly handles multi-section links (e.g. two sections
+    linking to one target).
 
     When a target has no computed source midpoint (e.g., it is a root or
     has no AreaView data), it is placed last in its column.
 
     Parameters
     ----------
-    graph : dict  {source_id: [target_id, ...]}
     columns : dict  {view_id: column_int}
     area_views : list of AreaView
         Used to look up the pixel position of link sections in source views.
-    link_entries : list of dict, optional
+    link_entries : list of dict
         Validated link entries from ``Links.entries``.  Each entry has
         ``from_view``, ``from_sections`` (list of IDs or None), ``to_view``,
         and ``to_sections`` keys.
@@ -255,33 +262,19 @@ def order_within_column(graph: dict, columns: dict, area_views: list,
 
     source_midpoints = defaultdict(list)
 
-    if link_entries:
-        # Preferred path: use explicit section IDs from each link entry.
-        # This correctly handles multi-section links where a single section
-        # does not contain the full target address range.
-        for entry in link_entries:
-            src_id = entry.get('from_view')
-            tgt_id = entry.get('to_view')
-            from_sections = entry.get('from_sections')  # list of IDs or None
-            src_av = av_by_id.get(src_id)
-            if src_av is None:
-                continue
-            mid = _find_link_midpoint_by_sections(src_av, from_sections)
-            if mid is not None:
-                source_midpoints[tgt_id].append(src_av.pos_y + mid)
-    else:
-        # Legacy fallback: address-containment search.
-        for src_id, targets in graph.items():
-            src_av = av_by_id.get(src_id)
-            if src_av is None:
-                continue
-            for tgt_id in targets:
-                tgt_av = av_by_id.get(tgt_id)
-                if tgt_av is None:
-                    continue
-                mid = _find_link_midpoint(src_av, tgt_av)
-                if mid is not None:
-                    source_midpoints[tgt_id].append(src_av.pos_y + mid)
+    # Use explicit section IDs from each link entry.  Handles multi-section
+    # links where a single section does not contain the full target address
+    # range.
+    for entry in link_entries:
+        src_id = entry.get('from_view')
+        tgt_id = entry.get('to_view')
+        from_sections = entry.get('from_sections')  # list of IDs or None
+        src_av = av_by_id.get(src_id)
+        if src_av is None:
+            continue
+        mid = _find_link_midpoint_by_sections(src_av, from_sections)
+        if mid is not None:
+            source_midpoints[tgt_id].append(src_av.pos_y + mid)
 
     # Compute mean source midpoint per target
     def key(aid):
@@ -302,6 +295,13 @@ def order_within_column(graph: dict, columns: dict, area_views: list,
     return result
 
 
+def _is_addr_range_form(from_sections) -> bool:
+    """Return True when from_sections is the address-range form ["0xLO", "0xHI"]."""
+    return (isinstance(from_sections, list) and len(from_sections) == 2
+            and isinstance(from_sections[0], str)
+            and from_sections[0].startswith('0x'))
+
+
 def _find_link_midpoint_by_sections(src_av, from_sections) -> float | None:
     """
     Return the pixel midpoint of the link band in src_av for named sections.
@@ -311,14 +311,33 @@ def _find_link_midpoint_by_sections(src_av, from_sections) -> float | None:
     highest end address across those sections.
 
     When ``from_sections`` is None (link covers the whole source view), uses
-    every non-hidden, non-zero-size section.
+    every non-zero-size section.
+
+    Address-range form (``["0xLO", "0xHI"]``): computes the midpoint address
+    directly from the two hex bounds and converts it to pixels without requiring
+    a matching section ID.  This handles partial-section ranges that do not
+    align with any named section boundary.
 
     Returns None if no matching sections are found.
     """
+    # Address-range form: ["0xLO", "0xHI"] — compute mid-address directly.
+    if _is_addr_range_form(from_sections):
+        try:
+            lo = int(from_sections[0], 16)
+            hi = int(from_sections[1], 16)
+        except ValueError:
+            return None
+        mid_addr = (lo + hi) / 2
+        for sub in src_av.get_split_area_views():
+            if sub.start_address <= mid_addr <= sub.end_address:
+                return sub.address_to_py_actual(mid_addr) + sub.pos_y - src_av.pos_y
+        return None
+
+    # Section-ID list (or None = whole view).
     found = []
     for sub in src_av.get_split_area_views():
         for sec in sub.sections.get_sections():
-            if sec.is_hidden() or sec.size == 0:
+            if sec.size == 0:
                 continue
             if from_sections is None or sec.id in from_sections:
                 found.append((sec, sub))
@@ -333,43 +352,14 @@ def _find_link_midpoint_by_sections(src_av, from_sections) -> float | None:
     # Find the sub-area that contains mid_addr and convert to pixels
     for sub in src_av.get_split_area_views():
         if sub.start_address <= mid_addr <= sub.end_address:
-            return sub.to_pixels_relative(mid_addr) + sub.pos_y - src_av.pos_y
+            return sub.address_to_py_actual(mid_addr) + sub.pos_y - src_av.pos_y
 
     # Fallback: average of individual section pixel midpoints
     total = 0.0
     for sec, sub in found:
         mid = sec.address + sec.size / 2
-        total += sub.to_pixels_relative(mid) + sub.pos_y - src_av.pos_y
+        total += sub.address_to_py_actual(mid) + sub.pos_y - src_av.pos_y
     return total / len(found)
-
-
-def _find_link_midpoint(src_av, tgt_av) -> float | None:
-    """
-    Return the pixel midpoint (within src_av) of the section that links to tgt_av.
-
-    The linking section is the one in src_av whose address range contains
-    tgt_av's full address range.  Returns None if no such section is found.
-
-    This is the legacy address-containment approach used when link entries are
-    not available.  Prefer ``_find_link_midpoint_by_sections`` instead.
-    """
-    tgt_lo = tgt_av.start_address
-    tgt_hi = tgt_av.end_address
-
-    for sub in src_av.get_split_area_views():
-        for sec in sub.sections.get_sections():
-            if sec.is_hidden() or sec.size == 0:
-                continue
-            sec_lo = sec.address
-            sec_hi = sec.address + sec.size
-            if sec_lo <= tgt_lo and sec_hi >= tgt_hi:
-                # Found the linking section; return its midpoint in the source area
-                sec_mid_addr = (sec_lo + sec_hi) / 2
-                # to_pixels_relative gives pixels from top of sub-area
-                px = sub.to_pixels_relative(sec_mid_addr) + sub.pos_y - src_av.pos_y
-                return px
-
-    return None
 
 
 # ---------------------------------------------------------------------------
