@@ -128,7 +128,8 @@
           "id": "system_memory",
           "address": "0x1FFFF000",
           "size": "0x00000800",
-          "name": "System Memory"
+          "name": "System Memory",
+          "min_height": 60
         }
       ]
     },
@@ -140,7 +141,8 @@
           "id": "flash_memory",
           "address": "0x08000000",
           "size": "0x00020000",
-          "name": "Flash Memory"
+          "name": "Flash Memory",
+          "min_height": 60
         }
       ]
     },
@@ -470,10 +472,7 @@
         ]
       },
       "to": {
-        "view": "flash-zoom-view",
-        "sections": [
-          "flash_memory"
-        ]
+        "view": "flash-zoom-view"
       }
     },
     {
@@ -485,10 +484,7 @@
         ]
       },
       "to": {
-        "view": "sysmem-zoom-view",
-        "sections": [
-          "system_memory"
-        ]
+        "view": "sysmem-zoom-view"
       }
     },
     {

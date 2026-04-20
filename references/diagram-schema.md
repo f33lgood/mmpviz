@@ -52,8 +52,8 @@ displayed in that view.
 | `size` | hex string or int | Yes | — | Size in bytes. Hex strings and integers both accepted. |
 | `name` | string | Yes | — | Display text shown inside the section box. No uniqueness requirement — duplicates are allowed. May be an empty string `""` to suppress the label. |
 | `flags` | array of strings | No | `[]` | Visual behavior flags (see below). |
-| `min_height` | number (≥ 0) | No | `null` | Per-section pixel height floor. Effective floor = `max(min_height, theme min_section_height)`. Use for sections whose proportional height would be too small to read. |
-| `max_height` | number (≥ 0) | No | `null` | Per-section pixel height ceiling. Effective ceiling = `min(max_height, theme max_section_height)`. Use for sections whose proportional height would dominate the view. `min_height` must not exceed `max_height`. |
+| `min_height` | number (≥ 0) | No | `null` | Per-section pixel height floor. Effective floor = `max(min_height, theme min_section_height, label_conflict_floor)`. Use when a section needs a taller floor than the global `min_section_height` baseline. |
+| `max_height` | number (≥ 0) | No | `null` | **Accepted but ignored** in the floor-stack layout model — reserved for future use; has no current effect on rendered section height. `section-height-conflict` (ERROR) still validates `min_height ≤ max_height` when both are declared, so the diagram remains valid if the ceiling is re-enabled in a future release. |
 
 ### `flags` allowed values
 
@@ -61,7 +61,7 @@ displayed in that view.
 |------|--------|
 | `"grows-up"` | Draws an upward growth arrow on this section |
 | `"grows-down"` | Draws a downward growth arrow on this section |
-| `"break"` | Renders as a height-compressed plain box using `break_fill` as background (falls back to `fill`). Break sections are always exactly `break_height` pixels tall regardless of their byte range — the remaining panel height is redistributed among non-break sections. Use a distinct `break_fill` color and a short label such as `"···"` to signal that the address range is compressed. |
+| `"break"` | Renders as a height-compressed plain box using `break_fill` as background (falls back to `fill`). Break sections are always exactly `break_height` pixels tall regardless of their byte range; non-break sections keep their own floor heights unchanged (no redistribution). Use a distinct `break_fill` color and a short label such as `"···"` to signal that the address range is compressed. |
 
 ---
 

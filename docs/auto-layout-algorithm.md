@@ -38,18 +38,19 @@ get_area_views()
     │
     ├─ build_link_graph_from_links()  # auto_layout.py — DAG from explicit links[]
     ├─ assign_columns()               # auto_layout.py — BFS depth → column index
-    ├─ _estimate_area_height()        # mmpviz.py — quick height estimate per view
+    ├─ _estimate_area_height()        # mmpviz.py — exact height estimate per view
     ├─ sort_by_dag_tree()             # auto_layout.py — DAG-tree ordering pre-sort
-    ├─ rebalance_columns()            # auto_layout.py — algo-2/3: height rebalancing
+    ├─ rebalance_columns()            # auto_layout.py — algo-2/3/4: height rebalancing
     ├─ _auto_layout()                 # mmpviz.py — DAG column placement, assigns pos + size
     ├─ order_within_column()          # auto_layout.py — crossing minimisation post-sort
     ├─ AreaView(...)                  # area_view.py — section height algorithm per view
-    └─ plan_routing_lanes()           # auto_layout.py — algo-3 only: routing lane planning
+    ├─ vertical_align_columns()       # auto_layout.py — algo-4 only: vertical column offsets
+    └─ plan_routing_lanes()           # auto_layout.py — algo-3/4: routing lane planning
 ```
 
 `get_area_views()` returns a 2-tuple `(area_views, routing_lanes)`.  `routing_lanes`
-is an empty dict for algo1/algo2; for algo3 it maps each link entry index to the list
-of lane dicts computed by `plan_routing_lanes()`.
+is an empty dict for algo1/algo2; for algo3 and algo4 it maps each non-adjacent link
+entry index to the list of lane dicts computed by `plan_routing_lanes()`.
 
 The layout algorithm is selected with the `--layout` CLI flag:
 
@@ -74,29 +75,33 @@ document_size = _auto_canvas_size(area_views)
 
 ## 2. Section Height Sizing
 
-**Location:** `AreaView._section_label_min_h()`, `AreaView._compute_per_section_heights()`,
-`AreaView._process()` in `scripts/area_view.py`
+**Location:** `section_label_min_h()`, `AreaView._process()` in `scripts/area_view.py`
 
-Called during `AreaView._process()` for each sub-area.  First, a per-section
-minimum-height dict is built; then heights are distributed in two phases.
+Called during `AreaView._process()` for each view.  Each visible section is
+assigned an effective **floor height** and sections are stacked contiguously
+from high address (SVG top) to low address (bottom).  The view height equals
+the sum of all section heights — there is no proportional scaling by byte
+range and no minimum view height beyond the floor sum.
 
 ### Per-section effective floor
 
-`_process()` builds a per-section floor dict `{id(s): effective_floor_px}` for
-all visible sections:
-
 ```
-for each visible section s:
-    user_global  = style.get('min_section_height', 0)
-    section_min  = s.min_height  (from diagram.json, or None)
-    label_min    = _section_label_min_h(s, font_size)
-    effective_floor = max(user_global, section_min or 0, label_min)
-    per_section_min_h[id(s)] = effective_floor
+for each section s (sorted high-address-first):
+    if s.is_break():
+        floor = break_height_val                # theme break_height (default 20 px)
+    else:
+        floor = max(
+            user_min_h_val,                     # theme min_section_height
+            s.min_height or 0,                  # per-section override
+            section_label_min_h(s, font_size, size_x),
+            1.0,                                # hard minimum
+        )
+    s.size_y_override = floor
 ```
 
-`_section_label_min_h(s, font_size)` detects whether the size label
+`section_label_min_h(s, font_size, size_x)` detects whether the size label
 (top-left, 12 px font) and the name label (horizontally centred, `font_size` px)
-would overlap on the x-axis at the current section width (`size_x`):
+would overlap on the x-axis at the current section width:
 
 ```
 size_label_right = 2 + len(format_size(s.size)) × 0.6 × 12
@@ -105,68 +110,67 @@ name_label_left  = size_x/2 − len(name_text) × 0.6 × font_size / 2
 if size_label_right > name_label_left:
     return 30 + font_size      # inflate just enough to separate labels vertically
 else:
-    return 0.0                 # no conflict — keep proportional height
+    return 0.0                 # no conflict — keep the floor at its other driver
 ```
 
-### Per-section effective ceiling
+### Grows-arrow neighbor constraint
+
+When a section carries the `grows-up` or `grows-down` flag, the immediately
+adjacent non-break neighbor's floor is raised so the rendered growth arrow
+does not overlap the neighbor's text label:
 
 ```
-for each visible section s:
-    global_max   = style.get('max_section_height', None)
-    section_max  = s.max_height  (from diagram.json, or None)
-    if section_max is not None:
-        effective_ceiling = min(section_max, global_max) if global_max else section_max
-    else:
-        effective_ceiling = global_max  (scalar passed to algorithm)
+arrow_neighbor_floor = 2 × 20 × growth_arrow_size + font_size
+
+for i, s in enumerate(sorted_sections):
+    if s.is_grow_up() and i > 0:
+        nb = sorted_sections[i-1]              # SVG-above (next-higher address)
+        if not nb.is_break():
+            nb.size_y_override = max(nb.size_y_override, arrow_neighbor_floor)
+    if s.is_grow_down() and i < len(sorted_sections)-1:
+        nb = sorted_sections[i+1]              # SVG-below (next-lower address)
+        if not nb.is_break():
+            nb.size_y_override = max(nb.size_y_override, arrow_neighbor_floor)
 ```
 
-### Phase 1 — Floor locking (min_h)
+Break neighbors are skipped (no text label to protect).
 
-`_compute_per_section_heights(sections, available_px, min_h, max_h)` accepts
-`min_h` as either a scalar (backward-compatible) or the per-section dict built
-above.  `max_h` may similarly be a scalar or a per-section dict.
+### Stacking
+
+Sections are stacked top-to-bottom at their floor heights; the view's
+`size_y` is updated to the stack total so `address_to_pxl` stays consistent:
 
 ```
-heights = proportional(section.size / total_bytes) * available_px
-
-repeat up to N+1 times:
-    lo = min_h[id(s)] if dict else float(min_h)
-    new_locks = {s: lo for s in unlocked if heights[s] < lo}
-    if not new_locks: break                    # converged
-    if sum(locked) + sum(new_locks) >= available_px:
-        return proportional(available_px)      # cannot honour all floors
-    lock those sections; re-proportionalise unlocked remainder
+y = 0.0
+for s in sorted_sections:
+    s.pos_y_in_subarea = y
+    y += s.size_y_override
+self.size_y = y
 ```
 
-**Exclusion:** hidden sections and break sections are skipped entirely;
-size-0 sections are ignored.
-
-### Phase 2 — Ceiling application (max_h)
-
-After Phase 1 converges, any section exceeding its effective ceiling is capped
-and its surplus is redistributed proportionally to floored (min_h-locked)
-sections first, then to any remaining uncapped section.
+`size_y_override` and `pos_y_in_subarea` are read by `apply_section_geometry()`
+when the renderer and checker need the canonical `size_y / pos_y` fields.
 
 **Constants (from theme / default.json defaults):**
 
 | Theme key              | default.json | Meaning                                          |
 |------------------------|--------------|--------------------------------------------------|
 | `min_section_height`   | 20 px         | Global section height floor (all sections)      |
-| `max_section_height`   | 300 px        | Global section height ceiling (all sections)    |
 | `break_height`         | 20 px         | Fixed height for break sections                 |
+| `max_section_height`   | 300 px        | **Accepted but ignored** in the floor-stack model (reserved) |
 
 **Per-section overrides (diagram.json):**
 
-| Section field   | Effective value                                       |
-|-----------------|-------------------------------------------------------|
-| `min_height`    | `max(min_height, min_section_height)` — higher wins  |
-| `max_height`    | `min(max_height, max_section_height)` — lower wins   |
-
-Break sections use a separate code path (`break_height` fixed height) and do
-**not** participate in `_compute_per_section_heights`.
+| Section field | Effective value                                                   |
+|---------------|-------------------------------------------------------------------|
+| `min_height`  | `max(min_height, min_section_height, label_conflict_floor)` — highest wins |
+| `max_height`  | **Accepted but ignored**; `section-height-conflict` still validates `min_height ≤ max_height` for forward compatibility |
 
 The label-conflict floor (`30 + font_size` px) is derived automatically from
 the section geometry — it is not a user-visible theme property.
+
+Break sections participate in the same stacking pass as non-break sections;
+they are assigned a fixed `break_height` instead of the derived floor.
 
 ### Section geometry assignment
 
@@ -328,24 +332,40 @@ It remains active as a correctness backstop.
 
 **Location:** `_estimate_area_height()` in `scripts/mmpviz.py`
 
-A lightweight estimate used by `_auto_layout()` and `rebalance_columns()` for
-column height decisions and initial size assignment.  Does not run the full
-section-height algorithm.
+Used by `_auto_layout()` and `rebalance_columns()` for column placement and
+initial size assignment.  Produces the **exact** rendered view height by
+mirroring `AreaView._process()` — including the label-conflict floor and the
+grows-arrow neighbor constraint — so no post-layout canvas expansion is
+needed to absorb a discrepancy.
 
 ```python
-for each visible section s:
-    floor = max(global_min_h, s.min_height or 0)
-    visible_floor_sum += floor
+# Pass 1 — per-section floor
+sorted_secs = sorted(visible_sections, key=lambda s: s.address + s.size, reverse=True)
+floors = []
+for s in sorted_secs:
+    if s.is_break():
+        floors.append(break_height)
+    else:
+        floors.append(max(
+            user_min_h,
+            s.min_height or 0,
+            section_label_min_h(s, font_size, size_x),
+            1.0,
+        ))
 
-estimated = visible_floor_sum
-          + n_breaks  * (break_height + 4)
-          + 20                          # top/bottom padding
-return max(200.0, estimated)
+# Pass 2 — grows-arrow neighbor constraint
+arrow_neighbor_floor = 2 × 20 × growth_arrow_size + font_size
+for i, s in enumerate(sorted_secs):
+    if s.is_grow_up()   and i > 0                      and not sorted_secs[i-1].is_break():
+        floors[i-1] = max(floors[i-1], arrow_neighbor_floor)
+    if s.is_grow_down() and i < len(sorted_secs) - 1   and not sorted_secs[i+1].is_break():
+        floors[i+1] = max(floors[i+1], arrow_neighbor_floor)
+
+return sum(floors)
 ```
 
-Per-section label-conflict inflation (§2) is applied during actual rendering in
-`AreaView._process()` and is not included in the estimate — any resulting
-height increase is absorbed by canvas auto-expansion (§10).
+Because the estimator and the renderer apply the same two passes, the
+pre-layout estimate and the final rendered view height match exactly.
 
 ---
 
@@ -506,24 +526,47 @@ are the columns strictly between `vis_col[A]` and `vis_col[B]`.
 #### Zero-crossing interval (ZCI)
 
 For each non-adjacent link L and each intermediate column C, a crossing-free
-y-range is derived from the adjacent links (direct neighbours in C) whose
-source-section midpoints **bracket** L's source midpoint.
+y-range is derived by computing the **interpolated y** (`y_through`) — where a
+straight-line path from source to destination would cross column C — and
+comparing it against the **destination-band y-positions** of adjacent links
+(direct neighbours in C):
 
 ```
-adjacent = links whose source views are in vis_col[A] and destination
-           views are in column C, sorted by source-section midpoint (ascending)
+y_through = y_src + (y_dst − y_src) × (C − src_col) / (dst_col − src_col)
 
-find the pair (L_lo, L_hi) that brackets L's source midpoint:
-    y_lo = destination-band y of L_lo   (top constraint)
-    y_hi = destination-band y of L_hi   (bottom constraint)
-    ZCI  = [y_lo, y_hi]
+adjacent = links whose source is in column C−1 and destination is in column C,
+           sorted by destination-band y (ascending)
 ```
+
+ZCI bracket is determined by which pair of adjacent destination Ys bracket `y_through`:
+
+| Bracket | Condition | ZCI |
+|---------|-----------|-----|
+| **A** | `y_through ≤ adj[0].dst_y` | `(−∞, adj[0].dst_y)` |
+| **B** | `adj[k].dst_y ≤ y_through ≤ adj[k+1].dst_y` | `[adj[k].dst_y, adj[k+1].dst_y]` |
+| **C** | `y_through ≥ adj[-1].dst_y` | `(adj[-1].dst_y, +∞)` |
+| (none) | no adjacent links | `(−∞, +∞)` unconstrained |
 
 Placing the bridge within ZCI guarantees zero additional link-band crossings
 with the adjacent connectors.
 
-If no adjacent links exist for column C, the full column height is used as
-the ZCI (unconstrained).
+#### Gap expansion pre-pass
+
+Before `plan_routing_lanes` runs, `mmpviz.py` widens inter-panel gaps in columns
+that need to host N ≥ 2 routing lanes simultaneously.  The minimum required gap is:
+
+```
+minimum_gap = N × lane_pitch    (lane_pitch = lane_height + 2 × lane_padding = 30 px)
+```
+
+This is exact: the feasible centre range within a gap of height G is
+`[gap_top + lane_pitch/2, gap_bot − lane_pitch/2]`, spanning `G − lane_pitch`.
+For N lane centres at `lane_pitch` spacing the required span is `(N−1) × lane_pitch`, so
+`G − lane_pitch ≥ (N−1) × lane_pitch` → `G ≥ N × lane_pitch`.
+
+Each view below the widened gap shifts down by the extra pixels; views above are
+unaffected.  Single-lane columns (N = 1) always fit in the initial PADDING = 50 px
+gap and are not expanded.
 
 #### Gap selection
 
@@ -570,6 +613,19 @@ gap overlapping this half-open interval is the trailing gap; `_col_gaps` always
 provides it, so the lane is placed just below the last view in the column.
 Without the trailing gap entry this case silently fell back to `lane_y = ZCI_mid`,
 which placed the bridge through the middle of an existing view.
+
+#### Collision avoidance
+
+After the initial candidate y is clamped to `[y_lo, y_hi]` and to the ZCI, already-placed
+lanes in the same gap are avoided via a two-phase sweep:
+
+1. **Upward sweep** (default): push the candidate up past any blocking lane one at a time
+   (ascending order); if this exceeds `y_hi` the candidate is discarded for this gap.
+2. **Downward sweep** (fallback): if the upward sweep failed (e.g. `y_ideal > y_hi` and
+   lanes are packed near the top), retry with a downward sweep from the initial clamped
+   position.
+
+A final collision check catches any residual overlap before accepting the candidate.
 
 #### Lane dictionary
 
@@ -667,39 +723,25 @@ distant neighbour it doesn't physically connect to.
 #### Routing-lane desired offsets
 
 For each non-adjacent link L with source in column `efc` and destination in
-column `etc`, the algorithm pre-computes the routing lane y that
-`plan_routing_lanes()` will assign in the **first** skipped gap
-`(efc, efc+1)`, then records it as a desired offset for column `efc`:
+column `etc`, the algorithm computes the desired routing-lane y in gap
+`(efc, efc+1)` using the **nearest inter-view gap midpoint** in column `efc+1`:
 
 ```
-desired_δ = y_ideal_of_first_lane − L.source_y
+y_through = y_src + (y_dst − y_src) / (etc − efc)   # interpolated at gap efc+1
+y_ideal   = _best_gap_midpoint(efc+1, y_through)     # midpoint of nearest gap in col efc+1
+
+desired_δ = y_ideal − L.source_y
 ```
 
-The lane y is bracket-aware, mirroring `plan_routing_lanes()`' ZCI logic
-(§7.3):
+`_best_gap_midpoint(c, y_ref)` returns the midpoint of the inter-view gap in
+column `c` whose centre is closest to `y_ref`.  Using the gap midpoint instead
+of `y_through` makes the desire position-independent: at `vertical_align_columns`
+time the non-anchor destination views have not yet been shifted, so `y_through`
+computed from their raw top-aligned positions is unreliable.  The gap midpoint is
+derived from the column's structural layout and is stable regardless of offset.
 
-| Bracket | `y_ideal` for lane |
-|---------|----|
-| **A** (source above first adj dest) | `adj[0].dst_y − 2 × lane_height − rank × lane_step` |
-| **C** (source below all adj dests)  | `col_bottom_of_{efc+1} + lane_height/2 + lane_padding + rank × lane_step` |
-| **B/D** (bracketed)                 | linear interpolation between bracketing adjacent destinations |
-
-`lane_step = lane_height + lane_padding = 25 px` — the same rank spacing used
-inside `plan_routing_lanes()` so the lane y pre-estimate lines up with the
-actual lane that will be drawn.
-
-**Bracket-C hosting desires.** Bracket-C lanes land in the trailing gap
-**below** the last view in column `efc+1`.  That column's y-offset therefore
-controls where its bottom edge ends up, which in turn controls where the
-lane lands.  The algorithm records a second desired offset keyed by the
-*host* column `gap_fc1 = efc+1`:
-
-```
-desired_δ_host(efc+1) = (L.source_y + offsets[efc]) − lane_y_at_zero(efc+1)
-```
-
-This keeps the host column close enough that its trailing lane stays near
-the source section, instead of drifting far below.
+Phase 2c likewise uses `_best_gap_midpoint` for the final-gap estimate when
+pulling destination-only columns toward the already-placed source side.
 
 #### Cascade for multi-hop links
 
@@ -1037,10 +1079,8 @@ decisions, and superseded approaches have been removed.
 
 | Topic | Current state | Notes |
 |-------|---------------|-------|
-| **View height computation** | `_estimate_area_height()`: sums per-section `max(global_min_h, section.min_height)` + break budget; returns `max(200.0, estimated)` | Estimate still under-counts label-conflict inflation; canvas over-expansion absorbs the difference. Replace with exact per-section computation using the Phase 1 algorithm. |
-| **Minimum view height** | `max(200.0, estimated)` — hardcoded 200 px floor | Replace with principled formula: `max(H_view, 3 × min_h)`. |
 | **Box width from label length** | Fixed `MAX_COL_WIDTH = 230 px` | Long section names clip silently; compute during height pre-pass using `max(120, longest_name × font × 0.55)`. |
-| **Address clearance + inter-column gap** | Implemented: `_col_gap()` computes gap per column from actual address width and font size | 32-bit columns: 126 px at default 13 pt; 64-bit columns: 188 px. |
+| **`max_height` / `max_section_height`** | Accepted but ignored in the floor-stack model; `section-height-conflict` still validates `min_height ≤ max_height` for forward compat | Either re-enable as a true ceiling (requires redistribution logic) or remove the fields from the schema and drop the check. |
 
 ---
 

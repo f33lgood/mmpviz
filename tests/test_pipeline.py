@@ -253,6 +253,33 @@ def _link_clean_diagram():
     }
 
 
+def _link_cross_address_space_diagram():
+    """A cross-address-space link where 'to.sections' spans the destination
+    view but the source address range lies entirely outside it. Omitting
+    'to.sections' would cause the renderer to clamp from_range to the
+    destination view, yielding an out-of-bounds anchor — so the spec is
+    NOT redundant and link-redundant-sections must NOT fire."""
+    return {
+        "views": [
+            {"id": "gio1", "sections": [
+                {"id": "gio1_a", "address": "0x1000000000",
+                 "size": "0x800000", "name": "GIO1-A"},
+                {"id": "gio1_b", "address": "0x1000800000",
+                 "size": "0x800000", "name": "GIO1-B"}]},
+            {"id": "fabric", "sections": [
+                {"id": "fab_lo", "address": "0x0",
+                 "size": "0x8000", "name": "FabricLo"},
+                {"id": "fab_hi", "address": "0x8000",
+                 "size": "0x8000", "name": "FabricHi"}]},
+        ],
+        "links": [
+            {"id": "gio1-to-fabric",
+             "from": {"view": "gio1",   "sections": ["gio1_a"]},
+             "to":   {"view": "fabric", "sections": ["fab_lo", "fab_hi"]}}
+        ]
+    }
+
+
 def _link_addr_range_not_mappable_diagram():
     """A link whose to.sections address range does not align with any defined
     section boundaries (e.g. virtual→physical mapping).  Legitimate use of
@@ -270,6 +297,61 @@ def _link_addr_range_not_mappable_diagram():
              "from": {"view": "overview", "sections": ["flash"]},
              "to":   {"view": "detail",
                       "sections": ["0x08004000", "0x0800C000"]}}  # spans neither Code nor Data cleanly
+        ]
+    }
+
+
+def _label_out_of_range_diagram():
+    """A label whose address (0x00000000) falls below the view's start
+    address (0x08000000) — the label will never be rendered → WARN."""
+    return {
+        "views": [{
+            "id": "test-view",
+            "sections": [
+                {"id": "flash", "address": "0x08000000", "size": "0x20000", "name": "Flash"}
+            ],
+            "labels": [
+                {"id": "stale", "address": "0x00000000", "text": "Stale",
+                 "length": 30, "side": "right"}
+            ]
+        }]
+    }
+
+
+def _link_inverted_range_diagram():
+    """A link whose from.sections address range has lo > hi (inverted) →
+    link-address-range-order ERROR."""
+    return {
+        "views": [
+            {"id": "overview", "sections": [
+                {"id": "flash", "address": "0x08000000", "size": "0x20000",
+                 "name": "Flash"}]},
+            {"id": "detail", "sections": [
+                {"id": "code", "address": "0x08000000", "size": "0x20000",
+                 "name": "Code"}]},
+        ],
+        "links": [
+            {"id": "bad-range",
+             "from": {"view": "overview",
+                      "sections": ["0x08020000", "0x08000000"]},  # inverted: lo > hi
+             "to": {"view": "detail"}}
+        ]
+    }
+
+
+def _link_self_diagram():
+    """A link whose from.view and to.view are the same view →
+    link-self-referential WARN."""
+    return {
+        "views": [
+            {"id": "overview", "sections": [
+                {"id": "flash", "address": "0x08000000", "size": "0x20000",
+                 "name": "Flash"}]},
+        ],
+        "links": [
+            {"id": "self-link",
+             "from": {"view": "overview"},
+             "to":   {"view": "overview"}}
         ]
     }
 
@@ -393,18 +475,24 @@ class TestRunChecksLevels(unittest.TestCase):
             "visible-vs-visible must not emit break-overlaps-section",
         )
 
-    def test_break_vs_break_overlap_no_issue(self):
-        """Break-vs-break overlap is an allowed pattern (chained reserved
-        ranges) and must not fire either overlap rule."""
+    def test_break_vs_break_overlap_is_warn(self):
+        """Break-vs-break overlap is now flagged as section-overlap WARN
+        (overlapping breaks are redundant).  break-overlaps-section must
+        NOT fire — that rule is reserved for break eating a visible section."""
         from check import run_checks, ALL_RULES
         diagram = _breaks_only_overlap_diagram()
         area_views = self._build_area_views(diagram)
         issues = run_checks(diagram, area_views, ALL_RULES)
-        overlap_hits = [i for i in issues
-                        if i.rule in ('section-overlap', 'break-overlaps-section')]
-        self.assertEqual(
-            overlap_hits, [],
-            "Break-vs-break overlap must not fire any overlap rule",
+        overlap_hits = [i for i in issues if i.rule == 'section-overlap']
+        self.assertTrue(
+            overlap_hits,
+            "Break-vs-break overlap must fire section-overlap WARN",
+        )
+        self.assertTrue(all(i.level == 'WARN' for i in overlap_hits))
+        # break-overlaps-section must NOT fire for break-vs-break.
+        self.assertFalse(
+            [i for i in issues if i.rule == 'break-overlaps-section'],
+            "Break-vs-break must not emit break-overlaps-section",
         )
 
     def test_link_address_range_mappable_is_warn(self):
@@ -440,6 +528,20 @@ class TestRunChecksLevels(unittest.TestCase):
             [i for i in issues
              if i.rule in ('link-address-range-mappable', 'link-redundant-sections')],
             "Clean link must not fire link-form warnings",
+        )
+
+    def test_link_redundant_sections_skips_cross_address_space(self):
+        """When 'from' and 'to' live in different address spaces, omitting
+        'to.sections' makes the renderer clamp from_range into the
+        destination view — NOT the whole-view default. The spec is load-
+        bearing, so link-redundant-sections must not fire."""
+        from check import run_checks, ALL_RULES
+        diagram = _link_cross_address_space_diagram()
+        area_views = self._build_area_views(diagram)
+        issues = run_checks(diagram, area_views, ALL_RULES)
+        self.assertFalse(
+            [i for i in issues if i.rule == 'link-redundant-sections'],
+            "Cross-address-space link spec is load-bearing, not redundant",
         )
 
     def test_link_address_range_legitimate_no_warning(self):
@@ -489,6 +591,39 @@ class TestRunChecksLevels(unittest.TestCase):
         self.assertTrue(overlaps, "Expected panel-overlap issue")
         self.assertTrue(all(i.level == 'ERROR' for i in overlaps))
 
+    def test_label_out_of_range_is_warn(self):
+        """A label whose address is outside the view's [Lo, Hi] range must
+        fire label-out-of-range WARN."""
+        from check import run_checks, ALL_RULES
+        diagram = _label_out_of_range_diagram()
+        area_views = self._build_area_views(diagram)
+        issues = run_checks(diagram, area_views, ALL_RULES)
+        hits = [i for i in issues if i.rule == 'label-out-of-range']
+        self.assertTrue(hits, "Expected label-out-of-range issue")
+        self.assertTrue(all(i.level == 'WARN' for i in hits))
+
+    def test_link_address_range_order_is_error(self):
+        """A link address range with lo > hi must fire link-address-range-order
+        ERROR."""
+        from check import run_checks, ALL_RULES
+        diagram = _link_inverted_range_diagram()
+        area_views = self._build_area_views(diagram)
+        issues = run_checks(diagram, area_views, ALL_RULES)
+        hits = [i for i in issues if i.rule == 'link-address-range-order']
+        self.assertTrue(hits, "Expected link-address-range-order issue")
+        self.assertTrue(all(i.level == 'ERROR' for i in hits))
+
+    def test_link_self_referential_is_warn(self):
+        """A link whose from.view == to.view must fire link-self-referential
+        WARN."""
+        from check import run_checks, ALL_RULES
+        diagram = _link_self_diagram()
+        area_views = self._build_area_views(diagram)
+        issues = run_checks(diagram, area_views, ALL_RULES)
+        hits = [i for i in issues if i.rule == 'link-self-referential']
+        self.assertTrue(hits, "Expected link-self-referential issue")
+        self.assertTrue(all(i.level == 'WARN' for i in hits))
+
 
 # ---------------------------------------------------------------------------
 # Unit tests: uncovered-gap (chained breaks + partial break)
@@ -526,8 +661,8 @@ class TestUncoveredGap(unittest.TestCase):
         gaps = [i for i in issues if i.rule == 'uncovered-gap']
         self.assertTrue(gaps, "Partial break coverage should still fire uncovered-gap")
         self.assertTrue(all(i.level == 'WARN' for i in gaps))
-        # Message should mention partial coverage, not the old single-break phrasing.
-        self.assertTrue(any('partially cover' in i.message for i in gaps))
+        # Message must mention the uncovered address range.
+        self.assertTrue(any('has no section defined' in i.message for i in gaps))
 
 
 # ---------------------------------------------------------------------------
@@ -703,6 +838,257 @@ class TestCLIPipeline(unittest.TestCase):
             rc, out = self._run('-d', diag_path)
             self.assertNotEqual(rc, 0)
             self.assertIn('Error', out)
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: min-height-below-global and min-height-violated label floor
+# ---------------------------------------------------------------------------
+
+class TestMinHeightChecks(unittest.TestCase):
+    """Tests for _check_min_height_below_global and the label-floor extension
+    of _check_min_height_violated."""
+
+    def setUp(self):
+        import sys, os
+        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'scripts')))
+        from check import (
+            _check_min_height_below_global,
+            _check_min_height_violated,
+            run_checks,
+            ALL_RULES,
+        )
+        from section import Section
+        self._check_min_height_below_global = _check_min_height_below_global
+        self._check_min_height_violated = _check_min_height_violated
+        self.run_checks = run_checks
+        self.ALL_RULES = ALL_RULES
+        self.Section = Section
+
+    # -- helpers --
+
+    def _make_sub(self, font_size=12, min_section_height=None, size_x=200.0):
+        """Minimal sub-area stub with only the attributes the check functions use."""
+        import types
+        sub = types.SimpleNamespace()
+        style = {'font_size': font_size}
+        if min_section_height is not None:
+            style['min_section_height'] = min_section_height
+        sub.style = style
+        sub.size_x = size_x
+        return sub
+
+    def _make_section(self, min_height=None, name='s', size=0x1000, address=0x0):
+        s = self.Section(size=size, address=address, id=name, name=name,
+                         min_height=min_height)
+        s.size_y = 0  # will be overridden per test
+        return s
+
+    # -- min-height-below-global --
+
+    def test_min_height_below_global_fires(self):
+        sub = self._make_sub(min_section_height=40)
+        sec = self._make_section(min_height=10)
+        issues = self._check_min_height_below_global('v', sec, sub)
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0].rule, 'min-height-below-global')
+        self.assertEqual(issues[0].level, 'WARN')
+
+    def test_min_height_below_global_no_fire_when_equal(self):
+        sub = self._make_sub(min_section_height=40)
+        sec = self._make_section(min_height=40)
+        issues = self._check_min_height_below_global('v', sec, sub)
+        self.assertEqual(issues, [])
+
+    def test_min_height_below_global_no_fire_when_above(self):
+        sub = self._make_sub(min_section_height=40)
+        sec = self._make_section(min_height=60)
+        issues = self._check_min_height_below_global('v', sec, sub)
+        self.assertEqual(issues, [])
+
+    def test_min_height_below_global_no_fire_when_no_per_section(self):
+        sub = self._make_sub(min_section_height=40)
+        sec = self._make_section(min_height=None)
+        issues = self._check_min_height_below_global('v', sec, sub)
+        self.assertEqual(issues, [])
+
+    def test_min_height_below_global_no_fire_when_no_global(self):
+        sub = self._make_sub(min_section_height=None)
+        sec = self._make_section(min_height=10)
+        issues = self._check_min_height_below_global('v', sec, sub)
+        self.assertEqual(issues, [])
+
+    def test_min_height_below_global_skips_break(self):
+        from section import Section
+        brk = Section(size=0x100, address=0x0, id='brk', flags=['break'],
+                      min_height=5)
+        sub = self._make_sub(min_section_height=40)
+        issues = self._check_min_height_below_global('v', brk, sub)
+        self.assertEqual(issues, [])
+
+    def test_min_height_below_global_in_all_rules(self):
+        self.assertIn('min-height-below-global', self.ALL_RULES)
+
+    # -- min-height-violated: label-floor included --
+
+    def test_min_height_violated_fires_on_label_floor(self):
+        """Section height below 30+font_size triggers violation even when
+        no global or per-section min_height is configured."""
+        # font_size=12 → label floor = 42 px when labels conflict.
+        # Use a wide name on a narrow panel so labels conflict.
+        # size_x=200, name='long_section_name_here' (22 chars):
+        #   size_label_right = 2 + 5*0.6*12 = 38
+        #   name_left = 100 - 22*0.6*12/2 = 100 - 79.2 = 20.8 → conflict → floor=42
+        sub = self._make_sub(font_size=12, min_section_height=None, size_x=200.0)
+        sec = self._make_section(min_height=None, name='long_section_name_here',
+                                 size=0x1000)
+        sec.size_y = 30.0  # below label floor of 42 px
+        issues = self._check_min_height_violated('v', sec, sub)
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0].rule, 'min-height-violated')
+
+    def test_min_height_violated_no_fire_above_label_floor(self):
+        """Section height above the label floor must not fire the check."""
+        sub = self._make_sub(font_size=12, min_section_height=None, size_x=200.0)
+        sec = self._make_section(min_height=None, name='long_section_name_here',
+                                 size=0x1000)
+        sec.size_y = 50.0  # above label floor of 42 px
+        issues = self._check_min_height_violated('v', sec, sub)
+        self.assertEqual(issues, [])
+
+    def test_min_height_violated_no_fire_when_no_conflict(self):
+        """Short name with no label conflict and no configured floor must not fire."""
+        sub = self._make_sub(font_size=12, min_section_height=None, size_x=200.0)
+        sec = self._make_section(min_height=None, name='Hi', size=0x1000)
+        sec.size_y = 5.0
+        issues = self._check_min_height_violated('v', sec, sub)
+        self.assertEqual(issues, [])
+
+    # -- min-height-on-break --
+
+    def test_min_height_on_break_fires(self):
+        from check import _check_min_height_on_break
+        sub = self._make_sub(font_size=12)
+        sub.style['break_height'] = 20
+        brk = self.Section(size=0x100, address=0x0, id='gap', flags=['break'],
+                           min_height=40)
+        issues = _check_min_height_on_break('v', brk, sub)
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0].rule, 'min-height-on-break')
+        self.assertEqual(issues[0].level, 'WARN')
+
+    def test_min_height_on_break_no_fire_without_min_height(self):
+        from check import _check_min_height_on_break
+        sub = self._make_sub()
+        brk = self.Section(size=0x100, address=0x0, id='gap', flags=['break'])
+        issues = _check_min_height_on_break('v', brk, sub)
+        self.assertEqual(issues, [])
+
+    def test_min_height_on_break_no_fire_for_non_break(self):
+        from check import _check_min_height_on_break
+        sub = self._make_sub()
+        sec = self._make_section(min_height=40)
+        issues = _check_min_height_on_break('v', sec, sub)
+        self.assertEqual(issues, [])
+
+    def test_min_height_on_break_message_includes_break_height(self):
+        from check import _check_min_height_on_break
+        sub = self._make_sub()
+        sub.style['break_height'] = 20
+        brk = self.Section(size=0x100, address=0x0, id='gap', flags=['break'],
+                           min_height=50)
+        issues = _check_min_height_on_break('v', brk, sub)
+        self.assertIn('break_height=20', issues[0].message)
+
+    def test_min_height_on_break_in_all_rules(self):
+        self.assertIn('min-height-on-break', self.ALL_RULES)
+
+    def test_min_height_violated_message_includes_label_floor(self):
+        """Issue message reports the label floor so the user knows why it fired."""
+        sub = self._make_sub(font_size=12, min_section_height=None, size_x=200.0)
+        sec = self._make_section(min_height=None, name='long_section_name_here',
+                                 size=0x1000)
+        sec.size_y = 10.0
+        issues = self._check_min_height_violated('v', sec, sub)
+        self.assertTrue(issues)
+        self.assertIn('label floor', issues[0].message)
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: section-name-overflow
+# ---------------------------------------------------------------------------
+
+class TestSectionNameOverflow(unittest.TestCase):
+    """Tests for _check_section_name_overflow."""
+
+    def setUp(self):
+        import sys, os
+        sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'scripts')))
+        from check import _check_section_name_overflow, ALL_RULES
+        from section import Section
+        self._check = _check_section_name_overflow
+        self.ALL_RULES = ALL_RULES
+        self.Section = Section
+
+    def _make_sub(self, font_size=12, size_x=230.0):
+        import types
+        sub = types.SimpleNamespace()
+        sub.style = {'font_size': font_size}
+        sub.size_x = size_x
+        return sub
+
+    def _make_section(self, name, size=0x1000, address=0x0, flags=None):
+        s = self.Section(size=size, address=address, id=name, name=name,
+                         flags=flags or [])
+        s.size_y = 42
+        return s
+
+    def test_fires_when_name_too_wide(self):
+        # 40 chars × 0.6 × 12 = 288 px > 230 - 8 = 222 px
+        sub = self._make_sub(font_size=12, size_x=230.0)
+        sec = self._make_section('a' * 40)
+        issues = self._check('v', sec, sub)
+        self.assertEqual(len(issues), 1)
+        self.assertEqual(issues[0].rule, 'section-name-overflow')
+        self.assertEqual(issues[0].level, 'WARN')
+
+    def test_no_fire_when_name_fits(self):
+        # 10 chars × 0.6 × 12 = 72 px < 222 px
+        sub = self._make_sub(font_size=12, size_x=230.0)
+        sec = self._make_section('Short Name')
+        issues = self._check('v', sec, sub)
+        self.assertEqual(issues, [])
+
+    def test_no_fire_at_exact_limit(self):
+        # max_width = 230 - 8 = 222; chars = floor(222 / (0.6*12)) = floor(30.8) = 30
+        # 30 chars × 7.2 = 216 px ≤ 222 px
+        sub = self._make_sub(font_size=12, size_x=230.0)
+        sec = self._make_section('a' * 30)
+        issues = self._check('v', sec, sub)
+        self.assertEqual(issues, [])
+
+    def test_skips_break_section(self):
+        sub = self._make_sub(font_size=12, size_x=230.0)
+        brk = self._make_section('a' * 40, flags=['break'])
+        issues = self._check('v', brk, sub)
+        self.assertEqual(issues, [])
+
+    def test_uses_font_size_from_style(self):
+        # font_size=20: max_width=222 px; overflow at ceil(222/(0.6*20))+1 = 19 chars
+        # 19 chars × 0.6 × 20 = 228 px > 222 px → fires
+        sub = self._make_sub(font_size=20, size_x=230.0)
+        sec = self._make_section('a' * 19)
+        issues = self._check('v', sec, sub)
+        self.assertEqual(len(issues), 1)
+
+    def test_message_includes_char_count_and_panel_width(self):
+        sub = self._make_sub(font_size=12, size_x=230.0)
+        sec = self._make_section('a' * 40)
+        issues = self._check('v', sec, sub)
+        self.assertIn('40 chars', issues[0].message)
+        self.assertIn('230', issues[0].message)
+
+    def test_in_all_rules(self):
+        self.assertIn('section-name-overflow', self.ALL_RULES)
 
 
 if __name__ == '__main__':

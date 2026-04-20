@@ -22,6 +22,53 @@ Writing guide:
 
 ---
 
+## [2026-04-21] (1.1.0)
+
+### Changed
+- **Routing lane ZCI bracket** — crossing-free interval now uses the link's interpolated y (`y_through`) compared against adjacent links' **destination** y-positions; fixes lane placement when source and destination heights differ significantly.
+- **Routing lane collision avoidance** — bidirectional sweep: if upward push exceeds the gap bound, retry with a downward sweep; prevents lanes from collapsing to the same boundary position.
+- **Algo-3/4 inter-panel gap expansion** — minimum gap for N routing lanes is now `N × lane_pitch` (was `N × lane_pitch + PADDING`); the half-lane margins are already baked into the feasible centre range inside `plan_routing_lanes`.
+- **Algo-4 routing-lane desired offset** — uses the nearest inter-view gap midpoint instead of `y_through` from stale initial positions; gap midpoint is position-independent and stable before non-anchor columns are shifted.
+
+---
+
+## [2026-04-20]
+
+### Added
+- **Grows-arrow neighbor auto-raise** — when a section carries `"grows-up"` or `"grows-down"`, the layout engine automatically raises the immediately adjacent non-break neighbor section's floor to `(2 × 20 × growth_arrow.size + font_size)` px so the rendered growth arrow does not overlap the neighbor's text label.  No `min_height` annotation is required on the neighbor.
+- **`min_height` guidance for small drill-down views** — single-section and small (1–3 section) drill-down views now render at the section's label-conflict floor (~20–46 px), which is typically too short for comfortable reading.  Set `"min_height"` on those sections to give the panel a taller floor.  The floor-stack model makes `min_height` the exact rendered height for sections that have no other height driver.
+
+### Changed
+- **Layout model — floor-stack** — each section is assigned its effective floor height (`max(min_section_height, section.min_height, label_conflict_floor)`) and sections are stacked contiguously.  View height equals the sum of all section heights; there is no minimum view height and no frame padding.  Proportional scaling by byte size has been removed; sections that differed only in byte count now render at the same height.
+- **Single area per view** — the subarea model that split views into segments around break sections has been removed.  All sections (including breaks) are rendered in one continuous stack.  Break sections appear at their address-ordered position and receive `break_height` px.
+- **Height estimation** — `_estimate_area_height` now uses the same formula as the layout engine (exact floor sum, no padding, no 200 px minimum), giving an exact result.  No post-layout view growth is needed.
+- **`max_height`** — per-section and global `max_section_height` have no effect in the floor-stack model; every section renders at its floor.  The fields are accepted but ignored.
+- **`min-height-violated` check** — redefined as a layout-engine bug guard; it can no longer be triggered by a valid `diagram.json`.  The fix guidance has been updated accordingly.
+
+---
+
+## [2026-04-19]
+
+### Added
+- **`label-out-of-range` check (WARN)** — fires when a label's `address` is outside the view's address range `[Lo, Hi]`; such labels are silently not rendered.
+- **`link-address-range-order` check (ERROR)** — fires when a link's `from.sections` or `to.sections` address-range form has `lo >= hi`; an inverted or collapsed range produces a crossed or degenerate band.
+- **`link-self-referential` check (WARN)** — fires when a link's `from.view` and `to.view` reference the same view; the resulting band overlaps the panel with degenerate geometry.
+- **`min-height-below-global` check (WARN)** — fires when a per-section `min_height` is set below the global `min_section_height`, undercutting the global floor.
+- **`min-height-on-break` check (WARN)** — fires when a break-flagged section has `min_height` set; the value is silently ignored because breaks always render at `break_height`.
+- **`section-name-overflow` check (WARN)** — fires when a section name's estimated text width exceeds the panel width; the renderer cannot wrap names, so the name must be shortened in `diagram.json`.
+
+### Changed
+- **`section-overlap` check** — now also fires WARN for two break sections with overlapping address ranges (redundant breaks); previously break-vs-break overlap was silently allowed.
+- **`uncovered-gap` check** — rewritten to check full `[Lo, Hi]` coverage using the union of all sections (break and non-break); any hole fires regardless of size. Previously used size-based thresholds that allowed small uncovered holes to pass silently.
+- **Label rendering** — labels placed at exactly the view's end address (`last_section.address + last_section.size`) now render correctly; previously the half-open `[addr, addr+size)` interval check silently dropped them.
+- **`min-height-violated` check** — effective minimum now includes the label-conflict floor (`30 + font_size` px) in addition to global and per-section floors; issue message reports all three components.
+- **No-breaks layout path** — now applies the label-conflict floor (`30 + font_size` px) consistently with the breaks path; previously the floor was only enforced when break sections were present.
+- **`hidden` flag dead code removed** — the `hidden` section flag was removed from the schema in a prior release; all residual `is_hidden()` guards have been deleted from the layout engine, renderer, and checks.
+- **`link-redundant-sections` check** — no longer fires a false positive on cross-address-space links.
+- **Layout crossing fix for address-range `from.sections`** — column ordering and vertical alignment now correctly compute source midpoints for address-range form link endpoints (`["0xLO", "0xHI"]`); previously they fell back to a zero midpoint, causing link bands to cross in diagrams with multiple independent link chains.
+
+---
+
 ## [2026-04-18] (1.0.0)
 
 ### Added

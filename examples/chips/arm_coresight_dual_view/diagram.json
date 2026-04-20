@@ -21,7 +21,7 @@
           "id": "brk_preapb",
           "address": "0x00090000",
           "size": "0x1FF70000",
-          "name": "\u00b7\u00b7\u00b7",
+          "name": "···",
           "flags": [
             "break"
           ]
@@ -39,7 +39,7 @@
           "id": "brk_postapb",
           "address": "0x20110000",
           "size": "0x0BEF0000",
-          "name": "\u00b7\u00b7\u00b7",
+          "name": "···",
           "flags": [
             "break"
           ]
@@ -54,7 +54,7 @@
           "id": "brk_postperiph",
           "address": "0x2C0B0000",
           "size": "0x53F50000",
-          "name": "\u00b7\u00b7\u00b7",
+          "name": "···",
           "flags": [
             "break"
           ]
@@ -63,7 +63,7 @@
           "id": "dram",
           "address": "0x80000000",
           "size": "0x40000000",
-          "name": "DRAM (1 GiB)"
+          "name": "DRAM"
         }
       ]
     },
@@ -87,7 +87,7 @@
           "id": "brk_preapb",
           "address": "0x00090000",
           "size": "0x1FF70000",
-          "name": "\u00b7\u00b7\u00b7",
+          "name": "···",
           "flags": [
             "break"
           ]
@@ -102,7 +102,7 @@
           "id": "brk_postapb",
           "address": "0x20110000",
           "size": "0x0BEF0000",
-          "name": "\u00b7\u00b7\u00b7",
+          "name": "···",
           "flags": [
             "break"
           ]
@@ -117,7 +117,7 @@
           "id": "brk_postperiph",
           "address": "0x2C0B0000",
           "size": "0x53F50000",
-          "name": "\u00b7\u00b7\u00b7",
+          "name": "···",
           "flags": [
             "break"
           ]
@@ -126,7 +126,7 @@
           "id": "dram",
           "address": "0x80000000",
           "size": "0x40000000",
-          "name": "DRAM (1 GiB)"
+          "name": "DRAM"
         }
       ]
     },
@@ -138,13 +138,16 @@
           "id": "gic_dist",
           "address": "0x2C000000",
           "size": "0x00010000",
-          "name": "GIC-600 Distributor"
+          "name": "GIC-600 Distributor",
+          "min_height": 43
         },
         {
           "id": "gic_rdist",
           "address": "0x2C010000",
           "size": "0x00040000",
-          "name": "GIC-600 Redistributors"
+          "name": "GIC-600 Redistributors",
+          "min_height": 43,
+          "max_height": 50
         },
         {
           "id": "systimer",
@@ -270,7 +273,8 @@
           "id": "ctm",
           "address": "0x200D0000",
           "size": "0x00010000",
-          "name": "Cross Trigger Matrix"
+          "name": "Cross Trigger Matrix",
+          "min_height": 43
         },
         {
           "id": "stm",

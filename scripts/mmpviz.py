@@ -19,12 +19,11 @@ import math
 import os
 import sys
 
-from area_view import AreaView
+from area_view import AreaView, section_label_min_h
 from auto_layout import (build_link_graph_from_links, assign_columns,
                          sort_by_dag_tree, order_within_column,
                          rebalance_columns, plan_routing_lanes,
                          vertical_align_columns)
-from helpers import safe_element_list_get, safe_element_dict_get, DefaultAppValues
 from links import Links
 from fmt_diagram import format_diagram
 from loader import load, validate, parse_int, resolve_view_sections
@@ -284,7 +283,7 @@ def _auto_canvas_size(area_views: list,
         fs = float(av.style.get('font_size', 12))
         for sub in av.get_split_area_views():
             for s in sub.sections.get_sections():
-                if s.is_hidden() or s.is_break() or s.size == 0:
+                if s.is_break() or s.size == 0:
                     continue
                 if s.address > _ADDR_64BIT_THRESHOLD:
                     needed = round(
@@ -300,44 +299,55 @@ def _auto_canvas_size(area_views: list,
     return (W, H, left_overflow, 0)
 
 
-def _apply_area_section_flags(sections: list, area_config: dict) -> list:
+def _estimate_area_height(sections: list, style: dict, size_x: float = 230.0,
+                           growth_arrow_size: float = 1.0) -> float:
     """
-    No-op in the new schema: flags are already applied during section
-    resolution in resolve_view_sections().  Kept for API compatibility.
-    """
-    return sections
+    Compute the exact pixel height for a view from its section list.
 
+    Uses the same two-pass formula as AreaView._process():
+      Pass 1 — per-section floor:
+        non-break: max(global_min_section_height, section.min_height, label_conflict_floor)
+        break:     break_height
+      Pass 2 — grows-arrow neighbor constraint:
+        For each grows-up/down section, raise the adjacent non-break neighbor's floor
+        to (20 * growth_arrow_size + font_size) px.
 
-def _estimate_area_height(sections: list, style: dict) -> float:
-    """
-    Estimate a suitable pixel height for an area from its section list.
-
-    Uses the theme's min_section_height (default 40) as the per-section budget
-    (min_h already includes label space per the proposal), then adds space for
-    break sections and internal padding.
-
-    Sections are expected to already have the correct flags applied (breaks /
-    hidden) so no additional flag processing is done here.
+    The label-conflict floor (30 + font_size) applies when the size label and
+    name label would overlap horizontally — geometry-dependent, typically 0 for
+    wide views.
     """
     user_min_h = float(style.get('min_section_height', 0))
+    font_size = float(style.get('font_size', 12))
     break_height = float(style.get('break_height', 20))
-    top_bottom_pad = 20.0  # area-internal padding
 
-    n_breaks = sum(1 for s in sections if s.is_break())
+    # Sort high-address-first, mirroring _process().
+    sorted_secs = sorted([s for s in sections if s.size > 0],
+                         key=lambda s: s.address + s.size, reverse=True)
 
-    # Sum per-section floors: each visible section contributes at least
-    # max(global_min_h, section.min_height).  Per-section label-conflict
-    # inflation is applied during actual rendering in AreaView._process();
-    # the estimate only needs to be in the right ballpark.
-    visible_floor_sum = sum(
-        max(user_min_h, s.min_height if s.min_height is not None else 0.0)
-        for s in sections
-        if not s.is_hidden() and not s.is_break() and s.size > 0
-    )
-    estimated = (visible_floor_sum
-                 + n_breaks * (break_height + 4)
-                 + top_bottom_pad)
-    return max(200.0, estimated)
+    # Pass 1: per-section floor.
+    floors = []
+    for s in sorted_secs:
+        if s.is_break():
+            floors.append(break_height)
+        else:
+            floors.append(max(
+                user_min_h,
+                s.min_height if s.min_height is not None else 0.0,
+                section_label_min_h(s, font_size, size_x),
+                1.0,
+            ))
+
+    # Pass 2: grows-arrow neighbor constraint.
+    arrow_neighbor_floor = 2.0 * 20.0 * growth_arrow_size + font_size
+    for i, s in enumerate(sorted_secs):
+        if s.is_break():
+            continue
+        if s.is_grow_up() and i > 0 and not sorted_secs[i - 1].is_break():
+            floors[i - 1] = max(floors[i - 1], arrow_neighbor_floor)
+        if s.is_grow_down() and i < len(sorted_secs) - 1 and not sorted_secs[i + 1].is_break():
+            floors[i + 1] = max(floors[i + 1], arrow_neighbor_floor)
+
+    return sum(floors)
 
 
 def get_area_views(base_style: dict, diagram: dict, theme: Theme,
@@ -364,12 +374,15 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
         logger.warning("No views configured in diagram.json — nothing to render.")
         return []
 
-    # Warn about deprecated fields but do not abort — they are silently ignored.
+    growth_arrow_size = float(theme.resolve_growth_arrow().get('size', 1.0))
+
+    # Warn about deprecated fields and strip them so auto-layout is never bypassed.
     if 'size' in diagram:
         logger.warning(
             "diagram.json: top-level 'size' is deprecated and ignored — "
             "canvas dimensions are computed automatically"
         )
+    stripped = []
     for cfg in area_configurations:
         vid = cfg.get('id', '?')
         if 'pos' in cfg:
@@ -382,6 +395,10 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
                 f"view '{vid}': 'size' is deprecated and ignored — "
                 "dimensions are controlled by auto-layout"
             )
+        if 'pos' in cfg or 'size' in cfg:
+            cfg = {k: v for k, v in cfg.items() if k not in ('pos', 'size')}
+        stripped.append(cfg)
+    area_configurations = stripped
 
     # --- Link-graph column assignment ---
     view_ids = [c['id'] for c in area_configurations if 'id' in c]
@@ -398,7 +415,10 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
         vid = area_config.get('id', '')
         area_style = theme.resolve(vid)
         view_sections = copy.deepcopy(resolve_view_sections(area_config))
-        area_heights[vid] = _estimate_area_height(view_sections, area_style)
+        size_x = float((area_config.get('size') or [230.0, 0])[0])
+        area_heights[vid] = _estimate_area_height(view_sections, area_style,
+                                                   size_x=size_x,
+                                                   growth_arrow_size=growth_arrow_size)
         area_font_sizes[vid] = float(area_style.get('font_size', 12))
 
     # --- DAG-tree ordering: sort each column by (parent position, -source addr) ---
@@ -452,9 +472,10 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
                 style=theme.resolve(vid),
                 area_config=area_config,
                 theme=theme,
+                growth_arrow_size=growth_arrow_size,
             ))
 
-        col_order = order_within_column(graph, columns, area_views_for_order,
+        col_order = order_within_column(columns, area_views_for_order,
                                         link_entries=links.entries)
 
         # Group configs by x-position (same x = same visual bin)
@@ -482,7 +503,7 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
     # --- Expand inter-panel gaps for columns with multiple routing lanes ---
     # When N non-adjacent links must pass routing lanes through a column that
     # has stacked panels, the gap between those panels must be wide enough to
-    # hold all N lanes.  Required gap = N*lane_pitch + PADDING (breathing room).
+    # hold all N lanes.  Required gap = (N+1)*lane_pitch (tight minimum).
     # Applied for algo3 and above so every routing-lane layout benefits.
     if layout_algo in ('algo3', 'algo4') \
             and links is not None and links.entries:
@@ -497,7 +518,7 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
         for _c, _n in _lane_counts.items():
             if _n < 2:
                 continue
-            _required_gap = _n * _LANE_PITCH + PADDING   # e.g. 3*30+50 = 140 px
+            _required_gap = _n * _LANE_PITCH   # tight min: N centers × pitch (margins baked into y_lo/y_hi)
             _col_cfgs = sorted(
                 [cfg for cfg in area_configurations
                  if columns.get(cfg.get('id', '')) == _c],
@@ -532,6 +553,7 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
             style=area_style,
             area_config=area_config,
             theme=theme,
+            growth_arrow_size=growth_arrow_size,
         ))
 
     # --- Algo-4: vertical column alignment to minimise link length ---
@@ -561,6 +583,7 @@ def get_area_views(base_style: dict, diagram: dict, theme: Theme,
                     style=theme.resolve(view_id),
                     area_config=area_config,
                     theme=theme,
+                    growth_arrow_size=growth_arrow_size,
                 ))
 
     # --- Algo-3/4: plan routing lanes for non-adjacent links ---
