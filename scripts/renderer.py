@@ -157,7 +157,7 @@ class MapRenderer:
             font_weight='normal',
             font_family=_s(style, 'font_family', 'Helvetica'),
             text_anchor=anchor,
-            alignment_baseline=baseline,
+            dominant_baseline=baseline,
         )
 
     def _make_title(self, area_view) -> ET.Element:
