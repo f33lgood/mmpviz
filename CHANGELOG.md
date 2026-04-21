@@ -22,6 +22,13 @@ Writing guide:
 
 ---
 
+## [2026-04-21] (1.1.1)
+
+### Changed
+- **Text baseline attribute** — `<text>` elements now emit `dominant-baseline` instead of `alignment-baseline`. Browsers rendered both correctly, but librsvg (`rsvg-convert`) and Inkscape silently ignore `alignment-baseline` on `<text>`, so PNG conversions of the output SVG had labels shifted off their intended positions. `dominant-baseline` is the spec-compliant attribute for `<text>` and is honored by every major renderer.
+
+---
+
 ## [2026-04-21] (1.1.0)
 
 ### Changed

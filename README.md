@@ -130,6 +130,8 @@ cd mmpviz
 python scripts/mmpviz.py -d examples/chips/stm32f103/diagram.json -o stm32.svg
 ```
 
+> **Raster output:** mmpviz emits SVG. If you need PNG/JPG, use any SVG converter you like (`rsvg-convert`, `inkscape` etc). Render at 2–3× zoom (or ≥192 DPI) for crisp text, and set a white background when exporting to JPG since JPG has no alpha channel.
+
 ---
 
 ## 📚 Reference Documentation
