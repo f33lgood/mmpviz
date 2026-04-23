@@ -10,6 +10,7 @@ Returns a list of diagnostic strings.  An empty list means the file is valid.
 import json
 import re
 
+from logger import logger
 from section import Section
 
 _ID_RE = re.compile(r'^[a-z0-9_-]+$')
@@ -19,7 +20,23 @@ _SECTION_FLAG_ENUM = {"break", "grows-up", "grows-down"}
 _LABEL_SIDE_ENUM = {"left", "right"}
 _LABEL_DIR_ENUM = {"in", "out"}
 
-_ALLOWED_DIAGRAM_KEYS = frozenset(("_comment", "title", "views", "links"))
+# Diagram schema generation. Bump when a breaking semantic change lands in the
+# diagram format (new required key, changed key meaning, etc.). Reader policy
+# mirrors theme.py's SUPPORTED_SCHEMA_VERSION exactly:
+#
+#   absent  → treat as legacy; assume this version's semantics (full back-compat
+#             with 1.1.1 and earlier, which never declared the field)
+#   equal   → silent fast path
+#   lower   → warn; per-feature backfills apply when we add them
+#   higher  → hard validation error; the reader is too old
+#
+# Per-feature gates (e.g. "version N introduced key X with a default Y") are
+# written when a breaking change actually lands; today there are none.
+DIAGRAM_SUPPORTED_VERSION = 1
+
+_ALLOWED_DIAGRAM_KEYS = frozenset(
+    ("_comment", "schema_version", "title", "views", "links", "theme")
+)
 _ALLOWED_VIEW_KEYS = frozenset(("id", "title", "sections", "labels"))
 _ALLOWED_SECTION_KEYS = frozenset(
     ("id", "address", "size", "name", "flags", "min_height", "max_height")
@@ -175,6 +192,34 @@ def _check_hex_or_int(value, field_path: str, errors: list) -> bool:
         )
         return False
     return True
+
+
+def _check_diagram_schema_version(value, errors: list) -> None:
+    """Validate the optional top-level ``schema_version`` in diagram.json.
+
+    Policy mirrors ``theme.py`` exactly: absent is silent legacy, equal is
+    silent, lower warns, higher is a fatal validation error. See
+    ``DIAGRAM_SUPPORTED_VERSION`` for the rationale.
+    """
+    # bool is a subclass of int; reject explicitly so ``true`` doesn't sneak through
+    if isinstance(value, bool) or not isinstance(value, int):
+        errors.append(
+            f"schema_version: must be an integer, got {type(value).__name__}"
+        )
+        return
+    if value == DIAGRAM_SUPPORTED_VERSION:
+        return
+    if value < DIAGRAM_SUPPORTED_VERSION:
+        logger.warning(
+            f"diagram.json declares schema_version {value}; "
+            f"current is {DIAGRAM_SUPPORTED_VERSION}. Some keys may be deprecated."
+        )
+        return
+    errors.append(
+        f"schema_version: diagram requires schema_version {value} but this "
+        f"mmpviz build only supports up to {DIAGRAM_SUPPORTED_VERSION}. "
+        "Upgrade mmpviz."
+    )
 
 
 def _check_additional_properties(obj: dict, allowed: frozenset,
@@ -345,6 +390,15 @@ def _check_structure(diagram: dict) -> list:
         c = diagram['_comment']
         if not isinstance(c, list) or not all(isinstance(x, str) for x in c):
             errors.append("_comment: must be a list of strings")
+    if 'schema_version' in diagram:
+        _check_diagram_schema_version(diagram['schema_version'], errors)
+    if 'theme' in diagram:
+        t = diagram['theme']
+        if not isinstance(t, (str, dict)):
+            errors.append(
+                f"theme: must be a string (built-in name) or an object "
+                f"(inline theme), got {type(t).__name__}"
+            )
 
     if 'views' in diagram:
         views = diagram['views']

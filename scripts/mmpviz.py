@@ -640,14 +640,28 @@ def main():
         print(f"Error loading diagram: {e}")
         sys.exit(1)
 
-    # Load theme: explicit -t > auto-discovered theme.json next to diagram > built-in default
-    _theme_arg = args.theme
-    if _theme_arg is None:
-        _sibling = os.path.join(os.path.dirname(os.path.abspath(args.diagram)), 'theme.json')
-        if os.path.isfile(_sibling):
-            _theme_arg = _sibling
+    # Load theme. Resolution order (first source found wins):
+    #   1. -t <name|path> on the CLI
+    #   2. embedded "theme" key in diagram.json (string alias or inline object)
+    #   3. sibling theme.json next to diagram.json (auto-discovered)
+    #   4. built-in default
+    embedded_theme = diagram.get('theme')
+    if args.theme is not None:
+        if embedded_theme is not None:
+            logger.warning(
+                "Ignoring embedded 'theme' in diagram.json because -t/--theme "
+                "was provided on the command line."
+            )
+        _theme_source = args.theme
+    elif embedded_theme is not None:
+        _theme_source = embedded_theme
+    else:
+        _sibling = os.path.join(
+            os.path.dirname(os.path.abspath(args.diagram)), 'theme.json'
+        )
+        _theme_source = _sibling if os.path.isfile(_sibling) else None
     try:
-        theme = Theme(_theme_arg)
+        theme = Theme(_theme_source)
     except (OSError, Exception) as e:
         print(f"Error loading theme: {e}")
         sys.exit(1)

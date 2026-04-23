@@ -384,9 +384,31 @@ class Theme:
 
     DEFAULT: dict = {}
 
-    def __init__(self, path: str = None):
+    # Synthetic label used in error messages when the theme is an embedded dict
+    # rather than a file on disk.
+    _EMBEDDED_LABEL = "<embedded>"
+
+    def __init__(self, source=None):
+        """Construct a Theme from a built-in name, file path, or inline dict.
+
+        Accepted shapes of ``source``:
+          * ``None``                 — load built-in default theme
+          * ``"default"``/``"plantuml"`` — load that built-in
+          * ``"/abs/or/rel/path.json"`` — load from that file
+          * ``dict``                 — treat as an inline theme document
+                                       (as if its contents were a sidecar
+                                       ``theme.json``).  Any ``extends`` value
+                                       must reference a built-in name, since
+                                       there is no on-disk anchor for relative
+                                       paths.
+        """
         self._data = {}
-        resolved = self._resolve_path_arg(path)
+        if isinstance(source, dict):
+            self._data = self._load_and_merge_dict(
+                source, self._EMBEDDED_LABEL, set()
+            )
+            return
+        resolved = self._resolve_path_arg(source)
         if resolved is not None:
             self._data = self._load_and_merge(os.path.abspath(resolved), set())
 
@@ -423,12 +445,6 @@ class Theme:
                 f"Circular theme inheritance detected: {abs_path} "
                 f"already in chain {sorted(chain)}"
             )
-        if len(chain) >= _MAX_INHERITANCE_DEPTH:
-            raise ThemeError(
-                f"Theme inheritance chain exceeds maximum depth of {_MAX_INHERITANCE_DEPTH}"
-            )
-
-        chain = chain | {abs_path}
 
         try:
             with open(abs_path, 'r', encoding='utf-8') as f:
@@ -436,9 +452,40 @@ class Theme:
         except OSError as e:
             raise ThemeError(f"Cannot open theme file '{abs_path}': {e}") from e
 
-        self._validate_schema_version(raw, abs_path)
-        self._validate_structure(raw, abs_path)
-        deep_errors = validate_theme(raw, abs_path)
+        return self._load_and_merge_dict(
+            raw, abs_path, chain, parent_dir=os.path.dirname(abs_path)
+        )
+
+    def _load_and_merge_dict(self, raw, source_label, chain, parent_dir=None):
+        """Validate ``raw`` and resolve its ``extends`` inheritance.
+
+        ``source_label`` is used only in error messages and cycle tracking —
+        it is the absolute file path when the theme came from disk, or
+        ``_EMBEDDED_LABEL`` when the theme is an inline dict.
+        ``parent_dir`` anchors relative ``extends`` values; ``None`` means the
+        theme is embedded, in which case ``extends`` must be a built-in name.
+        """
+        if source_label in chain:
+            raise ThemeError(
+                f"Circular theme inheritance detected: {source_label} "
+                f"already in chain {sorted(chain)}"
+            )
+        if len(chain) >= _MAX_INHERITANCE_DEPTH:
+            raise ThemeError(
+                f"Theme inheritance chain exceeds maximum depth of {_MAX_INHERITANCE_DEPTH}"
+            )
+
+        chain = chain | {source_label}
+
+        if not isinstance(raw, dict):
+            raise ThemeError(
+                f"Theme '{source_label}': top-level value must be an object, "
+                f"got {type(raw).__name__}"
+            )
+
+        self._validate_schema_version(raw, source_label)
+        self._validate_structure(raw, source_label)
+        deep_errors = validate_theme(raw, source_label)
         if deep_errors:
             raise ThemeError(
                 "Theme validation failed:\n  " + "\n  ".join(deep_errors)
@@ -446,12 +493,19 @@ class Theme:
 
         extends_value = raw.get("extends")
         if extends_value is not None:
+            if parent_dir is None and extends_value not in _BUILTIN_NAMES:
+                raise ThemeError(
+                    f"Theme '{source_label}': embedded themes may only extend "
+                    f"a built-in name ({sorted(_BUILTIN_NAMES)}); "
+                    f"got 'extends': {extends_value!r}. "
+                    "Use a sidecar theme.json if you need relative-path inheritance."
+                )
             parent_path = self._resolve_extends_path(
-                extends_value, os.path.dirname(abs_path)
+                extends_value, parent_dir or ""
             )
             if not os.path.isfile(parent_path):
                 raise ThemeError(
-                    f"Theme '{abs_path}' extends '{extends_value}' "
+                    f"Theme '{source_label}' extends '{extends_value}' "
                     f"but '{parent_path}' does not exist"
                 )
             parent = self._load_and_merge(parent_path, chain)

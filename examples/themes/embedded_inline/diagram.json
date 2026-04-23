@@ -1,0 +1,53 @@
+{
+  "_comment": [
+    "Embedded-theme example: the diagram is fully self-contained — the",
+    "'theme' object declares every style it needs without 'extends', so no",
+    "built-in theme is consulted. This is the most portable shape for a",
+    "Kroki-style HTTP render request: the whole render contract lives in",
+    "one JSON body."
+  ],
+  "title": "Embedded Theme — Fully Inline (no extends)",
+  "theme": {
+    "base": {
+      "background":         "#1a1a2e",
+      "fill":               "#2c3e50",
+      "break_fill":         "#1c2833",
+      "stroke":             "#e8e8e8",
+      "stroke_width":       1,
+      "stroke_dasharray":   "none",
+      "opacity":            1,
+      "font_size":          14,
+      "font_family":        "Helvetica, Arial, sans-serif",
+      "text_fill":          "#f7f7f7",
+      "text_stroke":        "none",
+      "text_stroke_width":  0,
+      "break_height":       20,
+      "min_section_height": 36,
+      "max_section_height": 300
+    },
+    "views": {
+      "soc": {
+        "sections": {
+          "flash":    { "fill": "#08c6ab" },
+          "sram":     { "fill": "#f7b32b" },
+          "periph":   { "fill": "#c5283d" },
+          "reserved": { "fill": "#5a5a6e" }
+        }
+      }
+    }
+  },
+  "views": [
+    {
+      "id": "soc",
+      "title": "SoC Memory Map",
+      "sections": [
+        { "id": "flash",    "address": "0x00000000", "size": "0x00100000", "name": "Flash (1 MiB)" },
+        { "id": "gap1",     "address": "0x00100000", "size": "0x1FF00000", "name": "···", "flags": ["break"] },
+        { "id": "sram",     "address": "0x20000000", "size": "0x00040000", "name": "SRAM (256 KiB)" },
+        { "id": "gap2",     "address": "0x20040000", "size": "0x1FFC0000", "name": "···", "flags": ["break"] },
+        { "id": "periph",   "address": "0x40000000", "size": "0x10000000", "name": "Peripherals" },
+        { "id": "reserved", "address": "0x50000000", "size": "0xB0000000", "name": "Reserved" }
+      ]
+    }
+  ]
+}

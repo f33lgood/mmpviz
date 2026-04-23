@@ -28,20 +28,24 @@ python scripts/mmpviz.py -d diagram.json -t scripts/themes/plantuml.json -o map.
 
 ### Theme Resolution Order
 
-Both `scripts/mmpviz.py` and `scripts/check.py` resolve the theme the same way.
-When `-t` is omitted, the tool looks for a `theme.json` in the same directory
-as `diagram.json` (a "sibling" theme) before falling back to the built-in
-default. Providing `-t` always short-circuits sibling discovery — the
-command-line value wins unconditionally.
+Both `scripts/mmpviz.py` and `scripts/check.py` resolve the theme from the
+first source found in this order:
 
-| `-t` flag | Sibling `theme.json` next to diagram? | Theme used |
-|-----------|---------------------------------------|------------|
-| *(omit)* | yes | sibling `theme.json` |
-| *(omit)* | no  | built-in `default` |
-| `-t <name>` (e.g. `-t plantuml`) | yes | built-in by name — sibling ignored |
-| `-t <name>` | no  | built-in by name |
-| `-t <path>` (e.g. `-t ./custom.json`) | yes | specified file — sibling ignored |
-| `-t <path>` | no  | specified file |
+1. **`-t <name|path>` on the CLI.** Always wins. If the diagram also carries
+   an embedded `theme` key, a warning is emitted and the embedded value is
+   ignored.
+2. **Embedded `theme` in `diagram.json`** (see [Embedded Theme](#embedded-theme-in-diagramjson)
+   below).
+3. **Sibling `theme.json`** in the same directory as the diagram.
+4. **Built-in `default`.**
+
+| `-t` flag | Embedded `theme` in diagram? | Sibling `theme.json`? | Theme used |
+|-----------|------------------------------|-----------------------|------------|
+| *(omit)* | no  | yes | sibling `theme.json` |
+| *(omit)* | no  | no  | built-in `default` |
+| *(omit)* | yes | *(either)* | embedded `theme` |
+| `-t <name>` (e.g. `-t plantuml`) | *(either)* | *(either)* | built-in by name — sibling and embedded ignored |
+| `-t <path>` (e.g. `-t ./custom.json`) | *(either)* | *(either)* | specified file — sibling and embedded ignored |
 
 For a project-local custom theme, place a `theme.json` next to `diagram.json`
 and extend a built-in:
@@ -52,6 +56,105 @@ and extend a built-in:
 
 No `-t` flag is needed — `mmpviz` and `check` will pick up the sibling
 automatically.
+
+---
+
+## Embedded Theme in `diagram.json`
+
+`diagram.json` also accepts an optional top-level `"theme"` key so that a
+diagram can carry its own styling inline. This is intended for **Kroki-style
+HTTP rendering services**, where the render request is a single JSON body
+and a stateless server has no filesystem to read a sidecar `theme.json`
+from. It is equally useful for one-off diagrams that an author wants to
+keep truly self-contained.
+
+The sidecar workflow is unchanged; embedded mode is purely additive.
+
+### Three shapes of the `theme` value
+
+The embedded theme behaves exactly as if its contents were written into a
+sidecar `theme.json` file and auto-discovered:
+
+**1. Built-in name (string).** Equivalent to `-t default` or `-t plantuml`.
+
+```json
+{
+  "title": "Example",
+  "theme": "plantuml",
+  "views": [ /* ... */ ]
+}
+```
+
+**2. Inline object extending a built-in.** Override just the keys you care
+about; everything else inherits from the built-in.
+
+```json
+{
+  "theme": {
+    "extends": "plantuml",
+    "base": { "stroke": "red" }
+  },
+  "views": [ /* ... */ ]
+}
+```
+
+**3. Fully inline object, no inheritance.** A complete, self-contained theme
+document — no built-in is consulted.
+
+```json
+{
+  "theme": {
+    "base":  { "fill": "#e8e8e8", "stroke": "#555555", "font_size": 14 },
+    "links": { "connector": { "fill": "gray", "opacity": 0.4 } }
+  },
+  "views": [ /* ... */ ]
+}
+```
+
+Omit `"theme"` entirely and the diagram renders with the built-in default
+(unchanged behavior).
+
+> **`schema_version` in an embedded theme is optional** — same contract as
+> in a sidecar `theme.json`. Omit it unless you are writing tooling that
+> needs to pin a specific theme-format generation; a plain object with
+> `base` / `views` / `links` keys is accepted as "legacy, no declared
+> version" and loads cleanly. The diagram itself has a separate, also
+> optional `schema_version` at its top level (see
+> [diagram-schema.md § Schema Versioning](diagram-schema.md#schema-versioning)) —
+> the two fields are independent, and diagrams predating 1.1.2 that
+> declare neither remain fully valid.
+
+### `extends` in embedded mode
+
+An embedded theme has no on-disk location, so `extends` may only reference
+a **built-in name** (`"default"` or `"plantuml"`). Relative or absolute
+file paths in `extends` are rejected with a clear error — use a sidecar
+`theme.json` when you need to inherit from a local file.
+
+### Precedence of `-t` over embedded
+
+If `-t` is passed on the CLI and the diagram also contains an embedded
+`theme`, the CLI value wins and a warning is emitted (`Ignoring embedded
+'theme' in diagram.json because -t/--theme was provided on the command
+line.`). This lets an operator force a specific theme for debugging or
+batch re-styling without editing the diagram.
+
+### Runnable examples
+
+Three end-to-end examples under `examples/themes/` demonstrate each of the
+three shapes and double as golden-file regression fixtures:
+
+| Example | Shape | Notes |
+|---------|-------|-------|
+| [`examples/themes/embedded_builtin/`](../examples/themes/embedded_builtin/) | Built-in name string | `"theme": "plantuml"` — equivalent to `-t plantuml`. |
+| [`examples/themes/embedded_extends/`](../examples/themes/embedded_extends/) | Inline object, `extends` built-in | Same output as `examples/themes/section_styles/` but with the theme inlined into the diagram instead of a sidecar `theme.json`. |
+| [`examples/themes/embedded_inline/`](../examples/themes/embedded_inline/) | Fully inline object (no `extends`) | Dark self-contained palette — no built-in is consulted. |
+
+**Authoring note.** The standard authoring workflow uses a sidecar
+`theme.json` to keep diagram semantics separate from styling. The embedded
+form is intended for transport to stateless renderers; a Kroki-style
+client can read the authored `diagram.json` + `theme.json` pair, inline
+the theme just before POSTing, and leave the authored files untouched.
 
 ---
 

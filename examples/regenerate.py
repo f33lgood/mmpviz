@@ -58,12 +58,20 @@ EXAMPLES_DIR = _HERE
 # ---------------------------------------------------------------------------
 
 def render_with_layout(example_dir: str, layout_algo: str) -> str:
-    """Render diagram.json (+ optional theme.json) and return the SVG string."""
+    """Render diagram.json (+ optional theme.json) and return the SVG string.
+
+    Theme resolution mirrors mmpviz.py main(): an embedded ``"theme"`` key in
+    the diagram is honored when no sidecar theme.json is present.
+    """
     diagram_path = os.path.join(example_dir, 'diagram.json')
     theme_path = os.path.join(example_dir, 'theme.json')
 
     diagram = load(diagram_path)
-    theme = Theme(theme_path if os.path.isfile(theme_path) else None)
+    if os.path.isfile(theme_path):
+        theme_source = theme_path
+    else:
+        theme_source = diagram.get('theme')  # may be None, str, or dict
+    theme = Theme(theme_source)
     base_style = theme.resolve('')
 
     links_config = diagram.get('links', [])

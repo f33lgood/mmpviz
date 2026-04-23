@@ -15,9 +15,32 @@ function (no runtime dependencies) and runs automatically on every render.
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `_comment` | array of strings | No | — | Optional documentation for humans; each string is one line of commentary. Ignored by mmpviz (not rendered). |
+| `schema_version` | integer | No | — | Diagram file format generation. See [Schema Versioning](#schema-versioning) below. Pre-1.1.1 diagrams omit this field and remain valid. |
 | `title` | string | No | `""` | Document title (informational only) |
 | `views` | array | Yes | — | Display viewport definitions — each view declares its own sections |
 | `links` | array | No | `[]` | Cross-view connections |
+| `theme` | string or object | No | — | Optional embedded theme. A string selects a built-in (`"default"`, `"plantuml"`); an object is an inline theme document matching `theme.schema.json`. Intended for Kroki-style HTTP rendering where the diagram must be self-contained. Precedence: `-t` on the CLI > embedded `theme` > sibling `theme.json` > built-in `default`. See the [theme schema reference — Embedded Theme](theme-schema.md#embedded-theme-in-diagramjson) for details. |
+
+### Schema Versioning
+
+`schema_version` is an optional integer at the top level of `diagram.json`.
+It mirrors the same field in `theme.json`: a reserved hook for future
+breaking format changes, not an active gate today.
+
+| Declared value | Reader behavior |
+|---|---|
+| absent | Treated as legacy; current-version semantics applied. **Full back-compat with 1.1.1 and earlier**, which never wrote this field. |
+| `1` (current `DIAGRAM_SUPPORTED_VERSION`) | Silent fast path. |
+| lower than current | Warning logged; per-feature backfills apply (none today). Diagram still renders. |
+| higher than current | **Fatal validation error** — the reader is too old to interpret future semantics safely. Upgrade mmpviz. |
+
+Today `DIAGRAM_SUPPORTED_VERSION = 1` and no per-feature gates are wired,
+so declaring `1` is purely tooling metadata. The field exists so that when
+a future release makes a breaking change to an existing key's meaning,
+older diagrams can be detected and handled explicitly instead of silently
+misrendering. The same policy is used for `schema_version` inside a
+sidecar `theme.json` or an embedded `theme` block; the two fields are
+independent (a diagram and its theme may declare different versions).
 
 ---
 
