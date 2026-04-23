@@ -142,12 +142,20 @@ def _pts_equal(p1, p2):
 # ---------------------------------------------------------------------------
 
 def render_example(example_dir):
-    """Render diagram.json + optional theme.json and return the SVG string."""
+    """Render diagram.json + optional theme.json and return the SVG string.
+
+    Theme resolution mirrors mmpviz.py main(): embedded ``"theme"`` in the
+    diagram is honored when no sidecar theme.json is present.
+    """
     diagram_path = os.path.join(example_dir, 'diagram.json')
     theme_path = os.path.join(example_dir, 'theme.json')
 
     diagram = load(diagram_path)
-    theme = Theme(theme_path if os.path.isfile(theme_path) else None)
+    if os.path.isfile(theme_path):
+        theme_source = theme_path
+    else:
+        theme_source = diagram.get('theme')  # may be None, str, or dict
+    theme = Theme(theme_source)
     base_style = theme.resolve('')
 
     links_config = diagram.get('links', [])
@@ -337,6 +345,15 @@ class GoldenTest(unittest.TestCase):
 
     def test_theme_per_link(self):
         self._run_path('themes', 'per_link')
+
+    def test_theme_embedded_builtin(self):
+        self._run_path('themes', 'embedded_builtin')
+
+    def test_theme_embedded_extends(self):
+        self._run_path('themes', 'embedded_extends')
+
+    def test_theme_embedded_inline(self):
+        self._run_path('themes', 'embedded_inline')
 
     def test_chip_arm_coresight_dual_view(self):
         self._run_path('chips', 'arm_coresight_dual_view')

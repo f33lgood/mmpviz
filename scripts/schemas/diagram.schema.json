@@ -10,6 +10,10 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "schema_version": {
+      "description": "Diagram file format generation (optional). Gating mirrors theme.schema.json: absent is treated as legacy; equal to the reader's supported version is silent; a lower value warns; a higher value is rejected. Current supported value: 1. Pre-1.1.1 diagrams that omit this field remain fully valid.",
+      "type": "integer"
+    },
     "title": {
       "description": "Document title (informational only).",
       "type": "string"
@@ -23,6 +27,13 @@
       "description": "Cross-view connections rendered as zoom bands.",
       "type": "array",
       "items": { "$ref": "#/$defs/link" }
+    },
+    "theme": {
+      "description": "Optional embedded theme. Either a built-in name ('default', 'plantuml') or an inline theme document matching theme.schema.json — useful for Kroki-style HTTP rendering where the diagram must be self-contained. When -t/--theme is given on the CLI, it takes precedence and this key is ignored with a warning.",
+      "oneOf": [
+        { "type": "string" },
+        { "$ref": "theme.schema.json" }
+      ]
     }
   },
   "$defs": {

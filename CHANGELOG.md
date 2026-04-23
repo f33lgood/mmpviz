@@ -22,6 +22,14 @@ Writing guide:
 
 ---
 
+## [2026-04-23] (1.2.0)
+
+### Added
+- **Embedded theme in `diagram.json`** — new optional top-level `theme` key, accepting either a built-in name (`"default"` / `"plantuml"`) or an inline theme object. Intended for Kroki-style HTTP rendering where the diagram must be self-contained; the sidecar `theme.json` workflow is unchanged. Precedence: `-t` on the CLI > embedded `theme` > sibling `theme.json` > built-in `default`. An embedded `extends` may reference only a built-in name, since there is no on-disk anchor for relative paths.
+- **`schema_version` in `diagram.json`** — new optional top-level integer mirroring the same field in `theme.json`. Reader policy: absent = legacy (full back-compat with 1.1.1 and earlier), equal to supported = silent, lower = warn, higher = fatal validation error. Current `DIAGRAM_SUPPORTED_VERSION = 1`; no per-feature gates are wired yet — the slot is reserved so future breaking diagram-format changes can be detected instead of silently misrendering.
+
+---
+
 ## [2026-04-21] (1.1.1)
 
 ### Changed
